@@ -1,0 +1,66 @@
+<div class="sidebar-head">
+  <h2 class="section-label">Verbindingen</h2>
+  <button
+    type="button"
+    class="icon-btn"
+    aria-label="Nieuwe verbinding"
+    (click)="store.editor.set({ mode: 'new' })"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  </button>
+</div>
+
+<div class="sidebar-search">
+  <label for="zoek" class="visually-hidden">Zoek verbinding</label>
+  <input
+    id="zoek"
+    type="search"
+    class="input"
+    placeholder="Zoek verbinding…"
+    (input)="onSearch($event)"
+  />
+</div>
+
+<ul class="conn-list" aria-label="Opgeslagen verbindingen">
+  @for (c of filtered(); track c.id) {
+    @let status = store.statusOf(c.id);
+    <li>
+      <button
+        type="button"
+        class="conn-item"
+        [class.active]="store.activeId() === c.id"
+        [attr.aria-current]="store.activeId() === c.id ? 'true' : null"
+        [title]="'Dubbelklik of Enter om te verbinden met ' + c.name"
+        (click)="select(c.id)"
+        (dblclick)="store.connect(c.id)"
+        (keydown.enter)="store.connect(c.id)"
+      >
+        <span class="color-bar" [class]="'color-bar color-' + c.color"></span>
+        <span class="conn-text">
+          <span class="conn-name">{{ c.name }}</span>
+          <span class="mono muted small"
+            >{{ c.host }}:{{ c.port }}{{ c.database ? ' / ' + c.database : '' }}</span
+          >
+        </span>
+        <span class="status" [class]="'status status-' + status">
+          <span class="dot"></span>{{ label[status] }}
+        </span>
+      </button>
+    </li>
+  } @empty {
+    <li class="muted small empty">
+      {{ query() ? 'Geen verbinding gevonden.' : 'Nog geen verbindingen.' }}
+    </li>
+  }
+</ul>

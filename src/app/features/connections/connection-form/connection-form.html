@@ -1,0 +1,200 @@
+<dialog #dialog class="dialog" aria-labelledby="dlg-title" (close)="onDialogClose()">
+  <div class="dialog-head">
+    <h2 id="dlg-title">{{ isEdit ? 'Verbinding bewerken' : 'Nieuwe verbinding' }}</h2>
+    <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="close()">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  </div>
+
+  <form class="dialog-body" [formGroup]="form" (ngSubmit)="save(true)" novalidate>
+    <fieldset class="field">
+      <legend class="field-label">Databasetype</legend>
+      <div class="segmented">
+        <button type="button" aria-pressed="true" class="seg active">MySQL / MariaDB</button>
+        <button type="button" aria-pressed="false" class="seg" disabled>PostgreSQL · later</button>
+        <button type="button" aria-pressed="false" class="seg" disabled>SQL Server · later</button>
+        <button type="button" aria-pressed="false" class="seg" disabled>SQLite · later</button>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label for="f-name" class="field-label">Naam</label>
+      <input
+        id="f-name"
+        class="input"
+        formControlName="name"
+        placeholder="bijv. lokaal-dev"
+        [class.invalid]="invalid('name')"
+      />
+      @if (invalid('name')) {
+        <span class="field-error">Geef de verbinding een naam.</span>
+      }
+    </div>
+
+    <div class="grid-host">
+      <div class="field">
+        <label for="f-host" class="field-label">Host</label>
+        <input
+          id="f-host"
+          class="input mono"
+          formControlName="host"
+          [class.invalid]="invalid('host')"
+        />
+      </div>
+      <div class="field">
+        <label for="f-port" class="field-label">Poort</label>
+        <input
+          id="f-port"
+          class="input mono"
+          type="number"
+          formControlName="port"
+          [class.invalid]="invalid('port')"
+        />
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="f-db" class="field-label"
+          >Database <span class="muted">(optioneel)</span></label
+        >
+        <input id="f-db" class="input mono" formControlName="database" />
+      </div>
+      <div class="field">
+        <label for="f-user" class="field-label">Gebruiker</label>
+        <input
+          id="f-user"
+          class="input mono"
+          formControlName="user"
+          autocomplete="off"
+          [class.invalid]="invalid('user')"
+        />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="f-pw" class="field-label">Wachtwoord</label>
+      <div class="row">
+        <input
+          id="f-pw"
+          class="input grow"
+          [type]="showPassword() ? 'text' : 'password'"
+          formControlName="password"
+          autocomplete="new-password"
+          [placeholder]="profile()?.hasPassword ? 'Opgeslagen — leeg laten om te behouden' : ''"
+        />
+        <button
+          type="button"
+          class="icon-btn"
+          [attr.aria-label]="showPassword() ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'"
+          [attr.aria-pressed]="showPassword()"
+          (click)="showPassword.set(!showPassword())"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
+      </div>
+      <label class="check muted">
+        <input type="checkbox" formControlName="savePassword" />
+        Versleuteld opslaan in de sleutelhanger
+        @if (!encryptionAvailable()) {
+          <span>(niet beschikbaar op dit systeem)</span>
+        }
+      </label>
+    </div>
+
+    <div class="row wrap">
+      <label class="check">
+        <input type="checkbox" formControlName="ssl" />
+        SSL gebruiken
+      </label>
+      <label class="check muted">
+        <input type="checkbox" formControlName="allowSelfSigned" />
+        Self-signed certificaat toestaan
+      </label>
+      <div class="swatches" role="radiogroup" aria-label="Kleurlabel">
+        @for (c of colors; track c.value) {
+          <label class="swatch" [class]="'swatch color-' + c.value" [title]="c.label">
+            <input
+              type="radio"
+              formControlName="color"
+              [value]="c.value"
+              [attr.aria-label]="c.label"
+            />
+          </label>
+        }
+      </div>
+    </div>
+
+    @if (feedback(); as f) {
+      @if (f.kind === 'ok') {
+        <div class="banner banner-ok" role="status">
+          <strong>Verbinding gelukt</strong>
+          <span class="mono small">{{ f.result.latencyMs }} ms · {{ f.result.serverVersion }}</span>
+        </div>
+      } @else {
+        <div class="banner banner-error" role="alert">
+          <strong>{{ f.error.message }}</strong>
+          @if (f.error.hint) {
+            <span class="small">{{ f.error.hint }}</span>
+          }
+        </div>
+      }
+    }
+  </form>
+
+  <div class="dialog-foot">
+    <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="test()">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M13 2L4 14h7l-1 8 9-12h-7z" />
+      </svg>
+      {{ busy() === 'test' ? 'Testen…' : 'Test verbinding' }}
+    </button>
+    @if (isEdit) {
+      <button type="button" class="btn btn-danger-ghost" [disabled]="busy()" (click)="remove()">
+        Verwijderen
+      </button>
+    }
+    <span class="grow"></span>
+    <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
+    <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="save(false)">
+      Opslaan
+    </button>
+    <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="save(true)">
+      Opslaan en verbinden
+    </button>
+  </div>
+</dialog>

@@ -1,0 +1,117 @@
+<div class="intro">
+  <h1>Kies een verbinding of maak een nieuwe</h1>
+  <p class="muted">
+    Dubbelklik in de lijst om te verbinden.
+    @if (store.encryptionAvailable()) {
+      Wachtwoorden worden versleuteld opgeslagen in de sleutelhanger van je besturingssysteem.
+    } @else {
+      De sleutelhanger is niet beschikbaar: wachtwoorden worden niet opgeslagen en per verbinding
+      gevraagd.
+    }
+  </p>
+</div>
+
+@if (store.loadError(); as error) {
+  <div class="banner banner-error" role="alert">
+    <strong>{{ error.message }}</strong>
+    @if (error.hint) {
+      <span>{{ error.hint }}</span>
+    }
+  </div>
+}
+
+<div class="row">
+  <button type="button" class="btn btn-primary btn-lg" (click)="store.editor.set({ mode: 'new' })">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+    Nieuwe verbinding
+  </button>
+</div>
+
+@if (store.connections().length) {
+  <section aria-labelledby="saved-title" class="stack">
+    <h2 id="saved-title" class="section-label">Opgeslagen</h2>
+    <div class="card-grid">
+      @for (c of store.connections(); track c.id) {
+        @let status = store.statusOf(c.id);
+        @let error = store.errors()[c.id];
+        <article class="card" [class.card-error]="status === 'error'">
+          <div class="card-head">
+            <span class="badge">MySQL</span>
+            <span class="status" [class]="'status status-' + status"
+              ><span class="dot"></span>{{ label[status] }}</span
+            >
+          </div>
+          <div class="card-body">
+            <span class="card-title">{{ c.name }}</span>
+            @if (status === 'error' && error) {
+              <span class="error-text">{{ error.message }} {{ error.hint }}</span>
+            } @else {
+              <span class="mono muted small">{{ address(c) }}</span>
+            }
+          </div>
+          <div class="card-actions">
+            @switch (status) {
+              @case ('connected') {
+                <button
+                  type="button"
+                  class="btn btn-secondary grow"
+                  (click)="store.activeId.set(c.id)"
+                >
+                  Openen
+                </button>
+                <button type="button" class="btn btn-ghost grow" (click)="store.disconnect(c.id)">
+                  Verbreken
+                </button>
+              }
+              @case ('connecting') {
+                <button type="button" class="btn btn-secondary grow" disabled>Verbinden…</button>
+              }
+              @default {
+                <button
+                  type="button"
+                  class="btn grow"
+                  [class.btn-primary]="status === 'idle'"
+                  [class.btn-secondary]="status === 'error'"
+                  (click)="store.connect(c.id)"
+                >
+                  {{ status === 'error' ? 'Opnieuw proberen' : 'Verbinden' }}
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  [attr.aria-label]="'Bewerk ' + c.name"
+                  (click)="store.editor.set({ mode: 'edit', profile: c })"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 20h4L19 9l-4-4L4 16z" />
+                  </svg>
+                </button>
+              }
+            }
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+}

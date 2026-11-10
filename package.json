@@ -1,0 +1,72 @@
+{
+  "name": "db-viewer",
+  "version": "0.1.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "npm run dev",
+    "dev": "concurrently -k -n ng,electron -c blue,green \"ng serve --port 4200\" \"npm:dev:electron\"",
+    "dev:electron": "npm run build:electron && wait-on http://localhost:4200 && cross-env DB_VIEWER_DEV_URL=http://localhost:4200 electron .",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build": "ng build && npm run build:electron",
+    "start:prod": "npm run build && electron .",
+    "dist": "npm run build && electron-builder",
+    "typecheck": "tsc -p tsconfig.electron.json && tsc -p tsconfig.app.json --noEmit",
+    "test": "npm run test:electron && ng test --watch=false",
+    "test:electron": "vitest run --config vitest.electron.config.mts",
+    "test:integration": "cross-env MYSQL_TEST_HOST=127.0.0.1 vitest run --config vitest.electron.config.mts electron/db/mysql.integration.spec.ts"
+  },
+  "private": true,
+  "packageManager": "npm@10.9.9",
+  "dependencies": {
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "mysql2": "^3.24.6",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.6",
+    "@angular/cli": "^22.2.6",
+    "@angular/compiler-cli": "^22.2.0",
+    "@types/node": "^26.6.6",
+    "concurrently": "^10.0.7",
+    "cross-env": "^10.1.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0",
+    "wait-on": "^9.5.1"
+  },
+  "description": "Database viewer met Angular, Electron en Node.js",
+  "main": "dist-electron/main.js",
+  "build": {
+    "appId": "io.github.stijndus.dbviewer",
+    "productName": "DB Viewer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/db-viewer/browser/**",
+      "dist-electron/**",
+      "!dist-electron/**/*.map",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
