@@ -28,5 +28,8 @@ function browserFallback(): DbApi {
     testConnection: fail,
     connect: fail,
     disconnect: fail,
+    listDatabases: fail,
+    listObjects: fail,
+    listColumns: fail,
   };
 }

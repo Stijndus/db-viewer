@@ -20,6 +20,9 @@ function fakeDriver() {
       const session: DbSession = {
         serverVersion: async () => '8.0.40',
         query: async () => ({ rows: [], fields: [] }),
+        listDatabases: async () => [],
+        listObjects: async () => [],
+        listColumns: async () => [],
         close: async () => closed(),
       };
       return session;

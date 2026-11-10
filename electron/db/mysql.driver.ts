@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
+import * as meta from './mysql.metadata';
 
 export const CONNECT_TIMEOUT_MS = 8000;
 
@@ -27,19 +28,23 @@ export const mysqlDriver: DbDriver = {
 
   async open(cfg: ConnectionConfig): Promise<DbSession> {
     const pool = mysql.createPool(createPoolOptions(cfg));
+    let version: string;
     try {
       // The pool connects lazily; this forces a real connection and login.
-      await pool.query('SELECT 1');
+      version = await readVersion(pool);
     } catch (err) {
       await pool.end().catch(() => undefined);
       throw err;
     }
 
+    // MariaDB reports metadata slightly differently (see mysql.metadata.ts).
+    const isMariaDb = /mariadb/i.test(version);
+
     return {
-      async serverVersion() {
-        const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT VERSION() AS v');
-        return String(rows[0]?.['v'] ?? 'onbekend');
-      },
+      serverVersion: () => readVersion(pool),
+      listDatabases: () => meta.listDatabases(pool),
+      listObjects: (database) => meta.listObjects(pool, database),
+      listColumns: (database, table) => meta.listColumns(pool, database, table, isMariaDb),
       async query(sql, params) {
         const [rows, fields] = await pool.query(sql, params);
         return {
@@ -51,3 +56,8 @@ export const mysqlDriver: DbDriver = {
     };
   },
 };
+
+async function readVersion(pool: mysql.Pool): Promise<string> {
+  const [rows] = await pool.query<mysql.RowDataPacket[]>('SELECT VERSION() AS v');
+  return String(rows[0]?.['v'] ?? 'onbekend');
+}

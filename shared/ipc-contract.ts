@@ -1,8 +1,11 @@
 import type {
+  ColumnInfo,
   ConnectionInput,
   ConnectionProfile,
   ConnectResult,
+  DatabaseInfo,
   Result,
+  SchemaObject,
   TestResult,
 } from './models';
 
@@ -15,6 +18,9 @@ export const IPC = {
   connect: 'db:connect',
   disconnect: 'db:disconnect',
   appInfo: 'app:info',
+  listDatabases: 'schema:databases',
+  listObjects: 'schema:objects',
+  listColumns: 'schema:columns',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -35,4 +41,12 @@ export interface DbApi {
   /** Opens a pooled session. `password` is only needed when none is stored. */
   connect(id: string, password?: string): Promise<Result<ConnectResult>>;
   disconnect(id: string): Promise<Result<void>>;
+
+  // Schema browsing on an open connection (step 2).
+  /** Databases the connected user can see, sorted by name. */
+  listDatabases(connectionId: string): Promise<Result<DatabaseInfo[]>>;
+  /** Tables, views and routines in one database. */
+  listObjects(connectionId: string, database: string): Promise<Result<SchemaObject[]>>;
+  /** Columns of one table or view, in table order. */
+  listColumns(connectionId: string, database: string, table: string): Promise<Result<ColumnInfo[]>>;
 }

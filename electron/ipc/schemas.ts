@@ -18,3 +18,13 @@ export const connectionInputSchema = z.object({
 
 export const optionalIdSchema = idSchema.optional();
 export const optionalPasswordSchema = z.string().max(1024).optional();
+
+/**
+ * A database, table or view name. MySQL allows almost any character (spaces, quotes, unicode),
+ * so no trimming or pattern: names only travel as query parameters, never as SQL text.
+ */
+export const identifierSchema = z
+  .string()
+  .min(1, 'Naam ontbreekt')
+  .max(64, 'Naam is langer dan 64 tekens')
+  .refine((s) => !s.includes('\0'), 'Ongeldig teken in naam');

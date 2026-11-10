@@ -1,4 +1,10 @@
-import type { ConnectionInput, DbType } from '../../shared/models';
+import type {
+  ColumnInfo,
+  ConnectionInput,
+  DatabaseInfo,
+  DbType,
+  SchemaObject,
+} from '../../shared/models';
 
 /** Everything a driver needs to open a connection, password resolved. */
 export type ConnectionConfig = Omit<
@@ -18,6 +24,11 @@ export interface DbSession {
   serverVersion(): Promise<string>;
   query(sql: string, params?: unknown[]): Promise<QueryResult>;
   close(): Promise<void>;
+
+  // Metadata. Each driver answers these in its own dialect.
+  listDatabases(): Promise<DatabaseInfo[]>;
+  listObjects(database: string): Promise<SchemaObject[]>;
+  listColumns(database: string, table: string): Promise<ColumnInfo[]>;
 }
 
 export interface DbDriver {

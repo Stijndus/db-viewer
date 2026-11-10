@@ -61,3 +61,36 @@ export interface DbError {
 }
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: DbError };
+
+// ── Schema (step 2) ────────────────────────────────────────────────
+
+export interface DatabaseInfo {
+  name: string;
+  /** information_schema, mysql, performance_schema, sys: hidden by default. */
+  system: boolean;
+}
+
+export type ObjectKind = 'table' | 'view' | 'procedure' | 'function';
+
+export interface SchemaObject {
+  name: string;
+  kind: ObjectKind;
+  /** Estimated row count for tables (InnoDB statistics, not exact). Null when unknown. */
+  rowEstimate: number | null;
+  comment: string;
+}
+
+export type ColumnKey = 'primary' | 'unique' | 'index' | null;
+
+export interface ColumnInfo {
+  name: string;
+  /** Full declared type, e.g. `varchar(255)`, `decimal(10,2) unsigned`, `enum('a','b')`. */
+  type: string;
+  nullable: boolean;
+  key: ColumnKey;
+  /** Default as SQL text, or null when there is no default. */
+  defaultValue: string | null;
+  /** e.g. `auto_increment`, `on update CURRENT_TIMESTAMP`, `VIRTUAL GENERATED`. */
+  extra: string;
+  comment: string;
+}

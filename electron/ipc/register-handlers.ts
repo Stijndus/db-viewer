@@ -6,6 +6,7 @@ import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import { toDbError } from './errors';
 import {
   connectionInputSchema,
+  identifierSchema,
   idSchema,
   optionalIdSchema,
   optionalPasswordSchema,
@@ -63,4 +64,17 @@ export function registerHandlers(deps: HandlerDeps): void {
   );
 
   handle(IPC.disconnect, (rawId) => manager.disconnect(idSchema.parse(rawId)));
+
+  // Schema browsing: always on an already open session, never opens a new connection.
+  handle(IPC.listDatabases, (rawId) => manager.session(idSchema.parse(rawId)).listDatabases());
+
+  handle(IPC.listObjects, (rawId, rawDb) =>
+    manager.session(idSchema.parse(rawId)).listObjects(identifierSchema.parse(rawDb)),
+  );
+
+  handle(IPC.listColumns, (rawId, rawDb, rawTable) =>
+    manager
+      .session(idSchema.parse(rawId))
+      .listColumns(identifierSchema.parse(rawDb), identifierSchema.parse(rawTable)),
+  );
 }

@@ -1,7 +1,7 @@
 # DB Viewer
 
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
-Stap 1 is klaar: MySQL/MariaDB-verbindingen aanmaken, testen, opslaan en openen.
+Klaar: MySQL/MariaDB-verbindingen beheren (stap 1) en het schema verkennen (stap 2).
 
 ## Snel starten
 
@@ -66,14 +66,14 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 ```
 electron/        main-proces: main.ts, preload.ts, db/, ipc/, store/
 shared/          types en IPC-contract, gedeeld door Electron en Angular
-src/app/         Angular-UI: core/db-api.ts, features/connections/
+src/app/         Angular-UI: core/db-api.ts, features/connections/, features/schema/
 scripts/         build van de Electron-bundels, test-database
 ```
 
 ## Volgende stappen
 
 1. ~~Verbinding maken (MySQL)~~
-2. Schema-boom: databases, tabellen, views, kolommen
+2. ~~Schema-boom: databases, tabellen, views, kolommen~~
 3. Tabeldata met paginering en virtual scroll
 4. SQL-editor met resultaatgrid
 5. Meer drivers: PostgreSQL, SQL Server, SQLite

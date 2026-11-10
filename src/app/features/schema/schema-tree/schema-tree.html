@@ -1,0 +1,236 @@
+@if (conn(); as c) {
+  <div class="tree-head">
+    <button type="button" class="link-btn" (click)="connections.activeId.set(null)">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M15 6l-6 6 6 6" />
+      </svg>
+      Verbindingen
+    </button>
+    <div class="tree-title">
+      <h2 class="section-label">Schema</h2>
+      <button
+        type="button"
+        class="icon-btn borderless"
+        aria-label="Schema vernieuwen"
+        title="Vernieuwen"
+        (click)="schema.refresh(c.id)"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+          <path d="M20 4v7h-7" />
+        </svg>
+      </button>
+    </div>
+    <label for="tree-filter" class="visually-hidden">Filter tabellen</label>
+    <input
+      id="tree-filter"
+      type="search"
+      class="input"
+      placeholder="Filter tabellen…"
+      [value]="schema.filter()"
+      (input)="schema.filter.set($any($event.target).value)"
+    />
+    @if (hiddenSystemCount() > 0 || schema.showSystem()) {
+      <label class="check muted small">
+        <input
+          type="checkbox"
+          [checked]="schema.showSystem()"
+          (change)="schema.showSystem.set($any($event.target).checked)"
+        />
+        Systeemdatabases tonen
+      </label>
+    }
+  </div>
+
+  <ul class="tree" role="tree" [attr.aria-label]="'Schema van ' + c.name">
+    @for (row of rows(); track row.key) {
+      <li
+        role="treeitem"
+        class="tree-row"
+        [style.padding-left.px]="(row.level - 1) * 14 + 8"
+        [attr.aria-level]="row.level"
+        [attr.aria-expanded]="ariaExpanded(row)"
+        [attr.aria-selected]="row.type === 'object' ? row.selected : null"
+      >
+        @switch (row.type) {
+          @case ('db') {
+            <button
+              type="button"
+              class="tree-main"
+              [attr.data-level]="row.level"
+              (click)="activate(row)"
+              (keydown)="onKeydown($event, row)"
+            >
+              <span class="chev" [class.open]="row.expanded" aria-hidden="true"></span>
+              <svg
+                class="ti"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                aria-hidden="true"
+              >
+                <ellipse cx="12" cy="5" rx="8" ry="3" />
+                <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+              </svg>
+              <span class="tl" [class.muted]="row.db.system">{{ row.db.name }}</span>
+            </button>
+          }
+          @case ('group') {
+            <button
+              type="button"
+              class="tree-main"
+              [attr.data-level]="row.level"
+              (click)="activate(row)"
+              (keydown)="onKeydown($event, row)"
+            >
+              <span class="chev" [class.open]="row.expanded" aria-hidden="true"></span>
+              <span class="tl muted">{{ row.label }}</span>
+              <span class="count">{{ row.count }}</span>
+            </button>
+          }
+          @case ('object') {
+            @if (hasColumns(row)) {
+              <button
+                type="button"
+                class="chev-btn"
+                tabindex="-1"
+                [attr.aria-label]="
+                  (row.expanded ? 'Kolommen verbergen van ' : 'Kolommen tonen van ') + row.obj.name
+                "
+                (click)="toggleColumns(row)"
+              >
+                <span class="chev" [class.open]="row.expanded" aria-hidden="true"></span>
+              </button>
+            } @else {
+              <span class="chev-spacer"></span>
+            }
+            <button
+              type="button"
+              class="tree-main mono"
+              [class.selected]="row.selected"
+              [attr.data-level]="row.level"
+              [disabled]="!hasColumns(row)"
+              [title]="row.obj.comment || row.obj.name"
+              (click)="activate(row)"
+              (keydown)="onKeydown($event, row)"
+            >
+              @switch (icon(row.obj.kind)) {
+                @case ('table') {
+                  <svg
+                    class="ti"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M3 10h18M9 10v10" />
+                  </svg>
+                }
+                @case ('view') {
+                  <svg
+                    class="ti"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    aria-hidden="true"
+                  >
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                }
+                @default {
+                  <svg
+                    class="ti"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-3 3 2 0 3 1.5 3 3v2c0 2 1 3 3 3M16 4c2 0 3 1 3 3v2c0 1.5 1 3 3 3-2 0-3 1.5-3 3v2c0 2-1 3-3 3"
+                    />
+                  </svg>
+                }
+              }
+              <span class="tl">{{ row.obj.name }}</span>
+              @if (row.obj.kind === 'function') {
+                <span class="count">fn</span>
+              }
+            </button>
+          }
+          @case ('column') {
+            <span class="tree-col mono">
+              @if (row.col.key === 'primary') {
+                <svg
+                  class="ti key"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-label="Primaire sleutel"
+                  role="img"
+                >
+                  <circle cx="8" cy="15" r="4" />
+                  <path d="M11 12l9-9M17 6l3 3" />
+                </svg>
+              } @else {
+                <span class="col-dot" aria-hidden="true"></span>
+              }
+              <span class="tl">{{ row.col.name }}</span>
+              <span class="ctype">{{ row.col.type }}</span>
+            </span>
+          }
+          @case ('status') {
+            <span
+              class="tree-status"
+              [class.error-text]="row.state === 'error'"
+              [attr.role]="row.state === 'error' ? 'alert' : null"
+            >
+              {{ row.text }}
+              @if (row.hint) {
+                <span class="muted small">{{ row.hint }}</span>
+              }
+            </span>
+          }
+        }
+      </li>
+    }
+  </ul>
+}

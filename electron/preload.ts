@@ -10,6 +10,9 @@ const api: DbApi = {
   testConnection: (input, id) => ipcRenderer.invoke(IPC.testConnection, input, id),
   connect: (id, password) => ipcRenderer.invoke(IPC.connect, id, password),
   disconnect: (id) => ipcRenderer.invoke(IPC.disconnect, id),
+  listDatabases: (id) => ipcRenderer.invoke(IPC.listDatabases, id),
+  listObjects: (id, database) => ipcRenderer.invoke(IPC.listObjects, id, database),
+  listColumns: (id, database, table) => ipcRenderer.invoke(IPC.listColumns, id, database, table),
 };
 
 contextBridge.exposeInMainWorld('dbApi', api);

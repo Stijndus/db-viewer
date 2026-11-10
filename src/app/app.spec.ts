@@ -35,4 +35,49 @@ describe('App', () => {
     expect(el.querySelector('h1')?.textContent).toContain('Verbonden met lokaal-dev');
     expect(el.querySelector('.pill-connected')?.textContent).toContain('lokaal-dev');
   });
+
+  it('shows the schema tree and opens a table structure', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    (el.querySelector('.card .btn-primary') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const rowTexts = () =>
+      Array.from(el.querySelectorAll('.tree-row')).map((r) =>
+        Array.from(r.querySelectorAll('.tl, .count'))
+          .map((s) => s.textContent?.trim())
+          .join(' '),
+      );
+    // Profile database open with its tables; system databases hidden by default.
+    expect(rowTexts()).toEqual([
+      'app_dev',
+      'Tabellen 2',
+      'customers',
+      'orders',
+      'Views 1',
+      'Routines 1',
+      'shop',
+    ]);
+
+    const customers = Array.from(el.querySelectorAll<HTMLButtonElement>('.tree-main')).find((b) =>
+      b.textContent?.includes('customers'),
+    )!;
+    customers.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(el.querySelector('.object-title')?.textContent).toContain('customers');
+    expect(el.querySelector('.object-head')?.textContent).toContain('Klanten');
+    const cells = Array.from(el.querySelectorAll('.grid tbody tr')).map((r) =>
+      r.children[1]?.textContent?.trim(),
+    );
+    expect(cells).toEqual(['id', 'email', 'status']);
+    expect(el.querySelector('.key-tag.pk')?.textContent).toContain('PK');
+  });
 });

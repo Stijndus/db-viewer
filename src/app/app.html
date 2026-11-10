@@ -20,6 +20,10 @@
         ><span class="dot"></span>{{ active.name
         }}{{ active.database ? ' · ' + active.database : '' }}</span
       >
+      <span class="push"></span>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="store.disconnect(active.id)">
+        Verbreken
+      </button>
     } @else {
       <span class="muted small">Geen actieve verbinding</span>
     }
@@ -27,29 +31,20 @@
 
   <div class="body">
     <aside class="sidebar">
-      <app-connection-list />
+      @if (store.active()) {
+        <app-schema-tree />
+      } @else {
+        <app-connection-list />
+      }
     </aside>
 
     <main class="main">
       @if (store.active(); as active) {
-        <div class="intro">
-          <h1>Verbonden met {{ active.name }}</h1>
-          <p class="mono muted">{{ address(active) }} · {{ store.serverVersions()[active.id] }}</p>
-        </div>
-        <div class="placeholder">
-          <strong>Schema-boom en tabeldata volgen in stap 2 en 3.</strong>
-          <span class="muted"
-            >De verbinding staat open in het main-proces en is klaar voor queries.</span
-          >
-        </div>
-        <div class="row">
-          <button type="button" class="btn btn-secondary" (click)="store.activeId.set(null)">
-            Terug naar overzicht
-          </button>
-          <button type="button" class="btn btn-ghost" (click)="store.disconnect(active.id)">
-            Verbreken
-          </button>
-        </div>
+        @if (selectedInActive(); as object) {
+          <app-object-structure [object]="object" />
+        } @else {
+          <app-connection-home [connection]="active" />
+        }
       } @else {
         <app-connections-overview />
       }
