@@ -5,6 +5,8 @@ Stap 1 is klaar: MySQL/MariaDB-verbindingen aanmaken, testen, opslaan en openen.
 
 ## Snel starten
 
+Vereist **Node.js 24 LTS** (of 22.22.3+). Controleer met `node --version`.
+
 ```bash
 npm install
 npm run dev        # Angular dev-server + Electron-venster
