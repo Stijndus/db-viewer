@@ -3,6 +3,13 @@
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
 Klaar: MySQL/MariaDB-verbindingen beheren (stap 1) en het schema verkennen (stap 2).
 
+## Downloaden
+
+Kant-en-klare Windows-versies staan bij [Releases](https://github.com/Stijndus/db-viewer/releases/latest):
+een installer (`DB-Viewer-Setup-x.y.z.exe`) en een portable versie zonder installatie
+(`DB-Viewer-x.y.z-portable.exe`). De app is nog niet ondertekend: bij de melding van SmartScreen
+klik je op **Meer info** en **Toch uitvoeren**.
+
 ## Snel starten
 
 Vereist **Node.js 24 LTS** (of 22.22.3+). Controleer met `node --version`.
@@ -40,6 +47,20 @@ npm run test:integration
 ```
 
 De CI-workflow doet hetzelfde tegen een MySQL 8.4-container.
+
+## Releases
+
+Elke afgeronde stap krijgt een release: stap *N* wordt versie `0.N.0`. Een versietag start de
+workflow `.github/workflows/release.yml`, die op Windows test, bouwt en de `.exe`-bestanden publiceert.
+
+```bash
+# 1. Release notes schrijven in .github/release-notes/v0.3.0.md (optioneel; anders automatisch)
+# 2. Versie ophogen, committen en taggen, dan pushen:
+npm version 0.3.0 -m "Release v%s"
+git push --follow-tags
+```
+
+De workflow stopt als de tag niet overeenkomt met de versie in `package.json`.
 
 ## Architectuur
 

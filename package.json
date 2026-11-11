@@ -1,6 +1,6 @@
 {
   "name": "db-viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "scripts": {
     "ng": "ng",
     "start": "npm run dev",
@@ -18,21 +18,18 @@
   "private": true,
   "packageManager": "npm@10.9.9",
   "dependencies": {
-    "@angular/common": "^22.2.0",
-    "@angular/compiler": "^22.2.0",
-    "@angular/core": "^22.2.0",
-    "@angular/forms": "^22.2.0",
-    "@angular/platform-browser": "^22.2.0",
-    "@angular/router": "^22.2.0",
-    "mysql2": "^3.24.6",
-    "rxjs": "~7.8.0",
-    "tslib": "^2.3.0",
-    "zod": "^4.6.7"
+    "mysql2": "^3.24.6"
   },
   "devDependencies": {
     "@angular/build": "^22.2.6",
     "@angular/cli": "^22.2.6",
+    "@angular/common": "^22.2.5",
+    "@angular/compiler": "^22.2.5",
     "@angular/compiler-cli": "^22.2.0",
+    "@angular/core": "^22.2.5",
+    "@angular/forms": "^22.2.5",
+    "@angular/platform-browser": "^22.2.5",
+    "@angular/router": "^22.2.5",
     "@types/node": "^26.6.6",
     "concurrently": "^10.0.7",
     "cross-env": "^10.1.0",
@@ -41,17 +38,22 @@
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.0",
     "prettier": "^3.8.1",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.9.1",
     "typescript": "~6.0.2",
     "vitest": "^5.0.0",
-    "wait-on": "^9.5.1"
+    "wait-on": "^9.5.1",
+    "zod": "^4.6.7"
   },
   "description": "Database viewer met Angular, Electron en Node.js",
   "main": "dist-electron/main.js",
   "build": {
     "appId": "io.github.stijndus.dbviewer",
     "productName": "DB Viewer",
+    "copyright": "Copyright © 2026 Stijndus",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/db-viewer/browser/**",
@@ -60,16 +62,44 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DB Viewer",
+      "artifactName": "DB-Viewer-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "DB-Viewer-${version}-portable.exe"
     },
     "mac": {
       "target": "dmg"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "category": "Development"
     }
   },
   "engines": {
     "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
-  }
+  },
+  "author": "Stijndus"
 }
