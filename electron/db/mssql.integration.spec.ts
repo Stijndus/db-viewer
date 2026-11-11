@@ -57,8 +57,9 @@ describe.skipIf(!host)('mssqlDriver connecting', () => {
   it('maps a wrong password, a missing database and a closed port', async () => {
     const pw = await errorOf(mssqlDriver.open({ ...base, password: 'fout' }));
     expect(pw).toMatchObject({ code: 'MSSQL_18456', message: 'Inloggen mislukt.' });
+    // SQL Server usually hides a missing database behind the login failure.
     const db = await errorOf(mssqlDriver.open({ ...base, database: 'bestaat_niet' }));
-    expect(db.code).toBe('MSSQL_4060');
+    expect(['MSSQL_4060', 'MSSQL_18456']).toContain(db.code);
     const closed = await errorOf(mssqlDriver.open({ ...base, port: 1 }));
     expect(closed.code).toBe('ECONNREFUSED');
   });

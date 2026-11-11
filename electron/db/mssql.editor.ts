@@ -1,6 +1,6 @@
 import sql from 'mssql';
 import type { RunRequest, RunResult, StatementResult } from '../../shared/models';
-import { readOnlyViolation } from '../../shared/sql';
+import { classify, readOnlyViolation } from '../../shared/sql';
 import { AppError, toSqlError } from '../ipc/errors';
 import { HARD_ROW_CAP, toCell } from './common';
 import { columnType, mssqlError, mssqlValue, poolConfig } from './mssql.common';
@@ -81,6 +81,9 @@ export class MssqlEditorSessions {
       request.arrayRowMode = true;
       editor.running = request;
       const before = results.length;
+      // Variable assignments (DECLARE @x = 1, SELECT @x = ...) also report "1 row"; only batches
+      // that write show row counts.
+      const writes = classify(batch, 'mssql').kind === 'write';
 
       let current: Extract<StatementResult, { kind: 'rows' }> | null = null;
       let types: string[] = [];
@@ -121,6 +124,7 @@ export class MssqlEditorSessions {
           current = null; // the DONE of a SELECT: its row count, not a write
           return;
         }
+        if (!writes) return;
         results.push({
           kind: 'ok',
           index,

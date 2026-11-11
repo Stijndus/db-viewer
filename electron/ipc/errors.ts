@@ -130,7 +130,7 @@ const KNOWN: Record<string, KnownError> = {
   // SQL Server (error numbers).
   MSSQL_18456: {
     message: 'Inloggen mislukt.',
-    hint: 'Controleer gebruiker en wachtwoord, en of SQL Server-authenticatie aan staat.',
+    hint: 'Controleer gebruiker en wachtwoord, of de database bestaat en de gebruiker er toegang toe heeft, en of SQL Server-authenticatie aan staat.',
   },
   MSSQL_4060: {
     message: 'Database bestaat niet of je hebt er geen toegang toe.',
