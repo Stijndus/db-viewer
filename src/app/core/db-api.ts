@@ -23,6 +23,8 @@ function browserFallback(): DbApi {
   return {
     appInfo: fail,
     pickDatabaseFile: fail,
+    pickKeyFile: fail,
+    trustHostKey: fail,
     listConnections: fail,
     saveConnection: fail,
     deleteConnection: fail,
@@ -42,6 +44,7 @@ function browserFallback(): DbApi {
     updateState: async () => ({ ok: true, data: { status: 'unsupported' } }),
     checkForUpdates: async () => ({ ok: true, data: { status: 'unsupported' } }),
     installUpdate: fail,
+    releaseNotes: fail,
     onUpdateState: () => () => undefined,
   };
 }

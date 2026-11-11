@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { ConnectionInput, ConnectionProfile } from '../../shared/models';
+import type { ConnectionInput, ConnectionProfile, SshSettings } from '../../shared/models';
 import { AppError } from '../ipc/errors';
 
 /** Encrypts secrets at rest. In the app this is Electron's safeStorage (OS keychain). */
@@ -11,7 +11,11 @@ export interface SecretCipher {
   decrypt(encrypted: string): string;
 }
 
-type StoredConnection = Omit<ConnectionProfile, 'hasPassword'> & { encryptedPassword?: string };
+type StoredConnection = Omit<ConnectionProfile, 'hasPassword' | 'hasSshSecret' | 'ssh'> & {
+  ssh?: SshSettings | null;
+  encryptedPassword?: string;
+  encryptedSshSecret?: string;
+};
 
 interface StoreFile {
   version: 1;
@@ -39,10 +43,29 @@ export class ConnectionStore {
 
   /** The stored password in plain text, or undefined when none is stored. Main process only. */
   async getPassword(id: string): Promise<string | undefined> {
-    const record = await this.find(id);
-    if (!record.encryptedPassword) return undefined;
+    return this.decrypt((await this.find(id)).encryptedPassword);
+  }
+
+  /** The stored SSH password or key passphrase, or undefined. Main process only. */
+  async getSshSecret(id: string): Promise<string | undefined> {
+    return this.decrypt((await this.find(id)).encryptedSshSecret);
+  }
+
+  /** Remembers the SSH server's host key after the user confirmed its fingerprint. */
+  async trustHostKey(id: string, fingerprint: string): Promise<ConnectionProfile> {
+    const all = await this.load();
+    const record = all.find((c) => c.id === id);
+    if (!record) throw notFound();
+    if (!record.ssh) throw new AppError('NO_SSH', 'Deze verbinding gebruikt geen SSH-tunnel.');
+    const next = { ...record, ssh: { ...record.ssh, hostKey: fingerprint } };
+    await this.persist(all.map((c) => (c.id === id ? next : c)));
+    return toProfile(next);
+  }
+
+  private decrypt(encrypted: string | undefined): string | undefined {
+    if (!encrypted) return undefined;
     try {
-      return this.cipher.decrypt(record.encryptedPassword);
+      return this.cipher.decrypt(encrypted);
     } catch {
       throw new AppError(
         'DECRYPT_FAILED',
@@ -50,6 +73,17 @@ export class ConnectionStore {
         'Voer het wachtwoord opnieuw in bij Bewerken.',
       );
     }
+  }
+
+  private encrypt(plain: string): string {
+    if (!this.cipher.isAvailable()) {
+      throw new AppError(
+        'ENCRYPTION_UNAVAILABLE',
+        'Wachtwoord kan niet veilig worden opgeslagen.',
+        'De sleutelhanger van je besturingssysteem is niet beschikbaar. Sla op zonder wachtwoord.',
+      );
+    }
+    return this.cipher.encrypt(plain);
   }
 
   async save(input: ConnectionInput, id?: string): Promise<ConnectionProfile> {
@@ -61,15 +95,23 @@ export class ConnectionStore {
     if (!input.savePassword) {
       encryptedPassword = undefined;
     } else if (input.password) {
-      if (!this.cipher.isAvailable()) {
-        throw new AppError(
-          'ENCRYPTION_UNAVAILABLE',
-          'Wachtwoord kan niet veilig worden opgeslagen.',
-          'De sleutelhanger van je besturingssysteem is niet beschikbaar. Sla op zonder wachtwoord.',
-        );
-      }
-      encryptedPassword = this.cipher.encrypt(input.password);
+      encryptedPassword = this.encrypt(input.password);
     }
+
+    const ssh = input.type === 'sqlite' ? null : (input.ssh ?? null);
+    // The SSH secret follows the same "save passwords" choice; an agent needs none.
+    let encryptedSshSecret = existing?.encryptedSshSecret;
+    if (!ssh || ssh.auth === 'agent' || ssh.auth === 'pageant' || !input.savePassword) {
+      encryptedSshSecret = undefined;
+    } else if (input.sshSecret) {
+      encryptedSshSecret = this.encrypt(input.sshSecret);
+    }
+    // A different SSH server must be confirmed again.
+    const old = existing?.ssh;
+    const hostKey =
+      ssh && old && old.host === ssh.host.trim() && old.port === ssh.port
+        ? ssh.hostKey || old.hostKey
+        : (ssh?.hostKey ?? '');
 
     const record: StoredConnection = {
       id: existing?.id ?? randomUUID(),
@@ -83,7 +125,18 @@ export class ConnectionStore {
       allowSelfSigned: input.ssl && input.allowSelfSigned,
       color: input.color,
       readOnly: input.readOnly,
+      ssh: ssh
+        ? {
+            host: ssh.host.trim(),
+            port: ssh.port,
+            user: ssh.user.trim(),
+            auth: ssh.auth,
+            keyFile: ssh.auth === 'key' ? ssh.keyFile.trim() : '',
+            hostKey,
+          }
+        : null,
       encryptedPassword,
+      encryptedSshSecret,
     };
 
     const next = existing ? all.map((c) => (c.id === record.id ? record : c)) : [...all, record];
@@ -135,9 +188,19 @@ export class ConnectionStore {
   }
 }
 
-function toProfile({ encryptedPassword, ...rest }: StoredConnection): ConnectionProfile {
-  // Profiles saved before v0.4.0 have no readOnly field.
-  return { ...rest, readOnly: rest.readOnly ?? false, hasPassword: Boolean(encryptedPassword) };
+function toProfile({
+  encryptedPassword,
+  encryptedSshSecret,
+  ...rest
+}: StoredConnection): ConnectionProfile {
+  // Profiles saved before v0.4.0 have no readOnly field, before v0.8.0 no ssh.
+  return {
+    ...rest,
+    readOnly: rest.readOnly ?? false,
+    ssh: rest.ssh ?? null,
+    hasPassword: Boolean(encryptedPassword),
+    hasSshSecret: Boolean(encryptedSshSecret),
+  };
 }
 
 function notFound(): AppError {

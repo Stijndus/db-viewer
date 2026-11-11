@@ -24,6 +24,28 @@ export interface ConnectionProfile {
   readOnly: boolean;
   /** True when an encrypted password is stored for this profile. */
   hasPassword: boolean;
+  /** Reach the database through an SSH tunnel; null = connect directly. */
+  ssh: SshSettings | null;
+  /** True when an SSH password or key passphrase is stored (encrypted). */
+  hasSshSecret: boolean;
+}
+
+/** How to log in on the SSH server. */
+export type SshAuth = 'password' | 'key' | 'agent' | 'pageant';
+
+/**
+ * An SSH tunnel like HeidiSQL's: the app logs in on `host`, and from there connects to the
+ * database host and port of the profile (often `localhost` on that machine).
+ */
+export interface SshSettings {
+  host: string;
+  port: number;
+  user: string;
+  auth: SshAuth;
+  /** Private key file (OpenSSH or PuTTY .ppk) for `auth: 'key'`. */
+  keyFile: string;
+  /** SHA256 fingerprint of the server's host key, trusted on first use. Empty = not yet known. */
+  hostKey: string;
 }
 
 export type ConnectionColor = 'green' | 'orange' | 'red' | 'blue';
@@ -44,6 +66,9 @@ export interface ConnectionInput {
   password?: string;
   /** Store the password encrypted with the OS keychain. */
   savePassword: boolean;
+  ssh?: SshSettings | null;
+  /** SSH password or key passphrase. Empty or missing on update = keep the stored one. */
+  sshSecret?: string;
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
@@ -51,6 +76,13 @@ export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 export interface TestResult {
   latencyMs: number;
   serverVersion: string;
+}
+
+/** Secrets typed by the user for one connect, when none are stored. Never saved. */
+export interface ConnectSecrets {
+  password?: string;
+  /** SSH password or key passphrase. */
+  sshSecret?: string;
 }
 
 export interface ConnectResult {
@@ -61,6 +93,8 @@ export interface DbError {
   code: string;
   message: string;
   hint?: string;
+  /** SSH_HOST_KEY_UNKNOWN / SSH_HOST_KEY_CHANGED: the fingerprint the server presented. */
+  fingerprint?: string;
 }
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: DbError };
@@ -193,6 +227,12 @@ export interface RunResult {
 
 // ── Updates ────────────────────────────────────────────────────────
 
+/** Release notes of one version, as written in .github/release-notes (Markdown). */
+export interface ReleaseNote {
+  version: string;
+  markdown: string;
+}
+
 /** What the app knows about updates; pushed from main to the UI whenever it changes. */
 export type UpdateState =
   /** Development build or a platform without auto-update. */
@@ -200,9 +240,11 @@ export type UpdateState =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'current' }
-  | { status: 'downloading'; version: string; percent: number }
+  | { status: 'downloading'; version: string; percent: number; notes?: string }
   /** Downloaded; installs on restart or when the app quits. */
-  | { status: 'ready'; version: string }
+  | { status: 'ready'; version: string; notes?: string }
   /** The portable exe can't replace itself: the user downloads the new version. */
-  | { status: 'manual'; version: string; url: string }
+  | { status: 'manual'; version: string; url: string; notes?: string }
   | { status: 'error'; message: string };
+
+/** `notes` on an update: the GitHub release text of the new version, as HTML. */

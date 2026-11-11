@@ -22,7 +22,8 @@
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
-    "pg-cursor": "^2.22.1"
+    "pg-cursor": "^2.22.1",
+    "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "@angular/build": "^22.2.6",
@@ -46,6 +47,7 @@
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "@types/pg-cursor": "^2.7.2",
+    "@types/ssh2": "^1.15.6",
     "concurrently": "^10.0.7",
     "cross-env": "^10.1.0",
     "electron": "^45.2.3",
@@ -65,7 +67,7 @@
   "build": {
     "appId": "io.github.stijndus.dbviewer",
     "productName": "DB Viewer",
-    "copyright": "Copyright © 2026 Stijndus",
+    "copyright": "Copyright \u00a9 2026 Stijndus",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -74,7 +76,10 @@
       "dist/db-viewer/browser/**",
       "dist-electron/**",
       "!dist-electron/**/*.map",
-      "package.json"
+      "package.json",
+      "!node_modules/ssh2/lib/protocol/crypto/build/**",
+      "!node_modules/cpu-features/**",
+      "!node_modules/nan/**"
     ],
     "win": {
       "target": [
@@ -119,7 +124,8 @@
         "repo": "db-viewer",
         "releaseType": "release"
       }
-    ]
+    ],
+    "npmRebuild": false
   },
   "engines": {
     "node": "^22.22.3 || ^24.15.0 || >=26.0.0"

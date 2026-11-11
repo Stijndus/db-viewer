@@ -16,6 +16,8 @@ export function poolConfig(cfg: ConnectionConfig): sql.config {
     options: {
       encrypt: cfg.ssl,
       trustServerCertificate: cfg.allowSelfSigned,
+      // Through an SSH tunnel: TLS name check against the real host, not 127.0.0.1.
+      ...(cfg.tlsServerName && { serverName: cfg.tlsServerName }),
       appName: 'DB Viewer',
       useUTC: true, // DATETIME values arrive as written, without a local-time shift
       enableArithAbort: true,

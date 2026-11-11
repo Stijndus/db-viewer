@@ -70,6 +70,8 @@ export const PROFILE: ConnectionProfile = {
   color: 'green',
   readOnly: false,
   hasPassword: true,
+  ssh: null,
+  hasSshSecret: false,
 };
 
 export const DATABASES: DatabaseInfo[] = [
@@ -143,6 +145,9 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     deleteConnection: () => ok(undefined),
     testConnection: () => ok({ latencyMs: 12, serverVersion: '8.0.40' }),
     connect: () => ok({ serverVersion: '8.0.40' }),
+    trustHostKey: (_id, fingerprint) =>
+      ok({ ...PROFILE, ssh: PROFILE.ssh && { ...PROFILE.ssh, hostKey: fingerprint } }),
+    pickKeyFile: () => ok(null),
     disconnect: () => ok(undefined),
     listDatabases: () => ok(DATABASES),
     listObjects: () => ok(OBJECTS),
@@ -162,6 +167,7 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     updateState: () => ok({ status: 'unsupported' as const }),
     checkForUpdates: () => ok({ status: 'current' as const }),
     installUpdate: () => ok(undefined),
+    releaseNotes: () => ok([]),
     onUpdateState: () => () => undefined,
     ...overrides,
   };

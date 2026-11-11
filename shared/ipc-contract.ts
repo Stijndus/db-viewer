@@ -4,7 +4,9 @@ import type {
   ConnectionInput,
   ConnectionProfile,
   ConnectResult,
+  ConnectSecrets,
   DatabaseInfo,
+  ReleaseNote,
   Result,
   RowsPage,
   RowsRequest,
@@ -37,7 +39,10 @@ export const IPC = {
   updateState: 'updates:get',
   checkForUpdates: 'updates:check',
   installUpdate: 'updates:install',
+  releaseNotes: 'app:release-notes',
   pickDatabaseFile: 'dialog:database-file',
+  pickKeyFile: 'dialog:key-file',
+  trustHostKey: 'connections:trust-host-key',
 } as const;
 
 /** Pushed from main to the renderer whenever the update state changes. */
@@ -56,13 +61,17 @@ export interface DbApi {
   appInfo(): Promise<Result<AppInfo>>;
   /** Opens the OS file dialog for a SQLite database; null when cancelled. */
   pickDatabaseFile(current?: string): Promise<Result<string | null>>;
+  /** Opens the OS file dialog for an SSH private key; null when cancelled. */
+  pickKeyFile(current?: string): Promise<Result<string | null>>;
   listConnections(): Promise<Result<ConnectionProfile[]>>;
   saveConnection(input: ConnectionInput, id?: string): Promise<Result<ConnectionProfile>>;
   deleteConnection(id: string): Promise<Result<void>>;
   /** Tests without saving. With `id` and no password, the stored password is used. */
   testConnection(input: ConnectionInput, id?: string): Promise<Result<TestResult>>;
-  /** Opens a pooled session. `password` is only needed when none is stored. */
-  connect(id: string, password?: string): Promise<Result<ConnectResult>>;
+  /** Opens a pooled session. Secrets are only needed when none are stored. */
+  connect(id: string, secrets?: ConnectSecrets): Promise<Result<ConnectResult>>;
+  /** Trusts an SSH server's host key for a profile, after the user compared the fingerprint. */
+  trustHostKey(id: string, fingerprint: string): Promise<Result<ConnectionProfile>>;
   disconnect(id: string): Promise<Result<void>>;
 
   // Schema browsing on an open connection (step 2).
@@ -111,6 +120,8 @@ export interface DbApi {
   // Updates.
   updateState(): Promise<Result<UpdateState>>;
   checkForUpdates(): Promise<Result<UpdateState>>;
+  /** Release notes bundled with the app, newest first. */
+  releaseNotes(): Promise<Result<ReleaseNote[]>>;
   /** Restarts the app into the downloaded update. */
   installUpdate(): Promise<Result<void>>;
   /** Subscribes to update state changes; returns a function that unsubscribes. */

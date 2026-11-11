@@ -52,13 +52,9 @@
           >Downloaden</a
         >
       }
-      <a
-        class="link-btn small"
-        [href]="'https://github.com/Stijndus/db-viewer/releases/tag/v' + update.version"
-        target="_blank"
-        rel="noopener"
-        >Wat is nieuw</a
-      >
+      <button type="button" class="link-btn small" (click)="updates.showUpdateNotes()">
+        Wat is er nieuw?
+      </button>
       <span class="push"></span>
       <button type="button" class="btn btn-ghost btn-sm" (click)="updates.dismiss()">Later</button>
     </div>
@@ -92,6 +88,11 @@
     @if (updates.statusText(); as status) {
       <span>{{ status }}</span>
     }
+    @if (updates.notes().length) {
+      <button type="button" class="link-btn small" (click)="updates.showAllNotes()">
+        Release notes
+      </button>
+    }
     @if (updates.version()) {
       <button
         type="button"
@@ -123,8 +124,16 @@
   />
 }
 
-@if (store.passwordPrompt(); as profile) {
-  <app-password-prompt [profile]="profile" />
+@if (store.passwordPrompt(); as prompt) {
+  <app-password-prompt [prompt]="prompt" />
+}
+
+@if (updates.whatsNew(); as content) {
+  <app-whats-new [content]="content" />
+}
+
+@if (store.hostKeyPrompt(); as prompt) {
+  <app-host-key-prompt [prompt]="prompt" />
 }
 
 @if (sql.confirmation(); as request) {

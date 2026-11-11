@@ -1,5 +1,5 @@
 import { app, type BrowserWindow } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import type { UpdateState } from '../shared/models';
 
 const RELEASES = 'https://github.com/Stijndus/db-viewer/releases';
@@ -36,8 +36,13 @@ export class Updater {
     autoUpdater.on('update-available', (info) => {
       this.set(
         this.portable
-          ? { status: 'manual', version: info.version, url: `${RELEASES}/tag/v${info.version}` }
-          : { status: 'downloading', version: info.version, percent: 0 },
+          ? {
+              status: 'manual',
+              version: info.version,
+              url: `${RELEASES}/tag/v${info.version}`,
+              ...notesOf(info),
+            }
+          : { status: 'downloading', version: info.version, percent: 0, ...notesOf(info) },
       );
     });
     autoUpdater.on('download-progress', (p) => {
@@ -46,7 +51,7 @@ export class Updater {
       }
     });
     autoUpdater.on('update-downloaded', (info) =>
-      this.set({ status: 'ready', version: info.version }),
+      this.set({ status: 'ready', version: info.version, ...notesOf(info) }),
     );
     autoUpdater.on('error', (err) => {
       // A failed check (offline, GitHub down) must never disturb work: keep a ready update ready.
@@ -86,6 +91,24 @@ export class Updater {
     this.state = state;
     this.window()?.webContents.send('updates:state', state);
   }
+}
+
+/** GitHub's release text (HTML). Several versions behind: all of them, newest first. */
+function notesOf(info: UpdateInfo): { notes?: string } {
+  const notes = info.releaseNotes;
+  if (typeof notes === 'string') return notes.trim() ? { notes } : {};
+  if (Array.isArray(notes)) {
+    const html = notes
+      .filter((n) => n.note)
+      .map((n) => `<h2>Versie ${escapeHtml(n.version)}</h2>${n.note}`)
+      .join('');
+    return html ? { notes: html } : {};
+  }
+  return {};
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
 function friendly(err: unknown): string {

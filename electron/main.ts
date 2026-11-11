@@ -1,5 +1,7 @@
 import { app, BrowserWindow, dialog, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { ReleaseNote } from '../shared/models';
 import { ConnectionManager } from './db/connection-manager';
 import { getDriver } from './db/driver-registry';
 import { registerHandlers } from './ipc/register-handlers';
@@ -79,6 +81,15 @@ app.whenReady().then(() => {
     updater,
     version: app.getVersion(),
     isTrustedSender,
+    sshDir: path.join(app.getPath('home'), '.ssh'),
+    releaseNotes: async () => {
+      try {
+        const raw = await readFile(path.join(__dirname, 'release-notes.json'), 'utf8');
+        return JSON.parse(raw) as ReleaseNote[];
+      } catch {
+        return [];
+      }
+    },
     pickFile: (options) =>
       mainWindow ? dialog.showOpenDialog(mainWindow, options) : dialog.showOpenDialog(options),
   });

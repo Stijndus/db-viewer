@@ -1761,3 +1761,103 @@ app-code-editor,
 app-object-view [hidden] {
   display: none !important;
 }
+
+/* SSH tunnel section in the connection form */
+.ssh-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ssh-box.on {
+  background: var(--panel-2);
+}
+.fingerprint {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* Release notes dialog */
+.dialog-notes {
+  width: min(720px, calc(100vw - 48px));
+}
+.dialog-notes .notes {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  gap: 20px;
+}
+.note + .note {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+.note-version {
+  font-size: 15px;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+.note-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+.note-body h2,
+.note-body h3 {
+  font-size: 14px;
+  margin: 16px 0 6px;
+  color: var(--text);
+}
+.note-body h4,
+.note-body h5 {
+  font-size: 13.5px;
+  margin: 12px 0 4px;
+  color: var(--text);
+}
+.note-body p {
+  margin: 6px 0;
+}
+.note-body ul {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.note-body li {
+  margin: 3px 0;
+}
+.note-body strong {
+  color: var(--text);
+}
+.note-body code {
+  font-family: var(--mono, monospace);
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+.note-body blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--panel-2);
+  border-radius: 4px;
+}
+.note-body table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.note-body th,
+.note-body td {
+  border: 1px solid var(--border);
+  padding: 5px 9px;
+  text-align: left;
+}
+.note-body a {
+  color: var(--accent);
+}

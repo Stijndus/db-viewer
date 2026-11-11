@@ -57,8 +57,115 @@ describe('ConnectionsStore', () => {
     });
     await store.init();
     await store.connect(PROFILE.id);
-    expect(store.passwordPrompt()?.id).toBe(PROFILE.id);
+    expect(store.passwordPrompt()?.profile.id).toBe(PROFILE.id);
     expect(store.statusOf(PROFILE.id)).toBe('idle');
+  });
+
+  it('asks for the SSH password, and passes it with the next connect', async () => {
+    const ssh = {
+      host: 'server.example.com',
+      port: 22,
+      user: 'stijn',
+      auth: 'password' as const,
+      keyFile: '',
+      hostKey: 'SHA256:' + 'a'.repeat(43),
+    };
+    const calls: unknown[] = [];
+    const store = setup({
+      listConnections: async () => ({ ok: true, data: [{ ...PROFILE, ssh }] }),
+      connect: async (_id, secrets) => {
+        calls.push(secrets);
+        return secrets?.sshSecret
+          ? { ok: true, data: { serverVersion: '8.0.40' } }
+          : { ok: false, error: { code: 'SSH_SECRET_REQUIRED', message: 'SSH-wachtwoord nodig.' } };
+      },
+    });
+    await store.init();
+    await store.connect(PROFILE.id);
+    expect(store.passwordPrompt()).toMatchObject({ askSsh: true, askPassword: false });
+    await store.connect(PROFILE.id, { sshSecret: 'geheim' });
+    expect(store.statusOf(PROFILE.id)).toBe('connected');
+    expect(calls).toEqual([{}, { sshSecret: 'geheim' }]);
+  });
+
+  it('asks to trust an unknown SSH server, saves the fingerprint and connects again', async () => {
+    const fingerprint = 'SHA256:' + 'b'.repeat(43);
+    const ssh = {
+      host: 'srv',
+      port: 22,
+      user: 'u',
+      auth: 'agent' as const,
+      keyFile: '',
+      hostKey: '',
+    };
+    let trusted = '';
+    const store = setup({
+      listConnections: async () => ({
+        ok: true,
+        data: [{ ...PROFILE, ssh: { ...ssh, hostKey: trusted } }],
+      }),
+      trustHostKey: async (_id, fp) => {
+        trusted = fp;
+        return { ok: true, data: { ...PROFILE, ssh: { ...ssh, hostKey: fp } } };
+      },
+      connect: async () =>
+        trusted
+          ? { ok: true, data: { serverVersion: '8.0.40' } }
+          : {
+              ok: false,
+              error: { code: 'SSH_HOST_KEY_UNKNOWN', message: 'Onbekend.', fingerprint },
+            },
+    });
+    await store.init();
+    const connecting = store.connect(PROFILE.id);
+    await vi.waitFor(() => expect(store.hostKeyPrompt()).not.toBeNull());
+    expect(store.hostKeyPrompt()).toMatchObject({ host: 'srv', fingerprint, changed: false });
+    store.hostKeyPrompt()!.answer(true);
+    await connecting;
+    expect(trusted).toBe(fingerprint);
+    expect(store.statusOf(PROFILE.id)).toBe('connected');
+  });
+
+  it('does not connect when the user does not trust the SSH server', async () => {
+    const fingerprint = 'SHA256:' + 'c'.repeat(43);
+    const trust = vi.fn();
+    const store = setup({
+      listConnections: async () => ({
+        ok: true,
+        data: [
+          {
+            ...PROFILE,
+            ssh: { host: 'srv', port: 22, user: 'u', auth: 'agent', keyFile: '', hostKey: 'x' },
+          },
+        ],
+      }),
+      trustHostKey: trust,
+      connect: async () => ({
+        ok: false,
+        error: { code: 'SSH_HOST_KEY_CHANGED', message: 'Veranderd.', fingerprint },
+      }),
+    });
+    await store.init();
+    const connecting = store.connect(PROFILE.id);
+    await vi.waitFor(() => expect(store.hostKeyPrompt()?.changed).toBe(true));
+    store.hostKeyPrompt()!.answer(false);
+    await connecting;
+    expect(trust).not.toHaveBeenCalled();
+    expect(store.statusOf(PROFILE.id)).toBe('idle');
+  });
+
+  it('shows the SSH tunnel in the address', () => {
+    const ssh = {
+      host: 'srv',
+      port: 22,
+      user: 'stijn',
+      auth: 'agent' as const,
+      keyFile: '',
+      hostKey: '',
+    };
+    expect(connectionAddress({ ...PROFILE, host: 'localhost', ssh })).toBe(
+      'root@localhost:3306/app_dev via stijn@srv',
+    );
   });
 
   it('shows a load error when not running inside Electron', async () => {

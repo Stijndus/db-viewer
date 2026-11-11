@@ -6,6 +6,24 @@ export const idSchema = z.string().uuid();
  * A connection profile. Servers need a host, port and user; SQLite needs only a file, which goes in
  * `database` (host, port and user are then ignored).
  */
+export const fingerprintSchema = z
+  .string()
+  .regex(/^SHA256:[A-Za-z0-9+/]{43}$/, 'Ongeldige vingerafdruk');
+
+export const sshSettingsSchema = z
+  .object({
+    host: z.string().trim().min(1, 'SSH-host is verplicht').max(255),
+    port: z.number().int().min(1).max(65535),
+    user: z.string().trim().min(1, 'SSH-gebruiker is verplicht').max(255),
+    auth: z.enum(['password', 'key', 'agent', 'pageant']),
+    keyFile: z.string().trim().max(4096),
+    hostKey: z.union([z.literal(''), fingerprintSchema]),
+  })
+  .superRefine((s, ctx) => {
+    if (s.auth === 'key' && !s.keyFile)
+      ctx.addIssue({ code: 'custom', path: ['keyFile'], message: 'Kies een sleutelbestand' });
+  });
+
 export const connectionInputSchema = z
   .object({
     name: z.string().trim().min(1, 'Naam is verplicht').max(100),
@@ -20,6 +38,8 @@ export const connectionInputSchema = z
     readOnly: z.boolean().default(false),
     password: z.string().max(1024).optional(),
     savePassword: z.boolean(),
+    ssh: sshSettingsSchema.nullable().default(null),
+    sshSecret: z.string().max(4096).optional(),
   })
   .superRefine((c, ctx) => {
     if (c.type === 'sqlite') {
@@ -37,6 +57,12 @@ export const connectionInputSchema = z
 
 export const optionalIdSchema = idSchema.optional();
 export const optionalPasswordSchema = z.string().max(1024).optional();
+export const connectSecretsSchema = z
+  .object({
+    password: z.string().max(1024).optional(),
+    sshSecret: z.string().max(4096).optional(),
+  })
+  .default({});
 export const optionalPathSchema = z.string().max(4096).optional();
 
 /**

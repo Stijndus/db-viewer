@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 import { IPC, type AppInfo } from '../../shared/ipc-contract';
-import type { Result } from '../../shared/models';
+import type { ReleaseNote, Result } from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
@@ -11,7 +11,8 @@ import {
   identifierSchema,
   idSchema,
   optionalIdSchema,
-  optionalPasswordSchema,
+  connectSecretsSchema,
+  fingerprintSchema,
   optionalPathSchema,
   rowsRequestSchema,
   runRequestSchema,
@@ -26,6 +27,10 @@ export interface HandlerDeps {
   updater: Updater;
   version: string;
   /** The OS open-file dialog (Electron's dialog.showOpenDialog on the main window). */
+  /** Release notes bundled with the app (dist-electron/release-notes.json). */
+  releaseNotes(): Promise<ReleaseNote[]>;
+  /** Default folder for the key file dialog (~/.ssh). */
+  sshDir?: string;
   pickFile(options: OpenDialogOptions): Promise<{ canceled: boolean; filePaths: string[] }>;
   /** Only messages from our own window are answered. */
   isTrustedSender(event: IpcMainInvokeEvent): boolean;
@@ -71,6 +76,26 @@ export function registerHandlers(deps: HandlerDeps): void {
     return result.canceled ? null : (result.filePaths[0] ?? null);
   });
 
+  handle(IPC.pickKeyFile, async (rawCurrent) => {
+    const current = optionalPathSchema.parse(rawCurrent);
+    const result = await deps.pickFile({
+      title: 'SSH-sleutel kiezen',
+      defaultPath: current || deps.sshDir,
+      properties: ['openFile', 'showHiddenFiles'],
+      filters: [
+        { name: 'Alle bestanden', extensions: ['*'] },
+        { name: 'PuTTY-sleutels', extensions: ['ppk'] },
+      ],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+
+  handle(IPC.trustHostKey, (rawId, rawFingerprint) =>
+    store.trustHostKey(idSchema.parse(rawId), fingerprintSchema.parse(rawFingerprint)),
+  );
+
+  handle(IPC.releaseNotes, () => deps.releaseNotes());
+
   handle(IPC.updateState, () => updater.getState());
   handle(IPC.checkForUpdates, () => updater.check());
   handle(IPC.installUpdate, () => updater.install());
@@ -91,8 +116,8 @@ export function registerHandlers(deps: HandlerDeps): void {
     manager.test(connectionInputSchema.parse(rawInput), optionalIdSchema.parse(rawId)),
   );
 
-  handle(IPC.connect, (rawId, rawPassword) =>
-    manager.connect(idSchema.parse(rawId), optionalPasswordSchema.parse(rawPassword)),
+  handle(IPC.connect, (rawId, rawSecrets) =>
+    manager.connect(idSchema.parse(rawId), connectSecretsSchema.parse(rawSecrets)),
   );
 
   handle(IPC.disconnect, (rawId) => manager.disconnect(idSchema.parse(rawId)));

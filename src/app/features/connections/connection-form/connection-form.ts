@@ -16,11 +16,13 @@ import {
   type ConnectionColor,
   type ConnectionInput,
   type ConnectionProfile,
+  type SshAuth,
+  type SshSettings,
   type DbError,
   type TestResult,
 } from '../../../../../shared/models';
 import { DB_API } from '../../../core/db-api';
-import { ConnectionsStore } from '../connections.store';
+import { ConnectionsStore, isHostKeyError } from '../connections.store';
 
 type Feedback = { kind: 'ok'; result: TestResult } | { kind: 'error'; error: DbError } | null;
 
@@ -51,6 +53,16 @@ export class ConnectionForm {
     { value: 'mssql', label: DIALECTS.mssql.label },
     { value: 'sqlite', label: DIALECTS.sqlite.label },
   ];
+  protected readonly showSshSecret = signal(false);
+  /** Trusted fingerprint of the SSH server; set by "Test verbinding" or from the profile. */
+  protected readonly hostKey = signal('');
+  protected readonly isWindows = /win/i.test(navigator.platform);
+  protected readonly sshAuths: { value: SshAuth; label: string }[] = [
+    { value: 'password', label: 'Wachtwoord' },
+    { value: 'key', label: 'Sleutelbestand' },
+    { value: 'agent', label: 'SSH-agent' },
+    ...(this.isWindows ? [{ value: 'pageant' as const, label: 'Pageant' }] : []),
+  ];
   protected readonly colors: { value: ConnectionColor; label: string }[] = [
     { value: 'green', label: 'Groen' },
     { value: 'orange', label: 'Oranje' },
@@ -70,7 +82,17 @@ export class ConnectionForm {
     allowSelfSigned: [{ value: false, disabled: true }],
     color: ['green' as ConnectionColor],
     readOnly: [false],
+    sshEnabled: [false],
+    sshHost: ['', [Validators.required, Validators.maxLength(255)]],
+    sshPort: [22, [Validators.required, Validators.min(1), Validators.max(65535)]],
+    sshUser: ['', [Validators.required, Validators.maxLength(255)]],
+    sshAuth: ['password' as SshAuth],
+    sshKeyFile: ['', [Validators.required, Validators.maxLength(4096)]],
+    sshSecret: [''],
   });
+
+  protected readonly sshEnabled = signal(false);
+  protected readonly sshAuth = signal<SshAuth>('password');
 
   constructor() {
     this.form.controls.ssl.valueChanges.subscribe((on) => {
@@ -82,6 +104,25 @@ export class ConnectionForm {
         ctrl.disable({ emitEvent: false });
       }
     });
+    this.form.controls.sshEnabled.valueChanges.subscribe((on) => {
+      this.sshEnabled.set(on);
+      if (on && !this.form.controls.sshHost.value) {
+        // Typical setup: the database host was the remote machine, which is now the SSH host.
+        const host = this.form.controls.host.value;
+        if (host && host !== 'localhost' && host !== '127.0.0.1') {
+          this.form.controls.sshHost.setValue(host);
+          this.form.controls.host.setValue('localhost');
+        }
+      }
+      this.applySsh();
+    });
+    this.form.controls.sshAuth.valueChanges.subscribe((auth) => {
+      this.sshAuth.set(auth);
+      this.applySsh();
+    });
+    // A different SSH server must be confirmed again.
+    this.form.controls.sshHost.valueChanges.subscribe(() => this.hostKey.set(''));
+    this.form.controls.sshPort.valueChanges.subscribe(() => this.hostKey.set(''));
     // Any change makes an earlier test result stale.
     this.form.valueChanges.subscribe(() => this.feedback.set(null));
 
@@ -93,7 +134,19 @@ export class ConnectionForm {
           password: '',
           savePassword: p.hasPassword || this.encryptionAvailable(),
         });
+        if (p.ssh) {
+          this.form.patchValue({
+            sshEnabled: true,
+            sshHost: p.ssh.host,
+            sshPort: p.ssh.port,
+            sshUser: p.ssh.user,
+            sshAuth: p.ssh.auth,
+            sshKeyFile: p.ssh.keyFile,
+          });
+          this.hostKey.set(p.ssh.hostKey);
+        }
       }
+      this.applySsh();
       this.applyType(p?.type ?? 'mysql');
       this.feedback.set(null);
       this.dialog().nativeElement.showModal();
@@ -120,6 +173,34 @@ export class ConnectionForm {
     this.applyType(next);
   }
 
+  /** SSH fields only count when the tunnel is on; the key file only for key login. */
+  private applySsh(): void {
+    const c = this.form.controls;
+    const on = this.sshEnabled() && this.type() !== 'sqlite';
+    for (const ctrl of [c.sshHost, c.sshPort, c.sshUser, c.sshAuth, c.sshSecret]) {
+      if (on) ctrl.enable({ emitEvent: false });
+      else ctrl.disable({ emitEvent: false });
+    }
+    if (on && this.sshAuth() === 'key') c.sshKeyFile.enable({ emitEvent: false });
+    else c.sshKeyFile.disable({ emitEvent: false });
+    if (on && (this.sshAuth() === 'agent' || this.sshAuth() === 'pageant'))
+      c.sshSecret.disable({ emitEvent: false });
+  }
+
+  protected sshSecretLabel(): string {
+    return this.sshAuth() === 'key'
+      ? 'Wachtwoordzin (als de sleutel er een heeft)'
+      : 'SSH-wachtwoord';
+  }
+
+  protected async browseKey(): Promise<void> {
+    const result = await this.api.pickKeyFile(this.form.controls.sshKeyFile.value || undefined);
+    if (result.ok && result.data) {
+      this.form.controls.sshKeyFile.setValue(result.data);
+      this.form.controls.sshKeyFile.markAsDirty();
+    }
+  }
+
   private applyType(type: DbType): void {
     this.type.set(type);
     const c = this.form.controls;
@@ -140,6 +221,7 @@ export class ConnectionForm {
       c.savePassword.disable({ emitEvent: false });
     }
     c.database.updateValueAndValidity();
+    this.applySsh();
   }
 
   protected async browse(): Promise<void> {
@@ -172,7 +254,14 @@ export class ConnectionForm {
   protected async test(): Promise<void> {
     if (!this.validate()) return;
     this.busy.set('test');
-    const result = await this.store.test(this.value(), this.profile()?.id);
+    let result = await this.store.test(this.value(), this.profile()?.id);
+    if (!result.ok && isHostKeyError(result.error)) {
+      const trust = await this.store.confirmHostKey(this.form.controls.sshHost.value, result.error);
+      if (trust) {
+        this.hostKey.set(result.error.fingerprint!);
+        result = await this.store.test(this.value(), this.profile()?.id);
+      }
+    }
     this.busy.set(null);
     this.feedback.set(
       result.ok ? { kind: 'ok', result: result.data } : { kind: 'error', error: result.error },
@@ -188,11 +277,14 @@ export class ConnectionForm {
       this.feedback.set({ kind: 'error', error: result.error });
       return;
     }
-    const password = this.form.controls.savePassword.value
-      ? undefined
-      : this.form.controls.password.value;
+    const keep = this.form.controls.savePassword.value;
+    const v = this.form.getRawValue();
+    const secrets = {
+      ...(!keep && v.password && { password: v.password }),
+      ...(!keep && v.sshEnabled && v.sshSecret && { sshSecret: v.sshSecret }),
+    };
     this.close();
-    if (connectAfter) await this.store.connect(result.data.id, password || undefined);
+    if (connectAfter) await this.store.connect(result.data.id, secrets);
   }
 
   protected async remove(): Promise<void> {
@@ -226,8 +318,24 @@ export class ConnectionForm {
   }
 
   private value(): ConnectionInput {
-    const v = this.form.getRawValue();
+    const { sshEnabled, sshHost, sshPort, sshUser, sshAuth, sshKeyFile, sshSecret, ...v } =
+      this.form.getRawValue();
     const type = this.type();
+    const ssh: SshSettings | null =
+      sshEnabled && type !== 'sqlite'
+        ? {
+            host: sshHost.trim(),
+            port: Number(sshPort),
+            user: sshUser.trim(),
+            auth: sshAuth,
+            keyFile: sshAuth === 'key' ? sshKeyFile.trim() : '',
+            hostKey: this.hostKey(),
+          }
+        : null;
+    const sshPart = {
+      ssh,
+      sshSecret: ssh && (sshAuth === 'password' || sshAuth === 'key') ? sshSecret : '',
+    };
     if (type === 'sqlite') {
       return {
         ...v,
@@ -239,10 +347,13 @@ export class ConnectionForm {
         savePassword: false,
         ssl: false,
         allowSelfSigned: false,
+        ssh: null,
+        sshSecret: '',
       };
     }
     return {
       ...v,
+      ...sshPart,
       type,
       port: Number(v.port),
       allowSelfSigned: v.ssl && v.allowSelfSigned,

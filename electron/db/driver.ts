@@ -14,9 +14,14 @@ import type {
 /** Everything a driver needs to open a connection, password resolved. */
 export type ConnectionConfig = Omit<
   ConnectionInput,
-  'password' | 'savePassword' | 'name' | 'color'
+  'password' | 'savePassword' | 'name' | 'color' | 'ssh' | 'sshSecret'
 > & {
   password: string;
+  /**
+   * The database's real host name when `host` is a local SSH tunnel: TLS checks the server
+   * certificate against this name, not against 127.0.0.1.
+   */
+  tlsServerName?: string;
 };
 
 export interface QueryResult {

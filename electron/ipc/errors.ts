@@ -201,7 +201,13 @@ const INTERRUPTED_CODES = new Set(['ER_QUERY_INTERRUPTED', '57014', 'ECANCEL', '
 /** Turns anything thrown into a DbError safe to send to the renderer. Never includes secrets. */
 export function toDbError(err: unknown): DbError {
   if (err instanceof AppError) {
-    return { code: err.code, message: err.message, hint: err.hint };
+    const fingerprint = (err as AppError & { fingerprint?: string }).fingerprint;
+    return {
+      code: err.code,
+      message: err.message,
+      ...(err.hint !== undefined && { hint: err.hint }),
+      ...(fingerprint && { fingerprint }),
+    };
   }
   if (err instanceof ZodError) {
     const first = err.issues[0];

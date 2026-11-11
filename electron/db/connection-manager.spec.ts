@@ -77,7 +77,7 @@ describe('ConnectionManager', () => {
     const manager = new ConnectionManager(store, () => driver);
     const saved = await store.save(input({ savePassword: false }));
     await expect(manager.connect(saved.id)).rejects.toMatchObject({ code: 'PASSWORD_REQUIRED' });
-    await expect(manager.connect(saved.id, 'test123')).resolves.toEqual({
+    await expect(manager.connect(saved.id, { password: 'test123' })).resolves.toEqual({
       serverVersion: '8.0.40',
     });
   });
@@ -86,11 +86,11 @@ describe('ConnectionManager', () => {
     const { driver } = fakeDriver();
     const manager = new ConnectionManager(store, () => driver);
     const saved = await store.save(input({ savePassword: false }));
-    await expect(manager.connect(saved.id, 'fout')).rejects.toMatchObject({
+    await expect(manager.connect(saved.id, { password: 'fout' })).rejects.toMatchObject({
       code: 'ER_ACCESS_DENIED_ERROR',
     });
     expect(manager.isConnected(saved.id)).toBe(false);
-    await manager.connect(saved.id, 'test123');
+    await manager.connect(saved.id, { password: 'test123' });
     expect(manager.isConnected(saved.id)).toBe(true);
   });
 

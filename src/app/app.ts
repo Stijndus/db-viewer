@@ -5,6 +5,8 @@ import { ConnectionForm } from './features/connections/connection-form/connectio
 import { ConnectionList } from './features/connections/connection-list/connection-list';
 import { ConnectionsOverview } from './features/connections/connections-overview/connections-overview';
 import { ConnectionsStore, connectionLocation } from './features/connections/connections.store';
+import { WhatsNew } from './core/whats-new/whats-new';
+import { HostKeyPrompt } from './features/connections/host-key-prompt/host-key-prompt';
 import { PasswordPrompt } from './features/connections/password-prompt/password-prompt';
 import { SchemaTree } from './features/schema/schema-tree/schema-tree';
 import { ConfirmWrite } from './features/sql/confirm-write/confirm-write';
@@ -19,6 +21,8 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     ConnectionsOverview,
     ConnectionForm,
     PasswordPrompt,
+    HostKeyPrompt,
+    WhatsNew,
     SchemaTree,
     Workspace,
     ConfirmWrite,

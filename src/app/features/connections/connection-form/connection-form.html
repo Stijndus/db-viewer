@@ -155,6 +155,130 @@
       </div>
     }
 
+    @if (type() !== 'sqlite') {
+      <div class="ssh-box" [class.on]="sshEnabled()">
+        <label class="check">
+          <input type="checkbox" formControlName="sshEnabled" />
+          Via SSH-tunnel
+          <span class="muted small">(database op een andere machine, zoals in HeidiSQL)</span>
+        </label>
+        @if (sshEnabled()) {
+          <div class="grid-host">
+            <div class="field">
+              <label for="f-ssh-host" class="field-label">SSH-host</label>
+              <input
+                id="f-ssh-host"
+                class="input mono"
+                formControlName="sshHost"
+                placeholder="bijv. server.example.com"
+                [class.invalid]="invalid('sshHost')"
+              />
+            </div>
+            <div class="field">
+              <label for="f-ssh-port" class="field-label">Poort</label>
+              <input
+                id="f-ssh-port"
+                class="input mono"
+                type="number"
+                formControlName="sshPort"
+                [class.invalid]="invalid('sshPort')"
+              />
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="f-ssh-user" class="field-label">SSH-gebruiker</label>
+              <input
+                id="f-ssh-user"
+                class="input mono"
+                formControlName="sshUser"
+                autocomplete="off"
+                [class.invalid]="invalid('sshUser')"
+              />
+            </div>
+            <div class="field">
+              <label for="f-ssh-auth" class="field-label">Inloggen met</label>
+              <select id="f-ssh-auth" class="input" formControlName="sshAuth">
+                @for (a of sshAuths; track a.value) {
+                  <option [value]="a.value">{{ a.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          @if (sshAuth() === 'key') {
+            <div class="field">
+              <label for="f-ssh-key" class="field-label">Privésleutel</label>
+              <div class="row">
+                <input
+                  id="f-ssh-key"
+                  class="input mono grow"
+                  formControlName="sshKeyFile"
+                  placeholder="bijv. C:\\Users\\jij\\.ssh\\id_ed25519"
+                  [class.invalid]="invalid('sshKeyFile')"
+                />
+                <button type="button" class="btn btn-secondary" (click)="browseKey()">
+                  Bladeren…
+                </button>
+              </div>
+              <span class="muted small">OpenSSH-sleutel of PuTTY .ppk.</span>
+            </div>
+          }
+          @if (sshAuth() === 'password' || sshAuth() === 'key') {
+            <div class="field">
+              <label for="f-ssh-secret" class="field-label">{{ sshSecretLabel() }}</label>
+              <div class="row">
+                <input
+                  id="f-ssh-secret"
+                  class="input grow"
+                  [type]="showSshSecret() ? 'text' : 'password'"
+                  formControlName="sshSecret"
+                  autocomplete="new-password"
+                  [placeholder]="
+                    profile()?.hasSshSecret ? 'Opgeslagen — leeg laten om te behouden' : ''
+                  "
+                />
+                <button
+                  type="button"
+                  class="icon-btn"
+                  [attr.aria-label]="showSshSecret() ? 'Verbergen' : 'Tonen'"
+                  [attr.aria-pressed]="showSshSecret()"
+                  (click)="showSshSecret.set(!showSshSecret())"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          } @else {
+            <span class="muted small">{{
+              sshAuth() === 'pageant'
+                ? 'Gebruikt de sleutels die in Pageant geladen zijn.'
+                : 'Gebruikt de sleutels in je SSH-agent (ssh-add). Op Windows: de OpenSSH Authentication Agent.'
+            }}</span>
+          }
+          <span class="muted small"
+            >Host en poort hierboven zijn die van de database, gezien vanaf de SSH-server: meestal
+            <span class="mono">localhost</span>.
+            @if (hostKey()) {
+              Vertrouwde serversleutel: <span class="mono">{{ hostKey() }}</span>
+            }
+          </span>
+        }
+      </div>
+    }
+
     <div class="row wrap">
       @if (type() !== 'sqlite') {
         <label class="check">

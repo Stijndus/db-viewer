@@ -1,3 +1,5 @@
+import net from 'node:net';
+import tls from 'node:tls';
 import pg from 'pg';
 import { quoteIdent } from '../../shared/dialect';
 import type { ConnectionConfig } from './driver';
@@ -23,7 +25,7 @@ export function clientConfig(cfg: ConnectionConfig): pg.ClientConfig {
     user: cfg.user,
     password: cfg.password,
     database: cfg.database || 'postgres',
-    ssl: cfg.ssl ? { rejectUnauthorized: !cfg.allowSelfSigned } : false,
+    ssl: cfg.ssl ? tlsOptions(cfg) : false,
     connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
     application_name: 'DB Viewer',
     types: RAW_TYPES,
@@ -58,4 +60,16 @@ export function searchPath(schema: string): string {
   return schema === 'public'
     ? quoteIdent('public', 'postgres')
     : `${quoteIdent(schema, 'postgres')}, public`;
+}
+
+/** Through an SSH tunnel the socket goes to 127.0.0.1: check the certificate against the real host. */
+function tlsOptions(cfg: ConnectionConfig): pg.ClientConfig['ssl'] {
+  const name = cfg.tlsServerName;
+  if (!name) return { rejectUnauthorized: !cfg.allowSelfSigned };
+  return {
+    rejectUnauthorized: !cfg.allowSelfSigned,
+    ...(net.isIP(name) === 0 && { servername: name }),
+    checkServerIdentity: (_host: string, cert: tls.PeerCertificate) =>
+      tls.checkServerIdentity(name, cert),
+  };
 }
