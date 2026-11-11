@@ -138,6 +138,8 @@ const KNOWN: Record<string, KnownError> = {
   },
   MSSQL_102: { message: 'Fout in het filter.', serverHint: true },
   MSSQL_156: { message: 'Fout in het filter.', serverHint: true },
+  // An incomplete filter can make SQL Server stumble over the OFFSET/FETCH that follows it.
+  MSSQL_153: { message: 'Fout in het filter.', serverHint: true },
   MSSQL_207: { message: 'Onbekende kolom in het filter.', serverHint: true },
   MSSQL_208: {
     message: 'Tabel bestaat niet (meer).',

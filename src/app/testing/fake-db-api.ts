@@ -137,6 +137,7 @@ export function fakeRows(request: RowsRequest): RowsPage {
 export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
   return {
     appInfo: () => ok({ encryptionAvailable: true, version: '0.0.0-test' }),
+    pickDatabaseFile: () => ok('/home/test/app.db'),
     listConnections: () => ok([PROFILE]),
     saveConnection: () => ok(PROFILE),
     deleteConnection: () => ok(undefined),

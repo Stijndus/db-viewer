@@ -22,6 +22,7 @@ function browserFallback(): DbApi {
   });
   return {
     appInfo: fail,
+    pickDatabaseFile: fail,
     listConnections: fail,
     saveConnection: fail,
     deleteConnection: fail,

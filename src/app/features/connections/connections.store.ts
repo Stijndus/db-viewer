@@ -119,9 +119,19 @@ export class ConnectionsStore {
 }
 
 export function connectionAddress(
-  c: Pick<ConnectionProfile, 'user' | 'host' | 'port' | 'database'>,
+  c: Pick<ConnectionProfile, 'user' | 'host' | 'port' | 'database'> &
+    Partial<Pick<ConnectionProfile, 'type'>>,
 ): string {
+  if (c.type === 'sqlite') return c.database; // the file
   return `${c.user}@${c.host}:${c.port}${c.database ? '/' + c.database : ''}`;
+}
+
+/** Short location for lists: `host:port / database`, or the file name for SQLite. */
+export function connectionLocation(
+  c: Pick<ConnectionProfile, 'type' | 'host' | 'port' | 'database'>,
+): string {
+  if (c.type === 'sqlite') return c.database.split(/[\\/]/).pop() || c.database;
+  return `${c.host}:${c.port}${c.database ? ' / ' + c.database : ''}`;
 }
 
 export const STATUS_LABEL: Record<ConnectionStatus, string> = {

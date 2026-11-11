@@ -54,9 +54,9 @@
               <span class="ro-badge ro-small" title="Alleen-lezen">RO</span>
             }
           </span>
-          <span class="mono muted small"
-            >{{ c.host }}:{{ c.port }}{{ c.database ? ' / ' + c.database : '' }}</span
-          >
+          <span class="mono muted small" [title]="c.type === 'sqlite' ? c.database : ''">{{
+            location(c)
+          }}</span>
         </span>
         <span class="status" [class]="'status status-' + status">
           <span class="dot"></span>{{ label[status] }}

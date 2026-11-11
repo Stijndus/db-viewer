@@ -91,3 +91,27 @@ export function placeholder(index: number, dialect: DbType = 'mysql'): string {
       return '?';
   }
 }
+
+/**
+ * The first-level container to start in: the profile's own database for MySQL, otherwise the
+ * usual default schema (`public`, `dbo`) or SQLite's `main`.
+ */
+export function defaultContainer(type: DbType, profileDatabase: string): string {
+  switch (type) {
+    case 'mysql':
+      return profileDatabase;
+    case 'postgres':
+      return 'public';
+    case 'mssql':
+      return 'dbo';
+    case 'sqlite':
+      return 'main';
+  }
+}
+
+/** Default port and user per database type, for the connection form. */
+export const SERVER_DEFAULTS: Record<Exclude<DbType, 'sqlite'>, { port: number; user: string }> = {
+  mysql: { port: 3306, user: 'root' },
+  postgres: { port: 5432, user: 'postgres' },
+  mssql: { port: 1433, user: 'sa' },
+};

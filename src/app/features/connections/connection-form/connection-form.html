@@ -21,10 +21,17 @@
     <fieldset class="field">
       <legend class="field-label">Databasetype</legend>
       <div class="segmented">
-        <button type="button" aria-pressed="true" class="seg active">MySQL / MariaDB</button>
-        <button type="button" aria-pressed="false" class="seg" disabled>PostgreSQL · later</button>
-        <button type="button" aria-pressed="false" class="seg" disabled>SQL Server · later</button>
-        <button type="button" aria-pressed="false" class="seg" disabled>SQLite · later</button>
+        @for (t of types; track t.value) {
+          <button
+            type="button"
+            class="seg"
+            [class.active]="type() === t.value"
+            [attr.aria-pressed]="type() === t.value"
+            (click)="setType(t.value)"
+          >
+            {{ t.label }}
+          </button>
+        }
       </div>
     </fieldset>
 
@@ -42,99 +49,123 @@
       }
     </div>
 
-    <div class="grid-host">
+    @if (type() === 'sqlite') {
       <div class="field">
-        <label for="f-host" class="field-label">Host</label>
-        <input
-          id="f-host"
-          class="input mono"
-          formControlName="host"
-          [class.invalid]="invalid('host')"
-        />
-      </div>
-      <div class="field">
-        <label for="f-port" class="field-label">Poort</label>
-        <input
-          id="f-port"
-          class="input mono"
-          type="number"
-          formControlName="port"
-          [class.invalid]="invalid('port')"
-        />
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label for="f-db" class="field-label"
-          >Database <span class="muted">(optioneel)</span></label
-        >
-        <input id="f-db" class="input mono" formControlName="database" />
-      </div>
-      <div class="field">
-        <label for="f-user" class="field-label">Gebruiker</label>
-        <input
-          id="f-user"
-          class="input mono"
-          formControlName="user"
-          autocomplete="off"
-          [class.invalid]="invalid('user')"
-        />
-      </div>
-    </div>
-
-    <div class="field">
-      <label for="f-pw" class="field-label">Wachtwoord</label>
-      <div class="row">
-        <input
-          id="f-pw"
-          class="input grow"
-          [type]="showPassword() ? 'text' : 'password'"
-          formControlName="password"
-          autocomplete="new-password"
-          [placeholder]="profile()?.hasPassword ? 'Opgeslagen — leeg laten om te behouden' : ''"
-        />
-        <button
-          type="button"
-          class="icon-btn"
-          [attr.aria-label]="showPassword() ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'"
-          [attr.aria-pressed]="showPassword()"
-          (click)="showPassword.set(!showPassword())"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
-      </div>
-      <label class="check muted">
-        <input type="checkbox" formControlName="savePassword" />
-        Versleuteld opslaan in de sleutelhanger
-        @if (!encryptionAvailable()) {
-          <span>(niet beschikbaar op dit systeem)</span>
+        <label for="f-db" class="field-label">Databasebestand</label>
+        <div class="row">
+          <input
+            id="f-db"
+            class="input mono grow"
+            formControlName="database"
+            placeholder="bijv. C:\\data\\app.db"
+            [class.invalid]="invalid('database')"
+          />
+          <button type="button" class="btn btn-secondary" (click)="browse()">Bladeren…</button>
+        </div>
+        @if (invalid('database')) {
+          <span class="field-error">Kies een SQLite-databasebestand.</span>
         }
-      </label>
-    </div>
+        <span class="muted small"
+          >Geen server of wachtwoord nodig: de app opent het bestand zelf.</span
+        >
+      </div>
+    } @else {
+      <div class="grid-host">
+        <div class="field">
+          <label for="f-host" class="field-label">Host</label>
+          <input
+            id="f-host"
+            class="input mono"
+            formControlName="host"
+            [class.invalid]="invalid('host')"
+          />
+        </div>
+        <div class="field">
+          <label for="f-port" class="field-label">Poort</label>
+          <input
+            id="f-port"
+            class="input mono"
+            type="number"
+            formControlName="port"
+            [class.invalid]="invalid('port')"
+          />
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="f-db" class="field-label"
+            >Database <span class="muted">({{ databaseHint() }})</span></label
+          >
+          <input id="f-db" class="input mono" formControlName="database" />
+        </div>
+        <div class="field">
+          <label for="f-user" class="field-label">Gebruiker</label>
+          <input
+            id="f-user"
+            class="input mono"
+            formControlName="user"
+            autocomplete="off"
+            [class.invalid]="invalid('user')"
+          />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-pw" class="field-label">Wachtwoord</label>
+        <div class="row">
+          <input
+            id="f-pw"
+            class="input grow"
+            [type]="showPassword() ? 'text' : 'password'"
+            formControlName="password"
+            autocomplete="new-password"
+            [placeholder]="profile()?.hasPassword ? 'Opgeslagen — leeg laten om te behouden' : ''"
+          />
+          <button
+            type="button"
+            class="icon-btn"
+            [attr.aria-label]="showPassword() ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'"
+            [attr.aria-pressed]="showPassword()"
+            (click)="showPassword.set(!showPassword())"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+        <label class="check muted">
+          <input type="checkbox" formControlName="savePassword" />
+          Versleuteld opslaan in de sleutelhanger
+          @if (!encryptionAvailable()) {
+            <span>(niet beschikbaar op dit systeem)</span>
+          }
+        </label>
+      </div>
+    }
 
     <div class="row wrap">
-      <label class="check">
-        <input type="checkbox" formControlName="ssl" />
-        SSL gebruiken
-      </label>
-      <label class="check muted">
-        <input type="checkbox" formControlName="allowSelfSigned" />
-        Self-signed certificaat toestaan
-      </label>
+      @if (type() !== 'sqlite') {
+        <label class="check">
+          <input type="checkbox" formControlName="ssl" />
+          {{ type() === 'mssql' ? 'Versleutelen (TLS)' : 'SSL gebruiken' }}
+        </label>
+        <label class="check muted">
+          <input type="checkbox" formControlName="allowSelfSigned" />
+          Self-signed certificaat toestaan
+        </label>
+      }
       <label class="check" title="Weigert alles wat gegevens wijzigt, ook in de SQL-editor">
         <input type="checkbox" formControlName="readOnly" />
         Alleen-lezen

@@ -1,3 +1,4 @@
+import { DIALECTS } from '../../../../../shared/dialect';
 import {
   Component,
   computed,
@@ -43,6 +44,8 @@ export class SqlPanel {
   protected readonly profile = computed(() =>
     this.connections.connections().find((c) => c.id === this.connectionId()),
   );
+  protected readonly dialect = computed(() => this.sql.dialectOf(this.connectionId()));
+  protected readonly dialectInfo = computed(() => DIALECTS[this.dialect()]);
   protected readonly mariaDb = computed(() =>
     /mariadb/i.test(this.connections.serverVersions()[this.connectionId()] ?? ''),
   );

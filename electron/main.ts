@@ -1,4 +1,4 @@
-import { app, BrowserWindow, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
 import path from 'node:path';
 import { ConnectionManager } from './db/connection-manager';
 import { getDriver } from './db/driver-registry';
@@ -72,7 +72,16 @@ app.whenReady().then(() => {
   const store = new ConnectionStore(path.join(app.getPath('userData'), 'connections.json'), cipher);
   manager = new ConnectionManager(store, getDriver);
   const updater = new Updater(() => mainWindow);
-  registerHandlers({ store, manager, cipher, updater, version: app.getVersion(), isTrustedSender });
+  registerHandlers({
+    store,
+    manager,
+    cipher,
+    updater,
+    version: app.getVersion(),
+    isTrustedSender,
+    pickFile: (options) =>
+      mainWindow ? dialog.showOpenDialog(mainWindow, options) : dialog.showOpenDialog(options),
+  });
 
   mainWindow = createWindow();
   app.on('activate', () => {

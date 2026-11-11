@@ -34,8 +34,9 @@
       >Alleen-lezen</span
     >
   }
-  <label class="sql-select">
-    <span class="muted">Database</span>
+  @if (dialectInfo().editorDefaultContainer) {
+  <label class="sql-select" [title]="dialectInfo().container === 'schema' ? 'Namen zonder schema worden hier gezocht (search_path)' : 'Namen zonder database worden hier gezocht (USE)'">
+    <span class="muted">{{ dialectInfo().container === 'schema' ? 'Schema' : 'Database' }}</span>
     <select
       class="select"
       [value]="tab().database ?? ''"
@@ -49,6 +50,7 @@
       }
     </select>
   </label>
+  }
   <label class="sql-select">
     <span class="muted">Limiet</span>
     <select class="select" (change)="setLimit($any($event.target).value)">
@@ -64,6 +66,7 @@
 <div class="sql-editor" [style.height.px]="editorHeight()">
   <app-code-editor
     [text]="tab().text"
+    [dialect]="dialect()"
     [mariaDb]="mariaDb()"
     [completion]="completion()"
     (textChange)="sql.setText(connectionId(), tab().id, $event)"

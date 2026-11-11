@@ -1,4 +1,4 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 import { IPC, type AppInfo } from '../../shared/ipc-contract';
 import type { Result } from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
@@ -12,6 +12,7 @@ import {
   idSchema,
   optionalIdSchema,
   optionalPasswordSchema,
+  optionalPathSchema,
   rowsRequestSchema,
   runRequestSchema,
   tabIdSchema,
@@ -24,6 +25,8 @@ export interface HandlerDeps {
   cipher: SecretCipher;
   updater: Updater;
   version: string;
+  /** The OS open-file dialog (Electron's dialog.showOpenDialog on the main window). */
+  pickFile(options: OpenDialogOptions): Promise<{ canceled: boolean; filePaths: string[] }>;
   /** Only messages from our own window are answered. */
   isTrustedSender(event: IpcMainInvokeEvent): boolean;
 }
@@ -53,6 +56,20 @@ export function registerHandlers(deps: HandlerDeps): void {
     encryptionAvailable: cipher.isAvailable(),
     version: deps.version,
   }));
+
+  handle(IPC.pickDatabaseFile, async (rawCurrent) => {
+    const current = optionalPathSchema.parse(rawCurrent);
+    const result = await deps.pickFile({
+      title: 'SQLite-database kiezen',
+      defaultPath: current || undefined,
+      properties: ['openFile'],
+      filters: [
+        { name: 'SQLite-databases', extensions: ['db', 'sqlite', 'sqlite3', 'db3', 's3db'] },
+        { name: 'Alle bestanden', extensions: ['*'] },
+      ],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
 
   handle(IPC.updateState, () => updater.getState());
   handle(IPC.checkForUpdates, () => updater.check());

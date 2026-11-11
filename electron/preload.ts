@@ -5,6 +5,7 @@ import type { UpdateState } from '../shared/models';
 // Only these functions reach the renderer. No ipcRenderer, no Node, no generic invoke.
 const api: DbApi = {
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
+  pickDatabaseFile: (current) => ipcRenderer.invoke(IPC.pickDatabaseFile, current),
   listConnections: () => ipcRenderer.invoke(IPC.listConnections),
   saveConnection: (input, id) => ipcRenderer.invoke(IPC.saveConnection, input, id),
   deleteConnection: (id) => ipcRenderer.invoke(IPC.deleteConnection, id),

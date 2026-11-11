@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, output } from '@angular/core';
 import type { ConnectionProfile } from '../../../../../shared/models';
+import { DIALECTS } from '../../../../../shared/dialect';
 import { ConnectionsStore, connectionAddress } from '../../connections/connections.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { SchemaStore } from '../schema.store';
@@ -18,8 +19,10 @@ import { SchemaStore } from '../schema.store';
       <strong>Kies een tabel of view in de boom links, of schrijf zelf een query.</strong>
       <span class="muted">
         @if (databaseCount() !== null) {
-          {{ databaseCount() }} {{ databaseCount() === 1 ? 'database' : 'databases' }} zichtbaar
-          voor {{ connection().user }}.
+          {{ databaseCount() }}
+          {{ databaseCount() === 1 ? dialect().container : dialect().containerPlural }} zichtbaar{{
+            connection().type === 'sqlite' ? '.' : ' voor ' + connection().user + '.'
+          }}
         }
         Pijltjestoetsen werken in de boom: rechts klapt open, links klapt dicht.
       </span>
@@ -41,6 +44,7 @@ export class ConnectionHome {
   private readonly schema = inject(SchemaStore);
   protected readonly ws = inject(WorkspaceStore);
   protected readonly address = connectionAddress;
+  protected readonly dialect = computed(() => DIALECTS[this.connection().type]);
 
   protected readonly databaseCount = computed(() => {
     const state = this.schema.databases(this.connection().id);

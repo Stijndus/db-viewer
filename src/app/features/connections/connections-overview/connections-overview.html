@@ -48,7 +48,7 @@
         <article class="card" [class.card-error]="status === 'error'">
           <div class="card-head">
             <span class="row-tight"
-              ><span class="badge">MySQL</span>
+              ><span class="badge" [attr.data-type]="c.type">{{ dialects[c.type].label }}</span>
               @if (c.readOnly) {
                 <span class="ro-badge">Alleen-lezen</span>
               }

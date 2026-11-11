@@ -2,32 +2,52 @@ import { z } from 'zod';
 
 export const idSchema = z.string().uuid();
 
-export const connectionInputSchema = z.object({
-  name: z.string().trim().min(1, 'Naam is verplicht').max(100),
-  type: z.enum(['mysql', 'postgres', 'mssql', 'sqlite']),
-  host: z.string().trim().min(1, 'Host is verplicht').max(255),
-  port: z.number().int().min(1).max(65535),
-  database: z.string().trim().max(64),
-  user: z.string().trim().min(1, 'Gebruiker is verplicht').max(255),
-  ssl: z.boolean(),
-  allowSelfSigned: z.boolean(),
-  color: z.enum(['green', 'orange', 'red', 'blue']),
-  readOnly: z.boolean().default(false),
-  password: z.string().max(1024).optional(),
-  savePassword: z.boolean(),
-});
+/**
+ * A connection profile. Servers need a host, port and user; SQLite needs only a file, which goes in
+ * `database` (host, port and user are then ignored).
+ */
+export const connectionInputSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Naam is verplicht').max(100),
+    type: z.enum(['mysql', 'postgres', 'mssql', 'sqlite']),
+    host: z.string().trim().max(255),
+    port: z.number().int().min(0).max(65535),
+    database: z.string().trim().max(4096),
+    user: z.string().trim().max(255),
+    ssl: z.boolean(),
+    allowSelfSigned: z.boolean(),
+    color: z.enum(['green', 'orange', 'red', 'blue']),
+    readOnly: z.boolean().default(false),
+    password: z.string().max(1024).optional(),
+    savePassword: z.boolean(),
+  })
+  .superRefine((c, ctx) => {
+    if (c.type === 'sqlite') {
+      if (!c.database)
+        ctx.addIssue({ code: 'custom', path: ['database'], message: 'Kies een databasebestand' });
+      return;
+    }
+    if (!c.host) ctx.addIssue({ code: 'custom', path: ['host'], message: 'Host is verplicht' });
+    if (c.port < 1) ctx.addIssue({ code: 'custom', path: ['port'], message: 'Ongeldige poort' });
+    if (!c.user)
+      ctx.addIssue({ code: 'custom', path: ['user'], message: 'Gebruiker is verplicht' });
+    if (c.database.length > 128)
+      ctx.addIssue({ code: 'custom', path: ['database'], message: 'Databasenaam is te lang' });
+  });
 
 export const optionalIdSchema = idSchema.optional();
 export const optionalPasswordSchema = z.string().max(1024).optional();
+export const optionalPathSchema = z.string().max(4096).optional();
 
 /**
- * A database, table or view name. MySQL allows almost any character (spaces, quotes, unicode),
- * so no trimming or pattern: names only travel as query parameters, never as SQL text.
+ * A database, schema, table or view name. Almost any character is allowed (spaces, quotes, unicode),
+ * so no trimming or pattern: names travel as parameters or quoted identifiers, never as raw SQL.
+ * SQL Server allows 128 characters; MySQL 64, PostgreSQL 63.
  */
 export const identifierSchema = z
   .string()
   .min(1, 'Naam ontbreekt')
-  .max(64, 'Naam is langer dan 64 tekens')
+  .max(128, 'Naam is langer dan 128 tekens')
   .refine((s) => !s.includes('\0'), 'Ongeldig teken in naam');
 
 export const whereSchema = z.string().max(10_000, 'Filter is langer dan 10.000 tekens').optional();

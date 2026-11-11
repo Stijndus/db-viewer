@@ -6,6 +6,7 @@ import type {
   ObjectKind,
   SchemaObject,
 } from '../../../../../shared/models';
+import { defaultContainer } from '../../../../../shared/dialect';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { dbKey, groupKey, type GroupId, objectKey, SchemaStore } from '../schema.store';
@@ -64,7 +65,8 @@ export class SchemaTree {
     // Load the database list whenever another connection becomes active.
     effect(() => {
       const conn = this.conn();
-      if (conn) untracked(() => void this.schema.open(conn.id, conn.database));
+      if (conn)
+        untracked(() => void this.schema.open(conn.id, defaultContainer(conn.type, conn.database)));
     });
   }
 

@@ -1,9 +1,10 @@
 import { Component, inject, OnInit } from '@angular/core';
+import type { ConnectionProfile } from '../../shared/models';
 import { UpdateStore } from './core/update.store';
 import { ConnectionForm } from './features/connections/connection-form/connection-form';
 import { ConnectionList } from './features/connections/connection-list/connection-list';
 import { ConnectionsOverview } from './features/connections/connections-overview/connections-overview';
-import { ConnectionsStore } from './features/connections/connections.store';
+import { ConnectionsStore, connectionLocation } from './features/connections/connections.store';
 import { PasswordPrompt } from './features/connections/password-prompt/password-prompt';
 import { SchemaTree } from './features/schema/schema-tree/schema-tree';
 import { ConfirmWrite } from './features/sql/confirm-write/confirm-write';
@@ -29,6 +30,10 @@ export class App implements OnInit {
   protected readonly sql = inject(SqlStore);
   protected readonly updates = inject(UpdateStore);
   protected readonly ws = inject(WorkspaceStore);
+  /** Database name, or the file name for SQLite. */
+  protected location(c: ConnectionProfile): string {
+    return c.type === 'sqlite' ? connectionLocation(c) : c.database;
+  }
 
   ngOnInit(): void {
     void this.store.init();

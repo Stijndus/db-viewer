@@ -66,7 +66,9 @@ export class ConnectionManager {
 
     const opening = (async () => {
       const profile = await this.store.get(id);
-      const secret = password || (await this.store.getPassword(id));
+      // SQLite has no password: the file is the whole connection.
+      const secret =
+        profile.type === 'sqlite' ? '' : password || (await this.store.getPassword(id));
       if (secret === undefined) {
         throw new AppError('PASSWORD_REQUIRED', 'Wachtwoord nodig om te verbinden.');
       }

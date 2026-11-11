@@ -221,14 +221,10 @@ describe.skipIf(!host)('mssqlDriver SQL editor', () => {
         ],
         maxRows: 10,
       });
-      expect(r.results.map((x) => [x.index, x.kind])).toEqual([
-        [0, 'rows'],
-        [0, 'rows'],
-        [1, 'rows'],
-        [1, 'rows'],
-        [2, 'rows'],
-      ]);
-      expect(r.results[4]).toMatchObject({ rows: [['5']] });
+      const shape = r.results.map((x) =>
+        x.kind === 'rows' ? `${x.index}:${JSON.stringify(x.rows)}` : `${x.index}:${x.kind}`,
+      );
+      expect(shape).toEqual(['0:[["1"]]', '0:[["2"]]', '1:[["1"]]', '1:[["2"]]', '2:[["5"]]']);
     });
   });
 

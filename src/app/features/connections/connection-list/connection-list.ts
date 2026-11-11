@@ -1,5 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { ConnectionsStore, connectionAddress, STATUS_LABEL } from '../connections.store';
+import {
+  ConnectionsStore,
+  connectionAddress,
+  connectionLocation,
+  STATUS_LABEL,
+} from '../connections.store';
 
 /** Sidebar: saved connections with live status. Double-click or Enter connects. */
 @Component({
@@ -10,6 +15,7 @@ export class ConnectionList {
   protected readonly store = inject(ConnectionsStore);
   protected readonly query = signal('');
   protected readonly address = connectionAddress;
+  protected readonly location = connectionLocation;
   protected readonly label = STATUS_LABEL;
 
   protected readonly filtered = computed(() => {

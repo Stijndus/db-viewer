@@ -40,7 +40,11 @@ export function mssqlError(err: unknown, phase: 'connect' | 'query' = 'query'): 
   if (!(err instanceof Error)) return err;
   const e = err as MssqlError;
   const text = `${e.message} ${e.originalError?.message ?? ''}`;
-  if (typeof e.number === 'number' && e.number > 0) {
+  if (/Cannot open database/i.test(text)) {
+    // Also reported as login failure 18456; the database is the real reason.
+    e.code = 'MSSQL_4060';
+    e.sqlMessage = e.message;
+  } else if (typeof e.number === 'number' && e.number > 0) {
     e.code = `MSSQL_${e.number}`;
     e.sqlMessage = e.message;
   } else if (e.code === 'ELOGIN') {

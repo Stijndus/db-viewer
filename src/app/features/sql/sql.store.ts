@@ -1,5 +1,7 @@
 import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import type { DbError, RunResult } from '../../../../shared/models';
+import { defaultContainer, DIALECTS } from '../../../../shared/dialect';
+import type { DbType } from '../../../../shared/models';
 import { classify, splitStatements, statementAt, type SqlStatement } from '../../../../shared/sql';
 import { DB_API } from '../../core/db-api';
 import { ConnectionsStore } from '../connections/connections.store';
@@ -105,7 +107,7 @@ export class SqlStore {
       text: '',
       database:
         (selected?.connectionId === connectionId ? selected.database : null) ||
-        profile?.database ||
+        (profile ? defaultContainer(profile.type, profile.database) : null) ||
         null,
       maxRows: 1000,
     };
@@ -176,7 +178,8 @@ export class SqlStore {
     const tab = this.find(connectionId, tabId);
     if (!tab || tab.running) return;
 
-    const statements = pickStatements(editor, mode);
+    const dialect = this.dialectOf(connectionId);
+    const statements = pickStatements(editor, mode, dialect);
     if (statements.length === 0) {
       this.patch(connectionId, tabId, {
         ...emptyRunState(),
@@ -192,7 +195,7 @@ export class SqlStore {
     const profile = this.connections.connections().find((c) => c.id === connectionId);
     if (!profile?.readOnly && !this.trusted.has(connectionId)) {
       const writes = statements
-        .map((s) => ({ sql: s.sql, ...classify(s.sql) }))
+        .map((s) => ({ sql: s.sql, ...classify(s.sql, dialect) }))
         .filter((s) => s.kind === 'write');
       if (writes.length > 0) {
         const answer = await new Promise<{ run: boolean; dontAskAgain: boolean }>((resolve) =>
@@ -213,7 +216,8 @@ export class SqlStore {
     const started = performance.now();
     const result = await this.api.runScript(connectionId, tabId, {
       statements: statements.map((s) => s.sql),
-      database: tab.database ?? undefined,
+      // Only where the editor can switch the default schema/database (USE, search_path).
+      database: DIALECTS[dialect].editorDefaultContainer ? (tab.database ?? undefined) : undefined,
       maxRows: tab.maxRows,
     });
     const totalMs = Math.round(performance.now() - started);
@@ -234,7 +238,7 @@ export class SqlStore {
       // DDL may have changed the schema: refresh what the tree shows on its next look.
       if (
         statements.some((s) =>
-          /^(CREATE|ALTER|DROP|RENAME|TRUNCATE)$/.test(classify(s.sql).keyword),
+          /^(CREATE|ALTER|DROP|RENAME|TRUNCATE)$/.test(classify(s.sql, dialect).keyword),
         )
       ) {
         this.columnsCache.set({});
@@ -242,6 +246,11 @@ export class SqlStore {
     } else {
       this.patch(connectionId, tabId, { running: false, error: result.error, totalMs });
     }
+  }
+
+  /** The database type of a connection; decides how scripts are split and classified. */
+  dialectOf(connectionId: string): DbType {
+    return this.connections.connections().find((c) => c.id === connectionId)?.type ?? 'mysql';
   }
 
   async cancel(connectionId: string, tabId: string): Promise<void> {
@@ -331,17 +340,21 @@ function emptyRunState(): Omit<SqlTab, 'id' | 'title' | 'text' | 'database' | 'm
 }
 
 /** Selection wins; else the statement under the cursor; `all` runs the whole text. */
-export function pickStatements(editor: EditorSnapshot, mode: 'current' | 'all'): SqlStatement[] {
-  if (mode === 'all') return splitStatements(editor.text);
+export function pickStatements(
+  editor: EditorSnapshot,
+  mode: 'current' | 'all',
+  dialect: DbType = 'mysql',
+): SqlStatement[] {
+  if (mode === 'all') return splitStatements(editor.text, dialect);
   const { selectionFrom: from, selectionTo: to } = editor;
   if (to > from) {
-    return splitStatements(editor.text.slice(from, to)).map((s) => ({
+    return splitStatements(editor.text.slice(from, to), dialect).map((s) => ({
       ...s,
       from: s.from + from,
       to: s.to + from,
     }));
   }
-  const current = statementAt(splitStatements(editor.text), from);
+  const current = statementAt(splitStatements(editor.text, dialect), from);
   return current ? [current] : [];
 }
 

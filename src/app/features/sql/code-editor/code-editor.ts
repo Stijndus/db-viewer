@@ -17,7 +17,17 @@ import {
   completionKeymap,
 } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { MariaSQL, MySQL, sql, type SQLNamespace } from '@codemirror/lang-sql';
+import {
+  MariaSQL,
+  MSSQL,
+  MySQL,
+  PostgreSQL,
+  sql,
+  SQLite,
+  type SQLDialect,
+  type SQLNamespace,
+} from '@codemirror/lang-sql';
+import type { DbType } from '../../../../../shared/models';
 import {
   bracketMatching,
   HighlightStyle,
@@ -81,7 +91,7 @@ const theme = EditorView.theme(
   { dark: true },
 );
 
-/** CodeMirror 6 with MySQL highlighting, schema-aware autocompletion and run shortcuts. */
+/** CodeMirror 6 with dialect highlighting, schema-aware autocompletion and run shortcuts. */
 @Component({
   selector: 'app-code-editor',
   template: `<div #host class="code-editor"></div>`,
@@ -89,6 +99,7 @@ const theme = EditorView.theme(
 export class CodeEditor {
   /** Initial text; later changes come from the user and are reported through `textChange`. */
   readonly text = input('');
+  readonly dialect = input<DbType>('mysql');
   readonly mariaDb = input(false);
   /** Tables (and their columns) for autocompletion. */
   readonly completion = input<Record<string, string[]>>({});
@@ -177,13 +188,26 @@ export class CodeEditor {
     this.view?.focus();
   }
 
+  private languageDialect(): SQLDialect {
+    switch (this.dialect()) {
+      case 'postgres':
+        return PostgreSQL;
+      case 'mssql':
+        return MSSQL;
+      case 'sqlite':
+        return SQLite;
+      default:
+        return this.mariaDb() ? MariaSQL : MySQL;
+    }
+  }
+
   private sqlLanguage() {
     const namespace: SQLNamespace = {};
     for (const [table, columns] of Object.entries(this.completion())) {
       namespace[table] = columns;
     }
     return sql({
-      dialect: this.mariaDb() ? MariaSQL : MySQL,
+      dialect: this.languageDialect(),
       schema: namespace,
       upperCaseKeywords: true,
     });

@@ -37,6 +37,7 @@ export const IPC = {
   updateState: 'updates:get',
   checkForUpdates: 'updates:check',
   installUpdate: 'updates:install',
+  pickDatabaseFile: 'dialog:database-file',
 } as const;
 
 /** Pushed from main to the renderer whenever the update state changes. */
@@ -53,6 +54,8 @@ export interface AppInfo {
 /** The API exposed to the renderer as `window.dbApi`. */
 export interface DbApi {
   appInfo(): Promise<Result<AppInfo>>;
+  /** Opens the OS file dialog for a SQLite database; null when cancelled. */
+  pickDatabaseFile(current?: string): Promise<Result<string | null>>;
   listConnections(): Promise<Result<ConnectionProfile[]>>;
   saveConnection(input: ConnectionInput, id?: string): Promise<Result<ConnectionProfile>>;
   deleteConnection(id: string): Promise<Result<void>>;
