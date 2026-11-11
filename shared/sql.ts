@@ -13,11 +13,15 @@ export interface SqlStatement {
   to: number;
 }
 
-/** Splits a script into statements on `;` (or DELIMITER / GO), outside quotes and comments. */
+/**
+ * Splits a script into statements on `;` (or DELIMITER), outside quotes and comments. SQL Server
+ * scripts split into batches on GO only: variables and procedure bodies live within one batch, and
+ * a batch with several statements returns several results.
+ */
 export function splitStatements(text: string, dialect: DbType = 'mysql'): SqlStatement[] {
   const out: SqlStatement[] = [];
   const lexer = new Lexer(text, dialect);
-  let delimiter = ';';
+  let delimiter = dialect === 'mssql' ? '' : ';';
   let start = 0; // start of the current statement segment
   let hasContent = false; // the segment holds something other than whitespace and comments
 
@@ -63,7 +67,7 @@ export function splitStatements(text: string, dialect: DbType = 'mysql'): SqlSta
       continue;
     }
     // A plain character: lexer.next() did not move.
-    if (text.startsWith(delimiter, i)) {
+    if (delimiter && text.startsWith(delimiter, i)) {
       push(i);
       lexer.i = i + delimiter.length;
       start = lexer.i;
@@ -202,7 +206,58 @@ const WRITE = new Set([
 ]);
 const WRITE_IN_WITH = new Set(['UPDATE', 'DELETE', 'INSERT', 'REPLACE', 'MERGE']);
 
+/**
+ * T-SQL words that change something wherever they appear in a batch. A batch can hold several
+ * statements, even without semicolons, so SQL Server batches are judged by every word in them.
+ * (These are reserved words: as names they must be quoted, and quoted names are skipped.)
+ */
+const MSSQL_WRITE_ANYWHERE = new Set([
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'MERGE',
+  'CREATE',
+  'ALTER',
+  'DROP',
+  'TRUNCATE',
+  'GRANT',
+  'REVOKE',
+  'DENY',
+  'EXEC',
+  'EXECUTE',
+  'BULK',
+  'BACKUP',
+  'RESTORE',
+  'DBCC',
+  'KILL',
+  'SHUTDOWN',
+  'UPDATETEXT',
+  'WRITETEXT',
+  'INTO',
+]);
+
+function classifyBatch(sql: string): StatementInfo {
+  const all = allWords(sql, 'mssql');
+  const first = all[0] ?? '';
+  const write = all.find((w) => MSSQL_WRITE_ANYWHERE.has(w));
+  if (write) {
+    // INSERT INTO: report INSERT; SELECT ... INTO: report SELECT INTO.
+    const keyword = write === 'INTO' ? 'SELECT INTO' : write;
+    const unbounded = (write === 'UPDATE' || write === 'DELETE') && !all.includes('WHERE');
+    return { kind: 'write', keyword, unbounded };
+  }
+  const kind: StatementKind = READ.has(first)
+    ? 'read'
+    : SESSION.has(first)
+      ? 'session'
+      : WRITE.has(first)
+        ? 'write'
+        : 'unknown';
+  return { kind, keyword: first, unbounded: false };
+}
+
 export function classify(sql: string, dialect: DbType = 'mysql'): StatementInfo {
+  if (dialect === 'mssql') return classifyBatch(sql);
   const words = topLevelWords(sql, dialect);
   const keyword = words[0] ?? '';
   let kind: StatementKind = READ.has(keyword)
@@ -225,8 +280,8 @@ export function classify(sql: string, dialect: DbType = 'mysql'): StatementInfo 
       const target = words[i + 1];
       // MySQL: INTO OUTFILE / DUMPFILE writes a file (INTO @var only sets variables).
       if (dialect === 'mysql' && (target === 'OUTFILE' || target === 'DUMPFILE')) kind = 'write';
-      // PostgreSQL and SQL Server: SELECT ... INTO creates a table.
-      if (dialect === 'postgres' || dialect === 'mssql') kind = 'write';
+      // PostgreSQL: SELECT ... INTO creates a table. (SQL Server batches are handled above.)
+      if (dialect === 'postgres') kind = 'write';
     }
   }
   const effective =
@@ -268,6 +323,22 @@ export function readOnlyViolation(sql: string, dialect: DbType = 'mysql'): strin
     touchesAccessMode = info.keyword === 'PRAGMA' && /\bquery_only\b/i.test(text);
   }
   return touchesAccessMode ? 'De alleen-lezen-modus kan niet worden uitgezet.' : null;
+}
+
+/** Every keyword and bare identifier outside quotes and comments, at any depth, upper-cased. */
+export function allWords(sql: string, dialect: DbType = 'mysql'): string[] {
+  const words: string[] = [];
+  const lexer = new Lexer(sql, dialect);
+  while (lexer.i < sql.length) {
+    const i = lexer.i;
+    if (lexer.next() !== 'char') continue;
+    const match = /^[A-Za-z_@#][A-Za-z0-9_$@#]*/.exec(sql.slice(i));
+    if (match && !/[A-Za-z0-9_$@#]/.test(sql[i - 1] ?? '')) {
+      if (/^[A-Za-z_]/.test(match[0])) words.push(match[0].toUpperCase());
+      lexer.i = i + match[0].length;
+    } else lexer.i = i + 1;
+  }
+  return words;
 }
 
 /** Keywords and bare identifiers outside quotes, comments and parentheses, upper-cased. */

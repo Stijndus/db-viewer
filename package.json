@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.electron.json && tsc -p tsconfig.app.json --noEmit",
     "test": "npm run test:electron && ng test --watch=false",
     "test:electron": "vitest run --config vitest.electron.config.mts",
-    "test:integration": "cross-env MYSQL_TEST_HOST=127.0.0.1 vitest run --config vitest.electron.config.mts electron/db/mysql.integration.spec.ts"
+    "test:integration": "cross-env MYSQL_TEST_HOST=127.0.0.1 PG_TEST_HOST=127.0.0.1 MSSQL_TEST_HOST=127.0.0.1 vitest run --config vitest.electron.config.mts integration"
   },
   "private": true,
   "packageManager": "npm@10.9.9",

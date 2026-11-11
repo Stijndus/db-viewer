@@ -137,21 +137,34 @@ describe('dialects', () => {
     expect(split('SELECT 5 # 3; SELECT 4', 'postgres')).toEqual(['SELECT 5 # 3', 'SELECT 4']);
   });
 
-  it('SQL Server: GO lines, brackets and nested comments', () => {
+  it('SQL Server: batches split on GO only; brackets and nested comments', () => {
     const text = [
       'CREATE PROCEDURE p AS BEGIN SELECT [a;b] FROM t; SELECT 2 END',
       'GO',
-      "SELECT N'x;y'",
+      "DECLARE @x int = 1; SELECT N'x;y', @x",
       'go 2',
-      'SELECT 3; SELECT 4',
+      '/* a /* GO */ b */ SELECT 3; SELECT 4',
     ].join('\n');
     expect(split(text, 'mssql')).toEqual([
-      'CREATE PROCEDURE p AS BEGIN SELECT [a;b] FROM t',
-      'SELECT 2 END',
-      "SELECT N'x;y'",
-      'SELECT 3',
-      'SELECT 4',
+      'CREATE PROCEDURE p AS BEGIN SELECT [a;b] FROM t; SELECT 2 END',
+      "DECLARE @x int = 1; SELECT N'x;y', @x",
+      '/* a /* GO */ b */ SELECT 3; SELECT 4',
     ]);
+  });
+
+  it('SQL Server: a batch is a write when any statement in it writes', () => {
+    expect(classify('SELECT 1; DELETE FROM t', 'mssql')).toEqual({
+      kind: 'write',
+      keyword: 'DELETE',
+      unbounded: true,
+    });
+    expect(classify('SELECT 1 UPDATE t SET a = 1 WHERE id = 2', 'mssql')).toMatchObject({
+      kind: 'write',
+      unbounded: false,
+    });
+    expect(classify('SELECT * INTO #tmp FROM t', 'mssql').keyword).toBe('SELECT INTO');
+    expect(classify("SELECT [delete], 'update' FROM t -- drop", 'mssql').kind).toBe('read');
+    expect(classify('DECLARE @x int = 1; SELECT @x', 'mssql').kind).toBe('session');
   });
 
   it('SQL Server: GO ends a batch even without a semicolon', () => {

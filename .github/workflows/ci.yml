@@ -20,6 +20,29 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: 'Str0ng!Passw0rd'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd="/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Str0ng!Passw0rd' -Q 'SELECT 1' || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=30
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
@@ -32,7 +55,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
-      - name: Prepare test database
-        run: mysql -h 127.0.0.1 -uroot -proot < scripts/setup-test-db.sql
-      - name: Integration tests against MySQL 8
+      - name: Prepare test databases
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot < scripts/setup-test-db.sql
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -q -f scripts/setup-test-db.postgres.sql
+          node scripts/setup-test-db.mssql.mjs
+      - name: Integration tests against MySQL 8, PostgreSQL 16 and SQL Server 2022
         run: npm run test:integration

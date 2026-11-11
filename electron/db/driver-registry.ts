@@ -1,12 +1,13 @@
 import type { DbType } from '../../shared/models';
 import { AppError } from '../ipc/errors';
 import type { DbDriver } from './driver';
+import { mssqlDriver } from './mssql.driver';
 import { mysqlDriver } from './mysql.driver';
 import { postgresDriver } from './postgres.driver';
 import { sqliteDriver } from './sqlite.driver';
 
 const drivers = new Map<DbType, DbDriver>(
-  [mysqlDriver, postgresDriver, sqliteDriver].map((d) => [d.type, d]),
+  [mysqlDriver, postgresDriver, mssqlDriver, sqliteDriver].map((d) => [d.type, d]),
 );
 
 export function getDriver(type: DbType): DbDriver {
