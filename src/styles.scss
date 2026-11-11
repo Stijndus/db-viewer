@@ -183,6 +183,18 @@ input {
 .statusbar .push {
   margin-left: auto;
 }
+/* Buttons in the status bar sit on the same line as the plain text next to them. */
+.statusbar .link-btn {
+  align-self: center;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+.statusbar .link-btn:hover:not(:disabled) {
+  color: var(--text);
+}
 app-connections-overview {
   display: flex;
   flex-direction: column;
