@@ -407,15 +407,16 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
     await withSession(async (s) => {
       const id = newTab();
       const started = Date.now();
-      const running = s.runScript(id, {
-        statements: ['SELECT COUNT(*) FROM events a, events b, events c'],
-        maxRows: 10,
-      });
+      const running = s.runScript(id, { statements: ['SELECT SLEEP(20) AS slept'], maxRows: 10 });
       await new Promise((r) => setTimeout(r, 500));
       await s.cancelScript(id);
       const { results } = await running;
-      expect(results[0]).toMatchObject({ kind: 'error', error: { code: 'ER_QUERY_INTERRUPTED' } });
+      // Stopped well before the 20 seconds. Depending on the server, an interrupted SLEEP
+      // either fails with ER_QUERY_INTERRUPTED or returns 1 ("interrupted").
       expect(Date.now() - started).toBeLessThan(5000);
+      const r = results[0]!;
+      if (r.kind === 'error') expect(r.error.code).toBe('ER_QUERY_INTERRUPTED');
+      else expect(r).toMatchObject({ kind: 'rows', rows: [['1']] });
       // The tab keeps working afterwards.
       const after = await s.runScript(id, { statements: ['SELECT 1'], maxRows: 10 });
       expect(after.results[0]).toMatchObject({ kind: 'rows' });

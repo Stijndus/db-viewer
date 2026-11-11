@@ -105,6 +105,7 @@ export class DataGrid {
     afterNextRender(() => {
       const el = this.scroller().nativeElement;
       this.viewportHeight.set(el.clientHeight);
+      if (typeof ResizeObserver === 'undefined') return; // test environments without layout
       const observer = new ResizeObserver(() => this.viewportHeight.set(el.clientHeight));
       observer.observe(el);
       this.destroyRef.onDestroy(() => {
