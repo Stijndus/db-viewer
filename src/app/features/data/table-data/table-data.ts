@@ -12,7 +12,6 @@ import {
 import {
   changeCount,
   changeStatements,
-  inlineParams,
   type ChangeSet,
   type RowValues,
 } from '../../../../../shared/changes';
@@ -248,12 +247,19 @@ export class TableData {
     return cs ? changeCount(cs) : 0;
   });
 
+  /** The database type of this table's connection: decides quoting in the SQL preview. */
+  private readonly dialect = computed(
+    () =>
+      this.connections.connections().find((c) => c.id === this.object().connectionId)?.type ??
+      'mysql',
+  );
+
   protected readonly previewSql = computed(() => {
     const cs = this.changeSet();
     if (!cs) return '';
     const o = this.object();
-    return changeStatements(o.database, o.name, cs)
-      .map((s) => inlineParams(s.sql, s.params) + ';')
+    return changeStatements(o.database, o.name, cs, this.dialect())
+      .map((s) => s.preview + ';')
       .join('\n');
   });
 

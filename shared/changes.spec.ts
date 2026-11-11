@@ -65,3 +65,49 @@ describe('inlineParams', () => {
     expect(inlineParams('SELECT ?', ['C:\\temp'])).toBe("SELECT 'C:\\\\temp'");
   });
 });
+
+describe('changeStatements per dialect', () => {
+  const cs: ChangeSet = {
+    primaryKey: ['id'],
+    deletes: [{ key: { id: '1' } }],
+    updates: [{ key: { id: '2' }, values: { name: "it's", note: null } }],
+    inserts: [{ values: {} }, { values: { name: 'x' } }],
+  };
+
+  it('PostgreSQL: double quotes, $n placeholders, no LIMIT, DEFAULT VALUES', () => {
+    const s = changeStatements('public', 'my"t', cs, 'postgres');
+    expect(s.map((x) => x.sql)).toEqual([
+      'DELETE FROM "public"."my""t" WHERE "id" = $1',
+      'UPDATE "public"."my""t" SET "name" = $1, "note" = $2 WHERE "id" = $3',
+      'INSERT INTO "public"."my""t" DEFAULT VALUES',
+      'INSERT INTO "public"."my""t" ("name") VALUES ($1)',
+    ]);
+    expect(s[1]!.params).toEqual(["it's", null, '2']);
+    expect(s[1]!.preview).toBe(
+      'UPDATE "public"."my""t" SET "name" = \'it\'\'s\', "note" = NULL WHERE "id" = \'2\'',
+    );
+  });
+
+  it('SQL Server: brackets, @p placeholders and N-strings in the preview', () => {
+    const s = changeStatements('dbo', 'a]b', cs, 'mssql');
+    expect(s[1]!.sql).toBe('UPDATE [dbo].[a]]b] SET [name] = @p1, [note] = @p2 WHERE [id] = @p3');
+    expect(s[0]!.preview).toBe("DELETE FROM [dbo].[a]]b] WHERE [id] = N'1'");
+  });
+
+  it('SQLite: ? placeholders without LIMIT; backslashes stay as they are', () => {
+    const s = changeStatements(
+      'main',
+      't',
+      { ...cs, updates: [{ key: { id: '2' }, values: { p: 'C:\\x' } }] },
+      'sqlite',
+    );
+    expect(s[1]!.sql).toBe('UPDATE "main"."t" SET "p" = ? WHERE "id" = ?');
+    expect(s[1]!.preview).toBe('UPDATE "main"."t" SET "p" = \'C:\\x\' WHERE "id" = \'2\'');
+  });
+
+  it('MySQL preview matches inlineParams', () => {
+    for (const s of changeStatements('app', 'what?', cs)) {
+      expect(s.preview).toBe(inlineParams(s.sql, s.params));
+    }
+  });
+});

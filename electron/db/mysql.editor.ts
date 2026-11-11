@@ -4,10 +4,10 @@ import type { ResultColumn, RunRequest, RunResult, StatementResult } from '../..
 import { readOnlyViolation } from '../../shared/sql';
 import { AppError, toSqlError } from '../ipc/errors';
 import type { ConnectionConfig } from './driver';
-import { quoteIdent, toCell } from './mysql.data';
+import { quoteIdent } from '../../shared/dialect';
+import { HARD_ROW_CAP, toCell } from './common';
 
-/** Absolute ceiling for "no limit", so one runaway SELECT can't exhaust memory. */
-export const HARD_ROW_CAP = 100_000;
+export { HARD_ROW_CAP };
 
 interface Editor {
   conn: mysql.Connection;

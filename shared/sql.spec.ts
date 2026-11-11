@@ -110,3 +110,92 @@ describe('readOnlyViolation', () => {
     expect(readOnlyViolation('START TRANSACTION READ WRITE')).not.toBeNull();
   });
 });
+
+describe('dialects', () => {
+  const split = (text: string, d: Parameters<typeof splitStatements>[1]) =>
+    splitStatements(text, d).map((s) => s.sql);
+
+  it('PostgreSQL: dollar quotes, E-strings and nested comments', () => {
+    const text = [
+      "DO $$ BEGIN RAISE NOTICE 'a;b'; END $$;",
+      'CREATE FUNCTION f() RETURNS int AS $body$ SELECT 1; $body$ LANGUAGE sql;',
+      "SELECT E'it\\'s; ok', $1;",
+      '/* outer /* inner; */ still; */ SELECT 2;',
+      "SELECT 'C:\\'; SELECT 3",
+    ].join('\n');
+    expect(split(text, 'postgres')).toEqual([
+      "DO $$ BEGIN RAISE NOTICE 'a;b'; END $$",
+      'CREATE FUNCTION f() RETURNS int AS $body$ SELECT 1; $body$ LANGUAGE sql',
+      "SELECT E'it\\'s; ok', $1",
+      '/* outer /* inner; */ still; */ SELECT 2',
+      "SELECT 'C:\\'",
+      'SELECT 3',
+    ]);
+  });
+
+  it('PostgreSQL: # is an operator, not a comment', () => {
+    expect(split('SELECT 5 # 3; SELECT 4', 'postgres')).toEqual(['SELECT 5 # 3', 'SELECT 4']);
+  });
+
+  it('SQL Server: GO lines, brackets and nested comments', () => {
+    const text = [
+      'CREATE PROCEDURE p AS BEGIN SELECT [a;b] FROM t; SELECT 2 END',
+      'GO',
+      "SELECT N'x;y'",
+      'go 2',
+      'SELECT 3; SELECT 4',
+    ].join('\n');
+    expect(split(text, 'mssql')).toEqual([
+      'CREATE PROCEDURE p AS BEGIN SELECT [a;b] FROM t',
+      'SELECT 2 END',
+      "SELECT N'x;y'",
+      'SELECT 3',
+      'SELECT 4',
+    ]);
+  });
+
+  it('SQL Server: GO ends a batch even without a semicolon', () => {
+    expect(split('SELECT 1\nGO\nSELECT 2\nGO', 'mssql')).toEqual(['SELECT 1', 'SELECT 2']);
+  });
+
+  it('only MySQL knows DELIMITER', () => {
+    expect(split('DELIMITER $$\nSELECT 1$$', 'postgres')).toEqual(['DELIMITER $$\nSELECT 1$$']);
+  });
+
+  it('classifies dialect-specific statements', () => {
+    expect(classify('DO $$ BEGIN DELETE FROM t; END $$', 'postgres').kind).toBe('write');
+    expect(classify('DO SLEEP(1)', 'mysql').kind).toBe('session');
+    expect(classify('SELECT * INTO new_t FROM t', 'postgres').kind).toBe('write');
+    expect(classify('SELECT * INTO new_t FROM t', 'mssql').kind).toBe('write');
+    expect(classify('SELECT 1 INTO @x', 'mysql').kind).toBe('read');
+    expect(classify('EXEC sp_who', 'mssql').kind).toBe('write');
+    expect(classify('MERGE INTO t USING s ON 1=1 WHEN MATCHED THEN DELETE', 'mssql').kind).toBe(
+      'write',
+    );
+    expect(classify('COPY t TO STDOUT', 'postgres').kind).toBe('write');
+    expect(classify('EXPLAIN ANALYZE DELETE FROM t', 'postgres').kind).toBe('write');
+    expect(classify('EXPLAIN ANALYZE SELECT 1', 'postgres').kind).toBe('read');
+    expect(classify('PRAGMA table_info(t)', 'sqlite').kind).toBe('session');
+  });
+
+  it('keeps read-only PostgreSQL sessions read-only', () => {
+    expect(readOnlyViolation('SELECT 1', 'postgres')).toBeNull();
+    expect(readOnlyViolation('SET default_transaction_read_only = off', 'postgres')).not.toBeNull();
+    expect(
+      readOnlyViolation(
+        "SELECT set_config('default_transaction_read_only', 'off', false)",
+        'postgres',
+      ),
+    ).not.toBeNull();
+    expect(readOnlyViolation('BEGIN READ WRITE', 'postgres')).not.toBeNull();
+    expect(readOnlyViolation('RESET ALL', 'postgres')).not.toBeNull();
+    expect(readOnlyViolation('SET search_path TO app', 'postgres')).toBeNull();
+  });
+
+  it('SQL Server read-only: only recognised harmless statements', () => {
+    expect(readOnlyViolation('SELECT 1', 'mssql')).toBeNull();
+    expect(readOnlyViolation('DECLARE @x int', 'mssql')).toBeNull();
+    expect(readOnlyViolation('IF 1=1 DROP TABLE t', 'mssql')).not.toBeNull();
+    expect(readOnlyViolation('EXEC sp_who', 'mssql')).not.toBeNull();
+  });
+});

@@ -15,9 +15,20 @@ const common = {
 };
 
 const configs = [
-  // mysql2 stays external: it's a runtime dependency packaged in node_modules.
-  { ...common, entryPoints: ['electron/main.ts'], outfile: 'dist-electron/main.js', external: ['electron', 'mysql2', 'electron-updater'] },
+  // Database drivers stay external: runtime dependencies packaged in node_modules.
+  {
+    ...common,
+    entryPoints: ['electron/main.ts'],
+    outfile: 'dist-electron/main.js',
+    external: ['electron', 'mysql2', 'pg', 'pg-cursor', 'mssql', 'electron-updater'],
+  },
   { ...common, entryPoints: ['electron/preload.ts'], outfile: 'dist-electron/preload.js' },
+  // SQLite runs in its own utility process (see electron/db/sqlite.connection.ts).
+  {
+    ...common,
+    entryPoints: ['electron/db/sqlite.worker.ts'],
+    outfile: 'dist-electron/sqlite-worker.js',
+  },
 ];
 
 if (watch) {

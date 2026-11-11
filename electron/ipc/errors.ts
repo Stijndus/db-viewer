@@ -20,17 +20,20 @@ interface KnownError {
   serverHint?: boolean;
 }
 
-/** MySQL / Node network errors translated for the UI. Keyed by `err.code`. */
+/**
+ * Network, MySQL, PostgreSQL (SQLSTATE), SQL Server (MSSQL_<number>) and SQLite errors translated
+ * for the UI. Keyed by `err.code`; drivers put the server's own text in `sqlMessage`.
+ */
 const KNOWN: Record<string, KnownError> = {
   ECONNREFUSED: {
     message: 'Server weigert verbinding.',
-    hint: 'Draait MySQL en klopt de poort (standaard 3306)?',
+    hint: 'Draait de databaseserver en klopt de poort?',
   },
   ENOTFOUND: { message: 'Host niet gevonden.', hint: 'Controleer de hostnaam of je VPN.' },
   EAI_AGAIN: { message: 'Host niet gevonden.', hint: 'Controleer de hostnaam of je netwerk.' },
   ETIMEDOUT: {
     message: 'Verbinding verlopen na 8 seconden.',
-    hint: 'Firewall, bind-address van MySQL of verkeerde host.',
+    hint: 'Firewall, een server die alleen lokaal luistert, of een verkeerde host.',
   },
   ECONNRESET: { message: 'Verbinding onverwacht verbroken.', hint: 'Vereist de server SSL?' },
   ER_ACCESS_DENIED_ERROR: {
@@ -91,11 +94,107 @@ const KNOWN: Record<string, KnownError> = {
   },
   ER_QUERY_INTERRUPTED: { message: 'Query afgebroken.' },
   BUSY: { message: 'Er loopt al een query in dit tabblad.' },
+
+  // PostgreSQL (SQLSTATE codes).
+  '28P01': {
+    message: 'Inloggen mislukt.',
+    hint: 'Controleer gebruiker en wachtwoord, en of pg_hba.conf deze verbinding toestaat.',
+  },
+  '28000': {
+    message: 'Inloggen mislukt.',
+    hint: 'De server staat deze gebruiker of verbinding niet toe (pg_hba.conf).',
+  },
+  '3D000': { message: 'Database bestaat niet.', hint: 'Controleer de databasenaam.' },
+  '42501': {
+    message: 'Geen rechten.',
+    hint: 'Vraag een GRANT aan (CONNECT op de database, USAGE op het schema, SELECT op de tabel).',
+  },
+  '42601': { message: 'Fout in het filter.', serverHint: true },
+  '42703': { message: 'Onbekende kolom in het filter.', serverHint: true },
+  '42883': { message: 'Fout in het filter.', serverHint: true },
+  '42804': { message: 'Fout in het filter.', serverHint: true },
+  '42P01': {
+    message: 'Tabel bestaat niet (meer).',
+    hint: 'Vernieuw het schema met de knop boven de boom.',
+  },
+  '22P02': { message: 'Ongeldige waarde in het filter.', serverHint: true },
+  '22007': { message: 'Ongeldige waarde in het filter.', serverHint: true },
+  '22008': { message: 'Ongeldige waarde in het filter.', serverHint: true },
+  '21000': { message: 'Subquery in het filter geeft meer dan één rij.', serverHint: true },
+  '25006': {
+    message: 'Het filter mag geen gegevens wijzigen.',
+    hint: 'De data-weergave is alleen-lezen.',
+  },
+  '57014': { message: 'Query afgebroken.' },
+
+  // SQL Server (error numbers).
+  MSSQL_18456: {
+    message: 'Inloggen mislukt.',
+    hint: 'Controleer gebruiker en wachtwoord, en of SQL Server-authenticatie aan staat.',
+  },
+  MSSQL_4060: {
+    message: 'Database bestaat niet of je hebt er geen toegang toe.',
+    hint: 'Controleer de databasenaam.',
+  },
+  MSSQL_102: { message: 'Fout in het filter.', serverHint: true },
+  MSSQL_156: { message: 'Fout in het filter.', serverHint: true },
+  MSSQL_207: { message: 'Onbekende kolom in het filter.', serverHint: true },
+  MSSQL_208: {
+    message: 'Tabel bestaat niet (meer).',
+    hint: 'Vernieuw het schema met de knop boven de boom.',
+  },
+  MSSQL_229: {
+    message: 'Geen leesrechten op deze tabel.',
+    hint: 'Vraag een GRANT SELECT aan voor deze gebruiker.',
+  },
+  MSSQL_245: { message: 'Ongeldige waarde in het filter.', serverHint: true },
+  MSSQL_8114: { message: 'Ongeldige waarde in het filter.', serverHint: true },
+  MSSQL_512: { message: 'Subquery in het filter geeft meer dan één rij.', serverHint: true },
+  ECANCEL: { message: 'Query afgebroken.' },
+  ESOCKET: {
+    message: 'Verbinding met de server mislukt.',
+    hint: 'Draait SQL Server, staat TCP/IP aan en klopt de poort?',
+  },
+  ELOGIN: { message: 'Inloggen mislukt.', hint: 'Controleer gebruiker en wachtwoord.' },
+  ETIMEOUT: {
+    message: 'Query duurde langer dan 30 seconden en is afgebroken.',
+    hint: 'Verfijn het filter, of sorteer op een kolom met een index.',
+  },
+
+  // SQLite.
+  SQLITE_CANTOPEN: {
+    message: 'Databasebestand kan niet worden geopend.',
+    hint: 'Bestaat het bestand en mag de app het lezen?',
+  },
+  SQLITE_NOTADB: { message: 'Dit is geen SQLite-database.', hint: 'Kies een ander bestand.' },
+  SQLITE_READONLY: {
+    message: 'Deze verbinding is alleen-lezen.',
+    hint: 'De database is alleen-lezen geopend.',
+  },
+  SQLITE_BUSY: {
+    message: 'De database is bezet.',
+    hint: 'Een ander programma of tabblad houdt een schrijfslot vast. Probeer het zo opnieuw.',
+  },
+  SQLITE_SYNTAX: { message: 'Fout in het filter.', serverHint: true },
+  SQLITE_NO_COLUMN: { message: 'Onbekende kolom in het filter.', serverHint: true },
+  SQLITE_NO_TABLE: {
+    message: 'Tabel bestaat niet (meer).',
+    hint: 'Vernieuw het schema met de knop boven de boom.',
+  },
+  SQLITE_INTERRUPT: { message: 'Query afgebroken.' },
   PROTOCOL_CONNECTION_LOST: {
     message: 'Verbinding met de server verbroken.',
     hint: 'Verbreek en verbind opnieuw.',
   },
 };
+
+/** "The server refuses writes" and "the query was stopped", in every driver's codes. */
+const READ_ONLY_CODES = new Set([
+  'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION',
+  '25006',
+  'SQLITE_READONLY',
+]);
+const INTERRUPTED_CODES = new Set(['ER_QUERY_INTERRUPTED', '57014', 'ECANCEL', 'SQLITE_INTERRUPT']);
 
 /** Turns anything thrown into a DbError safe to send to the renderer. Never includes secrets. */
 export function toDbError(err: unknown): DbError {
@@ -129,15 +228,14 @@ export function toDbError(err: unknown): DbError {
  */
 export function toSqlError(err: unknown): DbError {
   const known = toDbError(err);
-  if (known.code === 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION') {
+  if (READ_ONLY_CODES.has(known.code)) {
     return {
       code: known.code,
       message: 'Deze verbinding is alleen-lezen.',
       hint: 'De server weigert wijzigingen.',
     };
   }
-  if (known.code === 'ER_QUERY_INTERRUPTED')
-    return { code: known.code, message: 'Query afgebroken.' };
+  if (INTERRUPTED_CODES.has(known.code)) return { code: known.code, message: 'Query afgebroken.' };
   const sqlMessage = (err as { sqlMessage?: unknown })?.sqlMessage;
   return typeof sqlMessage === 'string' ? { code: known.code, message: sqlMessage } : known;
 }

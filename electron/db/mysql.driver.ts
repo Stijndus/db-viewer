@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise';
-import { AppError } from '../ipc/errors';
+import { refuseReadOnly } from './common';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
 import * as data from './mysql.data';
 import { EditorSessions } from './mysql.editor';
@@ -56,13 +56,7 @@ export const mysqlDriver: DbDriver = {
       readRows: (database, table, request) => data.readRows(pool, database, table, request),
       countRows: (database, table, where) => data.countRows(pool, database, table, where),
       async applyChanges(database, table, changes) {
-        if (cfg.readOnly) {
-          throw new AppError(
-            'READ_ONLY_CONNECTION',
-            'Deze verbinding is alleen-lezen.',
-            'Er is niets opgeslagen.',
-          );
-        }
+        refuseReadOnly(cfg.readOnly);
         return data.applyChanges(pool, database, table, changes);
       },
       runScript: (tabId, request) => editors.run(tabId, request),

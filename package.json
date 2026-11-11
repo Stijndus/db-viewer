@@ -19,7 +19,10 @@
   "packageManager": "npm@10.9.9",
   "dependencies": {
     "electron-updater": "^6.8.11",
-    "mysql2": "^3.24.6"
+    "mssql": "^12.7.14",
+    "mysql2": "^3.24.6",
+    "pg": "^8.23.1",
+    "pg-cursor": "^2.22.1"
   },
   "devDependencies": {
     "@angular/build": "^22.2.6",
@@ -39,7 +42,10 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
+    "@types/mssql": "^12.3.0",
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/pg-cursor": "^2.7.2",
     "concurrently": "^10.0.7",
     "cross-env": "^10.1.0",
     "electron": "^45.2.3",
