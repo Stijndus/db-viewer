@@ -168,6 +168,37 @@ describe('ConnectionsStore', () => {
     );
   });
 
+  it('connects to what the command line opened, at start and later', async () => {
+    let later: ((l: { kind: 'open'; connectionId: string }) => void) | null = null;
+    const store = setup({
+      takeLaunch: async () => ({ ok: true, data: { kind: 'open', connectionId: PROFILE.id } }),
+      onLaunch: (listener) => {
+        later = listener;
+        return () => undefined;
+      },
+    });
+    await store.init();
+    expect(store.statusOf(PROFILE.id)).toBe('connected');
+    await store.disconnect(PROFILE.id);
+    later!({ kind: 'open', connectionId: PROFILE.id });
+    await vi.waitFor(() => expect(store.statusOf(PROFILE.id)).toBe('connected'));
+  });
+
+  it('shows why the command line could not be opened', async () => {
+    const store = setup({
+      takeLaunch: async () => ({
+        ok: true,
+        data: { kind: 'error', message: 'Onbekende optie: --hots', hint: 'db-viewer --help' },
+      }),
+    });
+    await store.init();
+    expect(store.launchError()).toEqual({
+      code: 'CLI',
+      message: 'Onbekende optie: --hots',
+      hint: 'db-viewer --help',
+    });
+  });
+
   it('shows a load error when not running inside Electron', async () => {
     const store = setup({
       listConnections: async () => ({

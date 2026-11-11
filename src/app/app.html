@@ -34,6 +34,21 @@
     }
   </header>
 
+  @if (store.launchError(); as error) {
+    <div class="update-banner launch-banner" role="alert">
+      <span
+        ><strong>{{ error.message }}</strong>
+        @if (error.hint) {
+          <span class="muted">{{ error.hint }}</span>
+        }
+      </span>
+      <span class="push"></span>
+      <button type="button" class="btn btn-ghost btn-sm" (click)="store.launchError.set(null)">
+        Sluiten
+      </button>
+    </div>
+  }
+
   @if (updates.banner(); as update) {
     <div class="update-banner" role="status">
       @if (update.status === 'ready') {

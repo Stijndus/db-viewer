@@ -52,6 +52,13 @@
               @if (c.readOnly) {
                 <span class="ro-badge">Alleen-lezen</span>
               }
+              @if (c.temporary) {
+                <span
+                  class="tmp-badge"
+                  title="Geopend vanaf de opdrachtregel; niet opgeslagen. Bewaar via Bewerken."
+                  >Tijdelijk</span
+                >
+              }
             </span>
             <span class="status" [class]="'status status-' + status"
               ><span class="dot"></span>{{ label[status] }}</span

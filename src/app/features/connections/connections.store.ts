@@ -1,5 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import type {
+  LaunchRequest,
   ConnectSecrets,
   ConnectionInput,
   ConnectionProfile,
@@ -65,10 +66,34 @@ export class ConnectionsStore {
     return this.status()[id] ?? 'idle';
   }
 
+  /** A command line that could not be opened (unknown name, bad option). */
+  readonly launchError = signal<DbError | null>(null);
+  private stopLaunches: (() => void) | null = null;
+
   async init(): Promise<void> {
     const info = await this.api.appInfo();
     if (info.ok) this.encryptionAvailable.set(info.data.encryptionAvailable);
     await this.load();
+    // `db-viewer …` at start, and again later while the app runs.
+    this.stopLaunches?.();
+    this.stopLaunches = this.api.onLaunch((launch) => void this.openLaunch(launch));
+    const first = await this.api.takeLaunch();
+    if (first.ok && first.data) await this.openLaunch(first.data);
+  }
+
+  /** Opens what the command line asked for: a saved or temporary connection, or shows why not. */
+  async openLaunch(launch: LaunchRequest): Promise<void> {
+    if (launch.kind === 'error') {
+      this.launchError.set({
+        code: 'CLI',
+        message: launch.message,
+        ...(launch.hint && { hint: launch.hint }),
+      });
+      return;
+    }
+    this.launchError.set(null);
+    await this.load();
+    await this.connect(launch.connectionId);
   }
 
   async load(): Promise<void> {

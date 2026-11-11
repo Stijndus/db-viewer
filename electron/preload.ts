@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, UPDATE_STATE_EVENT, type DbApi } from '../shared/ipc-contract';
-import type { UpdateState } from '../shared/models';
+import { IPC, LAUNCH_EVENT, UPDATE_STATE_EVENT, type DbApi } from '../shared/ipc-contract';
+import type { LaunchRequest, UpdateState } from '../shared/models';
 
 // Only these functions reach the renderer. No ipcRenderer, no Node, no generic invoke.
 const api: DbApi = {
@@ -31,6 +31,12 @@ const api: DbApi = {
   checkForUpdates: () => ipcRenderer.invoke(IPC.checkForUpdates),
   installUpdate: () => ipcRenderer.invoke(IPC.installUpdate),
   releaseNotes: () => ipcRenderer.invoke(IPC.releaseNotes),
+  takeLaunch: () => ipcRenderer.invoke(IPC.takeLaunch),
+  onLaunch: (listener) => {
+    const handler = (_event: unknown, launch: LaunchRequest) => listener(launch);
+    ipcRenderer.on(LAUNCH_EVENT, handler);
+    return () => ipcRenderer.removeListener(LAUNCH_EVENT, handler);
+  },
   onUpdateState: (listener) => {
     const handler = (_event: unknown, state: UpdateState) => listener(state);
     ipcRenderer.on(UPDATE_STATE_EVENT, handler);

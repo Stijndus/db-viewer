@@ -1,6 +1,14 @@
 <dialog #dialog class="dialog" aria-labelledby="dlg-title" (close)="onDialogClose()">
   <div class="dialog-head">
-    <h2 id="dlg-title">{{ isEdit ? 'Verbinding bewerken' : 'Nieuwe verbinding' }}</h2>
+    <h2 id="dlg-title">
+      {{
+        profile()?.temporary
+          ? 'Tijdelijke verbinding bewaren'
+          : isEdit
+            ? 'Verbinding bewerken'
+            : 'Nieuwe verbinding'
+      }}
+    </h2>
     <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="close()">
       <svg
         width="18"

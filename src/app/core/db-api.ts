@@ -45,6 +45,8 @@ function browserFallback(): DbApi {
     checkForUpdates: async () => ({ ok: true, data: { status: 'unsupported' } }),
     installUpdate: fail,
     releaseNotes: fail,
+    takeLaunch: async () => ({ ok: true, data: null }),
+    onLaunch: () => () => undefined,
     onUpdateState: () => () => undefined,
   };
 }

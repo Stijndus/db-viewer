@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
 import { IPC, type AppInfo } from '../../shared/ipc-contract';
-import type { ReleaseNote, Result } from '../../shared/models';
+import type { LaunchRequest, ReleaseNote, Result } from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
@@ -27,6 +27,8 @@ export interface HandlerDeps {
   updater: Updater;
   version: string;
   /** The OS open-file dialog (Electron's dialog.showOpenDialog on the main window). */
+  /** The command line's launch, once; null afterwards. */
+  takeLaunch(): Promise<LaunchRequest | null>;
   /** Release notes bundled with the app (dist-electron/release-notes.json). */
   releaseNotes(): Promise<ReleaseNote[]>;
   /** Default folder for the key file dialog (~/.ssh). */
@@ -95,6 +97,7 @@ export function registerHandlers(deps: HandlerDeps): void {
   );
 
   handle(IPC.releaseNotes, () => deps.releaseNotes());
+  handle(IPC.takeLaunch, () => deps.takeLaunch());
 
   handle(IPC.updateState, () => updater.getState());
   handle(IPC.checkForUpdates, () => updater.check());

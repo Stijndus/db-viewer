@@ -6,6 +6,7 @@ import type {
   ConnectResult,
   ConnectSecrets,
   DatabaseInfo,
+  LaunchRequest,
   ReleaseNote,
   Result,
   RowsPage,
@@ -40,6 +41,7 @@ export const IPC = {
   checkForUpdates: 'updates:check',
   installUpdate: 'updates:install',
   releaseNotes: 'app:release-notes',
+  takeLaunch: 'cli:take',
   pickDatabaseFile: 'dialog:database-file',
   pickKeyFile: 'dialog:key-file',
   trustHostKey: 'connections:trust-host-key',
@@ -47,6 +49,9 @@ export const IPC = {
 
 /** Pushed from main to the renderer whenever the update state changes. */
 export const UPDATE_STATE_EVENT = 'updates:state';
+
+/** Pushed when `db-viewer …` is run again while the app is open. */
+export const LAUNCH_EVENT = 'cli:launch';
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
@@ -120,6 +125,10 @@ export interface DbApi {
   // Updates.
   updateState(): Promise<Result<UpdateState>>;
   checkForUpdates(): Promise<Result<UpdateState>>;
+  /** What the command line asked to open at start; null when nothing (asked once). */
+  takeLaunch(): Promise<Result<LaunchRequest | null>>;
+  /** Later launches from the command line while the app runs. Returns an unsubscribe function. */
+  onLaunch(listener: (launch: LaunchRequest) => void): () => void;
   /** Release notes bundled with the app, newest first. */
   releaseNotes(): Promise<Result<ReleaseNote[]>>;
   /** Restarts the app into the downloaded update. */

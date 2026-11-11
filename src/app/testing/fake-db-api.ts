@@ -72,6 +72,7 @@ export const PROFILE: ConnectionProfile = {
   hasPassword: true,
   ssh: null,
   hasSshSecret: false,
+  temporary: false,
 };
 
 export const DATABASES: DatabaseInfo[] = [
@@ -168,6 +169,8 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     checkForUpdates: () => ok({ status: 'current' as const }),
     installUpdate: () => ok(undefined),
     releaseNotes: () => ok([]),
+    takeLaunch: () => ok(null),
+    onLaunch: () => () => undefined,
     onUpdateState: () => () => undefined,
     ...overrides,
   };

@@ -28,6 +28,8 @@ export interface ConnectionProfile {
   ssh: SshSettings | null;
   /** True when an SSH password or key passphrase is stored (encrypted). */
   hasSshSecret: boolean;
+  /** Opened from the command line without --save: not saved, gone when the app quits. */
+  temporary: boolean;
 }
 
 /** How to log in on the SSH server. */
@@ -84,6 +86,11 @@ export interface ConnectSecrets {
   /** SSH password or key passphrase. */
   sshSecret?: string;
 }
+
+/** What the command line asked the app to open; sent to the window. */
+export type LaunchRequest =
+  | { kind: 'open'; connectionId: string }
+  | { kind: 'error'; message: string; hint?: string };
 
 export interface ConnectResult {
   serverVersion: string;

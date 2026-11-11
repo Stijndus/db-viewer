@@ -53,6 +53,13 @@
             @if (c.readOnly) {
               <span class="ro-badge ro-small" title="Alleen-lezen">RO</span>
             }
+            @if (c.temporary) {
+              <span
+                class="tmp-badge ro-small"
+                title="Geopend vanaf de opdrachtregel; niet opgeslagen. Bewaar via Bewerken."
+                >tijdelijk</span
+              >
+            }
           </span>
           <span class="mono muted small" [title]="c.type === 'sqlite' ? c.database : ''">{{
             location(c)

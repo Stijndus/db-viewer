@@ -1,0 +1,42 @@
+name: Installer
+
+# Builds the Windows installer and checks what it does to the system: db-viewer.cmd next to the
+# app, the install folder on the user's PATH, and both gone again after uninstalling.
+on:
+  push:
+    paths: [build/**, package.json, .github/workflows/installer.yml]
+  workflow_dispatch:
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - name: Install, check PATH and db-viewer.cmd, uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem release -Filter 'DB-Viewer-Setup-*.exe' | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\DB Viewer'
+          if (-not (Test-Path (Join-Path $dir 'DB Viewer.exe'))) { throw "App niet geïnstalleerd in $dir" }
+          if (-not (Test-Path (Join-Path $dir 'db-viewer.cmd'))) { throw 'db-viewer.cmd ontbreekt' }
+          $path = [Environment]::GetEnvironmentVariable('Path', 'User')
+          Write-Host "PATH (gebruiker): $path"
+          if (($path -split ';') -notcontains $dir) { throw 'Installatiemap staat niet in PATH' }
+          $found = (cmd /c "set PATH=$path;%PATH% && where db-viewer")
+          Write-Host "where db-viewer: $found"
+          if (-not $found) { throw 'db-viewer niet gevonden via PATH' }
+          Start-Process (Join-Path $dir 'Uninstall DB Viewer.exe') -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 5
+          $after = [Environment]::GetEnvironmentVariable('Path', 'User')
+          Write-Host "PATH na verwijderen: $after"
+          if (($after -split ';') -contains $dir) { throw 'Installatiemap staat na verwijderen nog in PATH' }

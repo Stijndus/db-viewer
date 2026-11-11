@@ -67,7 +67,7 @@
   "build": {
     "appId": "io.github.stijndus.dbviewer",
     "productName": "DB Viewer",
-    "copyright": "Copyright © 2026 Stijndus",
+    "copyright": "Copyright \u00a9 2026 Stijndus",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -96,7 +96,13 @@
           ]
         }
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "extraFiles": [
+        {
+          "from": "build/db-viewer.cmd",
+          "to": "db-viewer.cmd"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -105,7 +111,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "DB Viewer",
-      "artifactName": "DB-Viewer-Setup-${version}.exe"
+      "artifactName": "DB-Viewer-Setup-${version}.exe",
+      "include": "build/installer.nsh"
     },
     "portable": {
       "artifactName": "DB-Viewer-${version}-portable.exe"
