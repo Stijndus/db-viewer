@@ -1814,6 +1814,10 @@ app-code-editor,
 .dialog-wide {
   width: 760px;
 }
+/* Wide enough for its five footer buttons on one line (Windows fonts run a little wider). */
+.dialog-conn {
+  width: 820px;
+}
 .sql-preview {
   max-height: 360px;
   overflow: auto;
