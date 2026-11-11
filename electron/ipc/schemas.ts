@@ -120,3 +120,55 @@ export const sqlImportRequestSchema = z.object({
 });
 
 export const jobIdSchema = z.string().regex(/^[a-z0-9-]{8,64}$/i, 'Ongeldige taak');
+
+const sortKeySchema = z.object({ column: identifierSchema, direction: z.enum(['asc', 'desc']) });
+
+export const exportRequestSchema = z.object({
+  source: z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('table'),
+      database: identifierSchema,
+      table: identifierSchema,
+      where: whereSchema,
+      orderBy: z.array(sortKeySchema).max(16),
+    }),
+    z.object({
+      kind: z.literal('query'),
+      sql: z.string().min(1).max(1_000_000),
+      database: identifierSchema.optional(),
+    }),
+    z.object({
+      kind: z.literal('database'),
+      database: identifierSchema,
+      tables: z.array(identifierSchema).min(1).max(10_000),
+      structure: z.boolean(),
+      data: z.boolean(),
+    }),
+  ]),
+  format: z.enum(['csv', 'json', 'sql', 'xlsx']),
+  file: filePathSchema,
+  csv: z
+    .object({ delimiter: z.enum([',', ';', '\t']), header: z.boolean(), bom: z.boolean() })
+    .optional(),
+  json: z.object({ style: z.enum(['array', 'lines']) }).optional(),
+  sql: z
+    .object({
+      rowsPerInsert: z.number().int().min(1).max(10_000),
+      tableName: identifierSchema.optional(),
+      createTable: z.boolean().optional(),
+      dropTable: z.boolean().optional(),
+    })
+    .optional(),
+  archive: z
+    .object({
+      kind: z.enum(['gzip', 'zip', '7z']),
+      password: z.string().min(1).max(1024).optional(),
+    })
+    .optional(),
+});
+
+export const fileNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((n) => !/[\\/]/.test(n), 'Ongeldige naam');

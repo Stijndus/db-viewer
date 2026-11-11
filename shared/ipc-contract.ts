@@ -6,6 +6,7 @@ import type {
   ConnectResult,
   ConnectSecrets,
   DatabaseInfo,
+  ExportRequest,
   ImportFileInfo,
   LaunchRequest,
   SqlImportRequest,
@@ -49,6 +50,9 @@ export const IPC = {
   inspectImportFile: 'transfer:inspect',
   startSqlImport: 'transfer:import-sql',
   cancelTransfer: 'transfer:cancel',
+  pickExportFile: 'dialog:export-file',
+  startExport: 'transfer:export',
+  showInFolder: 'shell:show-in-folder',
   pickDatabaseFile: 'dialog:database-file',
   pickKeyFile: 'dialog:key-file',
   trustHostKey: 'connections:trust-host-key',
@@ -146,6 +150,12 @@ export interface DbApi {
     request: SqlImportRequest,
   ): Promise<Result<{ jobId: string }>>;
   cancelTransfer(jobId: string): Promise<Result<void>>;
+  /** Save dialog for an export; `name` includes the extension. Null when cancelled. */
+  pickExportFile(name: string): Promise<Result<string | null>>;
+  /** Starts writing an export; progress arrives through onTransfer. */
+  startExport(connectionId: string, request: ExportRequest): Promise<Result<{ jobId: string }>>;
+  /** Opens the folder with the file selected (only files an export wrote). */
+  showInFolder(file: string): Promise<Result<void>>;
   onTransfer(listener: (progress: TransferProgress) => void): () => void;
 
   /** What the command line asked to open at start; null when nothing (asked once). */

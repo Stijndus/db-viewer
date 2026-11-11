@@ -26,6 +26,7 @@ import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
 import type { Load, SelectedObject } from '../../schema/schema.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
+import { TransferStore } from '../../transfer/transfer.store';
 import {
   DataGrid,
   DEFAULT_CELL,
@@ -79,6 +80,7 @@ export class TableData {
   private readonly api = inject(DB_API);
   private readonly connections = inject(ConnectionsStore);
   private readonly workspace = inject(WorkspaceStore);
+  private readonly transfer = inject(TransferStore);
   private readonly grid = viewChild(DataGrid);
   private readonly sqlDialog = viewChild<ElementRef<HTMLDialogElement>>('sqlDialog');
 
@@ -281,6 +283,23 @@ export class TableData {
     const keys = order.map((k) => `${k.column} ${k.direction === 'asc' ? '↑' : '↓'}`).join(', ');
     return this.sort() ? `Gesorteerd op ${keys}` : `Op primaire sleutel (${keys})`;
   });
+
+  /** Export dialog with this table, the applied filter and the order shown. */
+  protected exportTable(): void {
+    const o = this.object();
+    this.transfer.openExport({
+      connectionId: o.connectionId,
+      title: o.name,
+      baseName: o.name,
+      source: {
+        kind: 'table',
+        database: o.database,
+        table: o.name,
+        ...(this.whereApplied().trim() && { where: this.whereApplied() }),
+        orderBy: this.effectiveOrder(),
+      },
+    });
+  }
 
   constructor() {
     // New table: start over. Load once the column metadata is in (it decides the default order).

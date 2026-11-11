@@ -150,6 +150,10 @@
   <app-password-prompt [prompt]="prompt" />
 }
 
+@if (transfer.exportFor(); as target) {
+  <app-export-dialog [target]="target" />
+}
+
 @if (transfer.importFor(); as connectionId) {
   <app-import-dialog [connectionId]="connectionId" />
 }

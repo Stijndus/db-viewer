@@ -16,6 +16,7 @@ import { DataGrid, type GridColumn } from '../../data/data-grid/data-grid';
 import { columnWidth, isNumericType } from '../../data/table-data/table-data';
 import { SchemaStore } from '../../schema/schema.store';
 import { CodeEditor } from '../code-editor/code-editor';
+import { TransferStore } from '../../transfer/transfer.store';
 import { ROW_LIMITS, SqlStore, type RowLimit, type SqlTab } from '../sql.store';
 
 const MIN_PANE = 120;
@@ -33,6 +34,7 @@ export class SqlPanel {
   protected readonly sql = inject(SqlStore);
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
+  private readonly transfer = inject(TransferStore);
   private readonly editor = viewChild(CodeEditor);
   private readonly panel = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -107,6 +109,18 @@ export class SqlPanel {
     const last = results.at(-1);
     return last?.kind === 'error' ? ran - last.index - 1 : 0;
   });
+
+  protected exportResult(): void {
+    const r = this.active();
+    if (r?.kind !== 'rows') return;
+    const db = this.tab().database;
+    this.transfer.openExport({
+      connectionId: this.connectionId(),
+      title: 'queryresultaat',
+      baseName: 'resultaat',
+      source: { kind: 'query', sql: r.sql, ...(db && { database: db }) },
+    });
+  }
 
   protected readonly summary = computed(() => {
     const results = this.results();

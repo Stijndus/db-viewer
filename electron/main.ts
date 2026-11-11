@@ -142,6 +142,10 @@ function startApp(): void {
       },
       pickFile: (options) =>
         mainWindow ? dialog.showOpenDialog(mainWindow, options) : dialog.showOpenDialog(options),
+      pickSaveFile: (options) =>
+        mainWindow ? dialog.showSaveDialog(mainWindow, options) : dialog.showSaveDialog(options),
+      showInFolder: (file) => shell.showItemInFolder(file),
+      documentsDir: app.getPath('documents'),
       send: (channel, payload) => mainWindow?.webContents.send(channel, payload),
       takeLaunch: () => {
         const launch = pendingLaunch;

@@ -6,6 +6,7 @@ import { ConnectionList } from './features/connections/connection-list/connectio
 import { ConnectionsOverview } from './features/connections/connections-overview/connections-overview';
 import { ConnectionsStore, connectionLocation } from './features/connections/connections.store';
 import { WhatsNew } from './core/whats-new/whats-new';
+import { ExportDialog } from './features/transfer/export-dialog/export-dialog';
 import { ImportDialog } from './features/transfer/import-dialog/import-dialog';
 import { TransferStore } from './features/transfer/transfer.store';
 import { HostKeyPrompt } from './features/connections/host-key-prompt/host-key-prompt';
@@ -26,6 +27,7 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     HostKeyPrompt,
     WhatsNew,
     ImportDialog,
+    ExportDialog,
     SchemaTree,
     Workspace,
     ConfirmWrite,

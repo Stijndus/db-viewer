@@ -2,7 +2,7 @@ import { Component, computed, ElementRef, inject, input, signal, viewChild } fro
 import type { ConnectionProfile } from '../../../../shared/models';
 import { ConnectionHome } from '../schema/connection-home/connection-home';
 import { ObjectView } from '../schema/object-view/object-view';
-import type { SelectedObject } from '../schema/schema.store';
+import { SchemaStore, type SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
 import { SqlStore } from '../sql/sql.store';
 import { TransferStore } from '../transfer/transfer.store';
@@ -30,6 +30,7 @@ export class Workspace {
   protected readonly ws = inject(WorkspaceStore);
   protected readonly sql = inject(SqlStore);
   protected readonly transfer = inject(TransferStore);
+  private readonly schema = inject(SchemaStore);
   private readonly bar = viewChild<ElementRef<HTMLElement>>('bar');
   protected readonly menu = signal<TabMenu | null>(null);
 
@@ -109,6 +110,27 @@ export class Workspace {
   protected hasTabsRight(tab: WorkspaceTab): boolean {
     const tabs = this.ws.tabs();
     return tabs.findIndex((t) => t.id === tab.id) < tabs.length - 1;
+  }
+
+  /** Export a database as SQL: the one of the active table, else the profile's own. */
+  protected exportDatabase(): void {
+    const conn = this.connection();
+    const active = this.ws.active();
+    const state = this.schema.databases(conn.id);
+    const names =
+      state?.status === 'loaded' ? state.data.filter((d) => !d.system).map((d) => d.name) : [];
+    const preferred = [
+      active?.kind === 'table' ? active.database : '',
+      conn.type === 'sqlite' ? 'main' : conn.database,
+      conn.type === 'postgres' ? 'public' : conn.type === 'mssql' ? 'dbo' : '',
+    ].find((d) => d && names.includes(d));
+    const database = preferred ?? names[0] ?? '';
+    this.transfer.openExport({
+      connectionId: conn.id,
+      title: conn.name,
+      baseName: database || conn.name,
+      source: { kind: 'database', database, tables: [], structure: true, data: true },
+    });
   }
 
   /** Ctrl+Tab / Ctrl+Shift+Tab switch tabs; Escape closes the tab menu. */

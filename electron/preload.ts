@@ -42,6 +42,9 @@ const api: DbApi = {
   inspectImportFile: (file, password) => ipcRenderer.invoke(IPC.inspectImportFile, file, password),
   startSqlImport: (id, request) => ipcRenderer.invoke(IPC.startSqlImport, id, request),
   cancelTransfer: (jobId) => ipcRenderer.invoke(IPC.cancelTransfer, jobId),
+  pickExportFile: (name) => ipcRenderer.invoke(IPC.pickExportFile, name),
+  startExport: (id, request) => ipcRenderer.invoke(IPC.startExport, id, request),
+  showInFolder: (file) => ipcRenderer.invoke(IPC.showInFolder, file),
   onTransfer: (listener) => {
     const handler = (_event: unknown, progress: TransferProgress) => listener(progress);
     ipcRenderer.on(TRANSFER_EVENT, handler);

@@ -116,6 +116,16 @@
       }
       <span class="push"></span>
       <span class="muted small">{{ summary() }}</span>
+      @if (active()?.kind === 'rows') {
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          title="Alle rijen van dit resultaat exporteren (de query draait opnieuw, zonder limiet)"
+          (click)="exportResult()"
+        >
+          Exporteren…
+        </button>
+      }
     </div>
 
     @if (active(); as r) {

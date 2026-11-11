@@ -1,8 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import { ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
+import {
+  ipcMain,
+  type IpcMainInvokeEvent,
+  type OpenDialogOptions,
+  type SaveDialogOptions,
+} from 'electron';
 import { IPC, TRANSFER_EVENT, type AppInfo } from '../../shared/ipc-contract';
+import { exportData } from '../transfer/export';
 import { inspectImportFile, importSql } from '../transfer/sql-import';
-import type { LaunchRequest, ReleaseNote, Result, TransferProgress } from '../../shared/models';
+import path from 'node:path';
+import type {
+  ExportRequest,
+  LaunchRequest,
+  ReleaseNote,
+  Result,
+  TransferProgress,
+} from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
@@ -14,6 +27,8 @@ import {
   idSchema,
   optionalIdSchema,
   connectSecretsSchema,
+  exportRequestSchema,
+  fileNameSchema,
   filePathSchema,
   jobIdSchema,
   sqlImportRequestSchema,
@@ -33,6 +48,9 @@ export interface HandlerDeps {
   updater: Updater;
   version: string;
   /** The OS open-file dialog (Electron's dialog.showOpenDialog on the main window). */
+  pickSaveFile(options: SaveDialogOptions): Promise<{ canceled: boolean; filePath?: string }>;
+  showInFolder(file: string): void;
+  documentsDir?: string;
   /** Sends an event to the window (import and export progress). */
   send(channel: string, payload: unknown): void;
   /** The command line's launch, once; null afterwards. */
@@ -161,6 +179,55 @@ export function registerHandlers(deps: HandlerDeps): void {
       )
       .finally(() => jobs.delete(jobId));
     return { jobId };
+  });
+
+  /** Files exports wrote this run: only these may be shown in the file manager. */
+  const written = new Set<string>();
+
+  handle(IPC.pickExportFile, async (rawName) => {
+    const name = fileNameSchema.parse(rawName);
+    const result = await deps.pickSaveFile({
+      title: 'Exporteren naar',
+      defaultPath: path.join(deps.documentsDir ?? '', name),
+      filters: [{ name: 'Alle bestanden', extensions: ['*'] }],
+    });
+    return result.canceled || !result.filePath ? null : result.filePath;
+  });
+
+  handle(IPC.startExport, async (rawId, rawRequest) => {
+    const id = idSchema.parse(rawId);
+    const request = exportRequestSchema.parse(rawRequest) as ExportRequest;
+    const session = manager.session(id);
+    const profile = await store.get(id);
+    const jobId = randomUUID();
+    const controller = new AbortController();
+    jobs.set(jobId, controller);
+    const report = (p: TransferProgress) => deps.send(TRANSFER_EVENT, p);
+    void exportData(session, profile.type, request, jobId, report, controller.signal)
+      .then((p) => {
+        if (p.phase === 'done') written.add(request.file);
+        report(p);
+      })
+      .catch((err: unknown) =>
+        report({
+          jobId,
+          kind: 'export',
+          phase: 'failed',
+          bytes: 0,
+          totalBytes: null,
+          statements: 0,
+          failed: 0,
+          errors: [],
+          error: toDbError(err),
+        }),
+      )
+      .finally(() => jobs.delete(jobId));
+    return { jobId };
+  });
+
+  handle(IPC.showInFolder, (rawFile) => {
+    const file = filePathSchema.parse(rawFile);
+    if (written.has(file)) deps.showInFolder(file);
   });
 
   handle(IPC.cancelTransfer, (rawJob) => {

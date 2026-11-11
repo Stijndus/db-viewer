@@ -36,6 +36,14 @@
       <path d="M20 4v7h-7" />
     </svg>
   </button>
+  <button
+    type="button"
+    class="btn btn-ghost btn-sm"
+    title="Deze tabel exporteren naar CSV, Excel, JSON of SQL"
+    (click)="exportTable()"
+  >
+    Exporteren…
+  </button>
 </form>
 
 @if (editState().editable) {

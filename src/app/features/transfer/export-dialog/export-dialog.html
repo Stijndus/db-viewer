@@ -1,0 +1,347 @@
+<dialog
+  #dialog
+  class="dialog"
+  aria-labelledby="exp-title"
+  (close)="onClose()"
+  (cancel)="onCancel($event)"
+>
+  <div class="dialog-head">
+    <h2 id="exp-title">Exporteren: {{ target().title }}</h2>
+    @if (!running()) {
+      <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="close()">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    }
+  </div>
+
+  <div class="dialog-body">
+    @if (jobId() === null) {
+      @if (kind() === 'database') {
+        <div class="grid-2">
+          <div class="field">
+            <label for="exp-db" class="field-label">{{
+              dialect().container === 'schema' ? 'Schema' : 'Database'
+            }}</label>
+            <select #db id="exp-db" class="input" (change)="database.set(db.value)">
+              @for (d of databases(); track d) {
+                <option [value]="d" [selected]="d === database()">{{ d }}</option>
+              }
+            </select>
+          </div>
+          <fieldset class="field">
+            <legend class="field-label">Inhoud</legend>
+            <label class="check"
+              ><input
+                type="checkbox"
+                [checked]="structure()"
+                (change)="structure.set(!structure())"
+              />
+              Structuur (CREATE TABLE)</label
+            >
+            <label class="check"
+              ><input type="checkbox" [checked]="data()" (change)="data.set(!data())" /> Data
+              (INSERT)</label
+            >
+          </fieldset>
+        </div>
+        <fieldset class="field">
+          <legend class="field-label">
+            Tabellen
+            @if (tables(); as list) {
+              <span class="muted">({{ selected().size }} van {{ list.length }})</span>
+            }
+          </legend>
+          @if (tables(); as list) {
+            <div class="row small">
+              <button type="button" class="link-btn" (click)="selectAll(true)">Alles</button>
+              <button type="button" class="link-btn" (click)="selectAll(false)">Niets</button>
+            </div>
+            <div class="entry-list table-pick">
+              @for (t of list; track t) {
+                <label class="entry">
+                  <input
+                    type="checkbox"
+                    [checked]="selected().has(t)"
+                    (change)="toggle(t, !selected().has(t))"
+                  />
+                  <span class="mono">{{ t }}</span>
+                </label>
+              } @empty {
+                <span class="muted small entry">Geen tabellen.</span>
+              }
+            </div>
+          } @else {
+            <span class="muted small">Tabellen laden…</span>
+          }
+          @if (structure() && (profile()?.type === 'postgres' || profile()?.type === 'mssql')) {
+            <span class="muted small"
+              >De structuur wordt opgebouwd uit kolommen, typen en primaire sleutel; indexen,
+              foreign keys en triggers zitten er niet in.</span
+            >
+          }
+        </fieldset>
+      } @else {
+        <fieldset class="field">
+          <legend class="field-label">Formaat</legend>
+          <div class="segmented">
+            @for (f of formats; track f.value) {
+              <button
+                type="button"
+                class="seg"
+                [class.active]="format() === f.value"
+                [attr.aria-pressed]="format() === f.value"
+                (click)="format.set(f.value)"
+              >
+                {{ f.label }}
+              </button>
+            }
+          </div>
+        </fieldset>
+
+        @if (filtered()) {
+          <label class="check">
+            <input type="checkbox" [checked]="useFilter()" (change)="useFilter.set(!useFilter())" />
+            Alleen de rijen die aan het filter voldoen
+          </label>
+        }
+        @if (kind() === 'query') {
+          <span class="muted small"
+            >De query wordt opnieuw uitgevoerd, alleen-lezend en zonder rijlimiet: je krijgt alle
+            rijen, niet alleen de getoonde.</span
+          >
+        }
+
+        @switch (format()) {
+          @case ('csv') {
+            <div class="row wrap">
+              <label class="field-label" for="exp-delim">Scheidingsteken</label>
+              <select
+                #delim
+                id="exp-delim"
+                class="input input-sm"
+                (change)="delimiter.set($any(delim.value))"
+              >
+                <option value="," [selected]="delimiter() === ','">komma ( , )</option>
+                <option value=";" [selected]="delimiter() === ';'">puntkomma ( ; )</option>
+                <option value="&#9;" [selected]="delimiter() === '\t'">tab</option>
+              </select>
+              <label class="check"
+                ><input type="checkbox" [checked]="header()" (change)="header.set(!header())" />
+                Kolomnamen als eerste regel</label
+              >
+              <label class="check" title="Excel herkent UTF-8 (é, ë, €) alleen met deze markering"
+                ><input type="checkbox" [checked]="bom()" (change)="bom.set(!bom())" /> Voor Excel
+                (UTF-8 BOM)</label
+              >
+            </div>
+          }
+          @case ('json') {
+            <div class="row wrap">
+              <label class="check"
+                ><input
+                  type="radio"
+                  name="exp-json"
+                  [checked]="jsonStyle() === 'array'"
+                  (change)="jsonStyle.set('array')"
+                />
+                Eén lijst met objecten</label
+              >
+              <label class="check"
+                ><input
+                  type="radio"
+                  name="exp-json"
+                  [checked]="jsonStyle() === 'lines'"
+                  (change)="jsonStyle.set('lines')"
+                />
+                Eén object per regel (JSON Lines)</label
+              >
+            </div>
+          }
+          @case ('sql') {
+            <div class="row wrap">
+              @if (kind() === 'query') {
+                <label class="field-label" for="exp-tname">Tabelnaam</label>
+                <input
+                  #tn
+                  id="exp-tname"
+                  class="input input-sm mono"
+                  [value]="tableName()"
+                  (input)="tableName.set(tn.value)"
+                />
+              }
+              <label class="field-label" for="exp-rows">Rijen per INSERT</label>
+              <input
+                #rpi
+                id="exp-rows"
+                class="input input-sm mono"
+                type="number"
+                min="1"
+                max="10000"
+                [value]="rowsPerInsert()"
+                (input)="rowsPerInsert.set(+rpi.value)"
+              />
+              @if (kind() === 'table') {
+                <label class="check"
+                  ><input
+                    type="checkbox"
+                    [checked]="createTable()"
+                    (change)="createTable.set(!createTable())"
+                  />
+                  Met DROP en CREATE TABLE</label
+                >
+              }
+            </div>
+          }
+          @case ('xlsx') {
+            <span class="muted small"
+              >Getallen worden getallen in Excel; grote decimalen blijven tekst, zodat er geen
+              cijfers wegvallen.</span
+            >
+          }
+        }
+      }
+
+      <fieldset class="field">
+        <legend class="field-label">Inpakken</legend>
+        <div class="segmented">
+          <button
+            type="button"
+            class="seg"
+            [class.active]="packing() === 'none'"
+            (click)="packing.set('none')"
+          >
+            Niet
+          </button>
+          <button
+            type="button"
+            class="seg"
+            [class.active]="packing() === 'gzip'"
+            (click)="packing.set('gzip')"
+          >
+            .gz
+          </button>
+          <button
+            type="button"
+            class="seg"
+            [class.active]="packing() === 'zip'"
+            (click)="packing.set('zip')"
+          >
+            .zip
+          </button>
+          <button
+            type="button"
+            class="seg"
+            [class.active]="packing() === '7z'"
+            (click)="packing.set('7z')"
+          >
+            .7z
+          </button>
+        </div>
+      </fieldset>
+      @if (packing() === 'zip' || packing() === '7z') {
+        <div class="grid-2">
+          <div class="field">
+            <label for="exp-pw" class="field-label"
+              >Wachtwoord <span class="muted">(optioneel)</span></label
+            >
+            <input
+              #pw
+              id="exp-pw"
+              class="input"
+              type="password"
+              autocomplete="new-password"
+              [value]="password()"
+              (input)="password.set(pw.value)"
+            />
+          </div>
+          <div class="field">
+            <label for="exp-pw2" class="field-label">Herhaal wachtwoord</label>
+            <input
+              #pw2
+              id="exp-pw2"
+              class="input"
+              type="password"
+              autocomplete="new-password"
+              [class.invalid]="passwordMismatch()"
+              [value]="password2()"
+              (input)="password2.set(pw2.value)"
+            />
+          </div>
+        </div>
+        <span class="muted small">
+          @if (packing() === '7z') {
+            AES-256; ook de bestandsnamen zijn versleuteld. Openen met 7-Zip of deze app.
+          } @else {
+            AES-256. Openen met 7-Zip of WinRAR; Windows Verkenner kan AES-zips niet openen. De
+            export staat even onversleuteld in je tijdelijke map.
+          }
+        </span>
+      }
+
+      @if (error(); as e) {
+        <div class="banner banner-error" role="alert">
+          <strong>{{ e.message }}</strong>
+          @if (e.hint) {
+            <span class="small">{{ e.hint }}</span>
+          }
+        </div>
+      }
+    } @else {
+      @let p = progress();
+      <div class="import-progress" role="status" aria-live="polite">
+        @switch (p?.phase ?? 'running') {
+          @case ('running') {
+            <strong>Bezig met exporteren…</strong>
+          }
+          @case ('done') {
+            <strong class="ok-text">Klaar.</strong>
+            <span class="mono small">{{ p?.file }}</span>
+          }
+          @case ('cancelled') {
+            <strong>Gestopt; het halve bestand is verwijderd.</strong>
+          }
+          @default {
+            <strong class="err-text">{{ p?.error?.message ?? 'Export mislukt.' }}</strong>
+            @if (p?.error?.hint) {
+              <span class="small">{{ p?.error?.hint }}</span>
+            }
+          }
+        }
+        <div class="bar" [class.indeterminate]="running()">
+          <span [style.width.%]="running() ? 30 : 100"></span>
+        </div>
+        <span class="muted small mono"
+          >{{ count(p?.statements ?? 0) }} rijen · {{ size(p?.bytes ?? 0) }}</span
+        >
+      </div>
+    }
+  </div>
+
+  <div class="dialog-foot">
+    @if (progress()?.phase === 'done') {
+      <button type="button" class="btn btn-ghost" (click)="showFile()">Toon in map</button>
+    }
+    <span class="grow"></span>
+    @if (jobId() === null) {
+      <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
+      <button type="button" class="btn btn-primary" [disabled]="!canExport()" (click)="start()">
+        Exporteren…
+      </button>
+    } @else if (running()) {
+      <button type="button" class="btn btn-danger-ghost" (click)="stop()">Stoppen</button>
+    } @else {
+      <button type="button" class="btn btn-primary" (click)="close()">Sluiten</button>
+    }
+  </div>
+</dialog>
