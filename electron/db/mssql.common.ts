@@ -29,7 +29,7 @@ type MssqlError = Error & {
   number?: number;
   sqlMessage?: string;
   fatal?: boolean;
-  originalError?: { message?: string; code?: string };
+  originalError?: unknown;
 };
 
 /**
@@ -39,7 +39,16 @@ type MssqlError = Error & {
 export function mssqlError(err: unknown, phase: 'connect' | 'query' = 'query'): unknown {
   if (!(err instanceof Error)) return err;
   const e = err as MssqlError;
-  const text = `${e.message} ${e.originalError?.message ?? ''}`;
+  // Network failures hide the real cause a level or two down (AggregateError of each address).
+  const inner = e.originalError as
+    | { message?: string; code?: string; cause?: { code?: string; errors?: { code?: string }[] } }
+    | undefined;
+  const causes = [
+    inner?.code,
+    inner?.cause?.code,
+    ...(inner?.cause?.errors ?? []).map((x) => x.code),
+  ];
+  const text = `${e.message} ${inner?.message ?? ''} ${causes.filter(Boolean).join(' ')}`;
   if (/Cannot open database/i.test(text)) {
     // Also reported as login failure 18456; the database is the real reason.
     e.code = 'MSSQL_4060';
