@@ -6,6 +6,8 @@ CREATE DATABASE IF NOT EXISTS secret_db;
 CREATE USER IF NOT EXISTS 'viewer'@'%' IDENTIFIED BY 'test123';
 CREATE USER IF NOT EXISTS 'viewer'@'localhost' IDENTIFIED BY 'test123';
 GRANT ALL ON app_dev.* TO 'viewer'@'%';
+-- MySQL 8 logs binary by default: triggers from a non-SUPER user (as in an imported dump) need this.
+SET GLOBAL log_bin_trust_function_creators = 1;
 GRANT ALL ON app_dev.* TO 'viewer'@'localhost';
 FLUSH PRIVILEGES;
 

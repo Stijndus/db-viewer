@@ -138,6 +138,7 @@ for (const server of servers) {
         () => {},
         new AbortController().signal,
       );
+      expect(result.errors).toEqual([]);
       expect(result.phase).toBe('done');
       expect(await rows()).toEqual([
         ['1', 'a;b', '0'],
