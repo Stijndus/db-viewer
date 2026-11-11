@@ -10,10 +10,20 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
+import {
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  completionKeymap,
+} from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { MariaSQL, MySQL, sql, type SQLNamespace } from '@codemirror/lang-sql';
-import { bracketMatching, HighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language';
+import {
+  bracketMatching,
+  HighlightStyle,
+  indentOnInput,
+  syntaxHighlighting,
+} from '@codemirror/language';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { Compartment, EditorSelection, EditorState, Prec } from '@codemirror/state';
 import {
@@ -41,19 +51,29 @@ const highlight = HighlightStyle.define([
 const theme = EditorView.theme(
   {
     '&': { height: '100%', backgroundColor: '#0e1014', color: '#e7e9ec', fontSize: '13px' },
-    '.cm-scroller': { fontFamily: "var(--mono)", lineHeight: '1.6' },
+    '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.6' },
     '.cm-content': { caretColor: '#5aa9ff', padding: '8px 0' },
-    '.cm-gutters': { backgroundColor: '#121419', color: '#5c6470', border: 'none', borderRight: '1px solid #2a2f38' },
+    '.cm-gutters': {
+      backgroundColor: '#121419',
+      color: '#5c6470',
+      border: 'none',
+      borderRight: '1px solid #2a2f38',
+    },
     '.cm-activeLine': { backgroundColor: '#151a22' },
     '.cm-activeLineGutter': { backgroundColor: '#151a22', color: '#a3abb6' },
-    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': { backgroundColor: '#264a75 !important' },
+    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
+      backgroundColor: '#264a75 !important',
+    },
     '.cm-cursor': { borderLeftColor: '#5aa9ff' },
     '.cm-matchingBracket': { backgroundColor: '#2a3a52', outline: 'none' },
     '.cm-selectionMatch': { backgroundColor: '#22303f' },
     '.cm-placeholder': { color: '#5c6470' },
     '.cm-tooltip': { backgroundColor: '#1b1f26', border: '1px solid #2a2f38', borderRadius: '6px' },
     '.cm-tooltip-autocomplete > ul > li': { fontFamily: 'var(--mono)', padding: '2px 8px' },
-    '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: '#1f2e44', color: '#e7e9ec' },
+    '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      backgroundColor: '#1f2e44',
+      color: '#e7e9ec',
+    },
     '.cm-completionDetail': { color: '#808894', fontStyle: 'normal', marginLeft: '8px' },
     '.cm-panels': { backgroundColor: '#15181e', color: '#e7e9ec' },
     '.cm-panels input, .cm-panels button': { fontSize: '12px' },
@@ -108,7 +128,14 @@ export class CodeEditor {
                 { key: 'Shift-Mod-Enter', run: () => (this.run.emit('all'), true) },
               ]),
             ),
-            keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
+            keymap.of([
+              ...closeBracketsKeymap,
+              ...defaultKeymap,
+              ...searchKeymap,
+              ...historyKeymap,
+              ...completionKeymap,
+              indentWithTab,
+            ]),
             EditorView.updateListener.of((u) => {
               if (u.docChanged) this.textChange.emit(u.state.doc.toString());
             }),

@@ -1,7 +1,8 @@
 # DB Viewer
 
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
-Klaar: MySQL/MariaDB-verbindingen beheren (stap 1), het schema verkennen (stap 2) en tabeldata bekijken (stap 3).
+Klaar: MySQL/MariaDB-verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken
+(stap 3) en een SQL-editor met automatische updates (stap 4).
 
 ## Downloaden
 
@@ -63,6 +64,12 @@ git commit -am "Release v0.3.0"
 git push
 ```
 
+### Automatische updates
+
+De geïnstalleerde app (niet de portable versie) gebruikt `electron-updater` met GitHub Releases als
+bron. De release-workflow uploadt daarvoor naast de `.exe` ook `latest.yml` en de `.blockmap`. Updates
+werken alleen omdat de repository openbaar is.
+
 ## Architectuur
 
 ```
@@ -81,6 +88,12 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 - **Data alleen-lezen:** elke data-query draait in een `READ ONLY`-transactie met een limiet van
   30 seconden. Het WHERE-filter van de gebruiker staat op eigen regels tussen haakjes, zodat een
   `--`-commentaar de `LIMIT` niet kan wegnemen.
+- **SQL-editor:** elk tabblad heeft een eigen serververbinding (`USE`, variabelen en transacties
+  blijven staan; sluiten draait een open transactie terug). De rijlimiet werkt via
+  `sql_select_limit`, Stop via `KILL QUERY`. Schrijvende statements worden eerst bevestigd.
+- **Alleen-lezen-verbindingen:** de editor-sessie draait met `SET SESSION TRANSACTION READ ONLY`, dus
+  de server weigert wijzigingen; de app blokkeert ook pogingen om dat terug te zetten. Dit beschermt
+  tegen vergissingen. Voor echte afscherming gebruik je een databasegebruiker met alleen `SELECT`.
 - **Exacte waarden:** `BIGINT`, `DECIMAL` en `DATETIME` komen als tekst binnen, zodat er geen precisie of
   tijdzone verloren gaat.
 - **Venster:** `contextIsolation`, `sandbox`, geen `nodeIntegration`, een Content-Security-Policy, en IPC
@@ -91,7 +104,7 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 ```
 electron/        main-proces: main.ts, preload.ts, db/, ipc/, store/
 shared/          types en IPC-contract, gedeeld door Electron en Angular
-src/app/         Angular-UI: core/db-api.ts, features/connections/, features/schema/, features/data/
+src/app/         Angular-UI: core/, features/connections/, schema/, data/, sql/, workspace/
 scripts/         build van de Electron-bundels, test-database
 ```
 
@@ -100,5 +113,5 @@ scripts/         build van de Electron-bundels, test-database
 1. ~~Verbinding maken (MySQL)~~
 2. ~~Schema-boom: databases, tabellen, views, kolommen~~
 3. ~~Tabeldata met paginering en virtual scroll~~
-4. SQL-editor met resultaatgrid
+4. ~~SQL-editor met resultaatgrid~~
 5. Meer drivers: PostgreSQL, SQL Server, SQLite

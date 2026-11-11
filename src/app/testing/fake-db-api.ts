@@ -19,13 +19,39 @@ export function fakeRun(request: RunRequest): RunResult {
   const results: RunResult['results'] = [];
   for (const [index, sql] of request.statements.entries()) {
     if (/^selec\b/i.test(sql)) {
-      results.push({ kind: 'error', index, sql, durationMs: 1, error: { code: 'ER_PARSE_ERROR', message: `syntax error near '${sql}'` } });
+      results.push({
+        kind: 'error',
+        index,
+        sql,
+        durationMs: 1,
+        error: { code: 'ER_PARSE_ERROR', message: `syntax error near '${sql}'` },
+      });
       break;
     }
     if (/^select/i.test(sql)) {
-      results.push({ kind: 'rows', index, sql, durationMs: 1, columns: [{ name: 'n', type: 'int' }, { name: 'n', type: 'int' }], rows: [[String(index + 1), null]], truncated: false });
+      results.push({
+        kind: 'rows',
+        index,
+        sql,
+        durationMs: 1,
+        columns: [
+          { name: 'n', type: 'int' },
+          { name: 'n', type: 'int' },
+        ],
+        rows: [[String(index + 1), null]],
+        truncated: false,
+      });
     } else {
-      results.push({ kind: 'ok', index, sql, durationMs: 1, affectedRows: 1, insertId: null, warnings: 0, info: '' });
+      results.push({
+        kind: 'ok',
+        index,
+        sql,
+        durationMs: 1,
+        affectedRows: 1,
+        insertId: null,
+        warnings: 0,
+        info: '',
+      });
     }
   }
   return { results, database: request.database ?? 'app_dev' };

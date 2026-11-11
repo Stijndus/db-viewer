@@ -130,9 +130,14 @@ export function toDbError(err: unknown): DbError {
 export function toSqlError(err: unknown): DbError {
   const known = toDbError(err);
   if (known.code === 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION') {
-    return { code: known.code, message: 'Deze verbinding is alleen-lezen.', hint: 'De server weigert wijzigingen.' };
+    return {
+      code: known.code,
+      message: 'Deze verbinding is alleen-lezen.',
+      hint: 'De server weigert wijzigingen.',
+    };
   }
-  if (known.code === 'ER_QUERY_INTERRUPTED') return { code: known.code, message: 'Query afgebroken.' };
+  if (known.code === 'ER_QUERY_INTERRUPTED')
+    return { code: known.code, message: 'Query afgebroken.' };
   const sqlMessage = (err as { sqlMessage?: unknown })?.sqlMessage;
   return typeof sqlMessage === 'string' ? { code: known.code, message: sqlMessage } : known;
 }

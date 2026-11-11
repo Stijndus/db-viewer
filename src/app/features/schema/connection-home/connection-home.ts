@@ -1,4 +1,4 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, output } from '@angular/core';
 import type { ConnectionProfile } from '../../../../../shared/models';
 import { ConnectionsStore, connectionAddress } from '../../connections/connections.store';
 import { SchemaStore } from '../schema.store';
@@ -14,7 +14,7 @@ import { SchemaStore } from '../schema.store';
       </p>
     </div>
     <div class="placeholder">
-      <strong>Kies een tabel of view in de boom links om de data en structuur te zien.</strong>
+      <strong>Kies een tabel of view in de boom links, of schrijf zelf een query.</strong>
       <span class="muted">
         @if (databaseCount() !== null) {
           {{ databaseCount() }} {{ databaseCount() === 1 ? 'database' : 'databases' }} zichtbaar
@@ -24,6 +24,9 @@ import { SchemaStore } from '../schema.store';
       </span>
     </div>
     <div class="row">
+      <button type="button" class="btn btn-primary" (click)="newSql.emit()">
+        Nieuwe SQL-query
+      </button>
       <button type="button" class="btn btn-ghost" (click)="connections.disconnect(connection().id)">
         Verbreken
       </button>
@@ -32,6 +35,7 @@ import { SchemaStore } from '../schema.store';
 })
 export class ConnectionHome {
   readonly connection = input.required<ConnectionProfile>();
+  readonly newSql = output<void>();
   protected readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
   protected readonly address = connectionAddress;

@@ -75,7 +75,10 @@ export async function listColumns(
 }
 
 /** Every column name per table of one database, for autocompletion in the SQL editor. */
-export async function listAllColumns(pool: Pool, database: string): Promise<Record<string, string[]>> {
+export async function listAllColumns(
+  pool: Pool,
+  database: string,
+): Promise<Record<string, string[]>> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT TABLE_NAME AS t, COLUMN_NAME AS c
        FROM information_schema.COLUMNS

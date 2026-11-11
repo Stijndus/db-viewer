@@ -33,7 +33,11 @@ export class EditorSessions {
   async run(tabId: string, req: RunRequest): Promise<RunResult> {
     const editor = await this.get(tabId);
     if (editor.running) {
-      throw new AppError('BUSY', 'Er loopt al een query in dit tabblad.', 'Wacht tot hij klaar is of klik op Stop.');
+      throw new AppError(
+        'BUSY',
+        'Er loopt al een query in dit tabblad.',
+        'Wacht tot hij klaar is of klik op Stop.',
+      );
     }
     editor.running = true;
     const results: StatementResult[] = [];
@@ -52,7 +56,11 @@ export class EditorSessions {
             index,
             sql,
             durationMs: 0,
-            error: { code: 'READ_ONLY_CONNECTION', message: 'Deze verbinding is alleen-lezen.', hint: violation },
+            error: {
+              code: 'READ_ONLY_CONNECTION',
+              message: 'Deze verbinding is alleen-lezen.',
+              hint: violation,
+            },
           });
           break;
         }
@@ -182,7 +190,12 @@ function rowsResult(
   };
 }
 
-function okResult(index: number, sql: string, h: ResultSetHeader, durationMs: number): StatementResult {
+function okResult(
+  index: number,
+  sql: string,
+  h: ResultSetHeader,
+  durationMs: number,
+): StatementResult {
   return {
     kind: 'ok',
     index,
@@ -229,10 +242,15 @@ const TYPES: Record<number, string> = {
 const BINARY_CHARSET = 63;
 const UNSIGNED_FLAG = 32;
 
-export function toResultColumn(f: Pick<FieldPacket, 'name' | 'columnType' | 'characterSet' | 'flags'>): ResultColumn {
+export function toResultColumn(
+  f: Pick<FieldPacket, 'name' | 'columnType' | 'characterSet' | 'flags'>,
+): ResultColumn {
   let type = TYPES[f.columnType ?? -1] ?? 'unknown';
   if (f.characterSet === BINARY_CHARSET) {
-    type = type.replace('text', 'blob').replace(/^varchar$/, 'varbinary').replace(/^char$/, 'binary');
+    type = type
+      .replace('text', 'blob')
+      .replace(/^varchar$/, 'varbinary')
+      .replace(/^char$/, 'binary');
   }
   const flags = typeof f.flags === 'number' ? f.flags : 0;
   if (flags & UNSIGNED_FLAG && /int|decimal|float|double/.test(type)) type += ' unsigned';

@@ -16,6 +16,11 @@
     </svg>
     <span class="app-name">DB Viewer</span>
     @if (store.active(); as active) {
+      @if (active.readOnly) {
+        <span class="ro-badge" title="Deze verbinding weigert alles wat gegevens wijzigt"
+          >Alleen-lezen</span
+        >
+      }
       <span class="pill-connected"
         ><span class="dot"></span>{{ active.name
         }}{{ active.database ? ' · ' + active.database : '' }}</span
@@ -29,6 +34,36 @@
     }
   </header>
 
+  @if (updates.banner(); as update) {
+    <div class="update-banner" role="status">
+      @if (update.status === 'ready') {
+        <span
+          ><strong>Versie {{ update.version }}</strong> is gedownload en klaar om te
+          installeren.</span
+        >
+        <button type="button" class="btn btn-primary btn-sm" (click)="updates.install()">
+          Herstarten en bijwerken
+        </button>
+      } @else {
+        <span
+          ><strong>Versie {{ update.version }}</strong> is beschikbaar.</span
+        >
+        <a class="btn btn-primary btn-sm" [href]="update.url" target="_blank" rel="noopener"
+          >Downloaden</a
+        >
+      }
+      <a
+        class="link-btn small"
+        [href]="'https://github.com/Stijndus/db-viewer/releases/tag/v' + update.version"
+        target="_blank"
+        rel="noopener"
+        >Wat is nieuw</a
+      >
+      <span class="push"></span>
+      <button type="button" class="btn btn-ghost btn-sm" (click)="updates.dismiss()">Later</button>
+    </div>
+  }
+
   <div class="body">
     <aside class="sidebar">
       @if (store.active()) {
@@ -38,13 +73,9 @@
       }
     </aside>
 
-    <main class="main" [class.main-object]="selectedInActive()">
+    <main class="main" [class.main-object]="store.active()">
       @if (store.active(); as active) {
-        @if (selectedInActive(); as object) {
-          <app-object-view [object]="object" />
-        } @else {
-          <app-connection-home [connection]="active" />
-        }
+        <app-workspace [connection]="active" />
       } @else {
         <app-connections-overview />
       }
@@ -57,7 +88,26 @@
       {{ store.connections().length === 1 ? 'profiel' : 'profielen' }}</span
     >
     <span>{{ store.connectedCount() }} verbonden</span>
-    <span class="push"
+    <span class="push"></span>
+    @if (updates.statusText(); as status) {
+      <span>{{ status }}</span>
+    }
+    @if (updates.version()) {
+      <button
+        type="button"
+        class="link-btn small"
+        [title]="
+          updates.state().status === 'unsupported'
+            ? 'Updates werken in de geïnstalleerde app'
+            : 'Nu controleren op updates'
+        "
+        [disabled]="updates.state().status === 'unsupported'"
+        (click)="updates.check()"
+      >
+        v{{ updates.version() }}
+      </button>
+    }
+    <span
       >Wachtwoorden:
       {{
         store.encryptionAvailable() ? 'sleutelhanger actief' : 'sleutelhanger niet beschikbaar'
@@ -75,4 +125,8 @@
 
 @if (store.passwordPrompt(); as profile) {
   <app-password-prompt [profile]="profile" />
+}
+
+@if (sql.confirmation(); as request) {
+  <app-confirm-write [request]="request" />
 }

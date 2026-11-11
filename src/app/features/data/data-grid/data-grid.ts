@@ -48,6 +48,8 @@ export class DataGrid {
   readonly rows = input.required<Cell[][]>();
   /** Absolute number of the first row on this page, for the row-number column. */
   readonly rowOffset = input(0);
+  /** Query results are shown as returned; only table data can be re-sorted by the server. */
+  readonly sortable = input(true);
   readonly sortRequested = output<string>();
   readonly copied = output<string>();
 

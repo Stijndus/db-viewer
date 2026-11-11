@@ -88,7 +88,8 @@ export function statementAt(statements: SqlStatement[], cursor: number): SqlStat
   return found ?? statements[0] ?? null;
 }
 
-export type StatementKind = 'read' | 'write' | 'session';
+/** `unknown`: not a statement we recognise (often a typo); the server decides. */
+export type StatementKind = 'read' | 'write' | 'session' | 'unknown';
 
 export interface StatementInfo {
   kind: StatementKind;
@@ -98,7 +99,17 @@ export interface StatementInfo {
   unbounded: boolean;
 }
 
-const READ = new Set(['SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN', 'TABLE', 'VALUES', 'HELP', 'WITH']);
+const READ = new Set([
+  'SELECT',
+  'SHOW',
+  'DESCRIBE',
+  'DESC',
+  'EXPLAIN',
+  'TABLE',
+  'VALUES',
+  'HELP',
+  'WITH',
+]);
 const SESSION = new Set([
   'USE',
   'SET',
@@ -110,12 +121,54 @@ const SESSION = new Set([
   'RELEASE',
   'DO',
 ]);
+const WRITE = new Set([
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'REPLACE',
+  'CREATE',
+  'ALTER',
+  'DROP',
+  'TRUNCATE',
+  'RENAME',
+  'GRANT',
+  'REVOKE',
+  'CALL',
+  'LOAD',
+  'HANDLER',
+  'LOCK',
+  'UNLOCK',
+  'OPTIMIZE',
+  'ANALYZE',
+  'REPAIR',
+  'FLUSH',
+  'KILL',
+  'RESET',
+  'PURGE',
+  'INSTALL',
+  'UNINSTALL',
+  'IMPORT',
+  'CLONE',
+  'SHUTDOWN',
+  'RESTART',
+  'CHANGE',
+  'XA',
+  'PREPARE',
+  'EXECUTE',
+  'CACHE',
+]);
 const WRITE_IN_WITH = new Set(['UPDATE', 'DELETE', 'INSERT', 'REPLACE']);
 
 export function classify(sql: string): StatementInfo {
   const words = topLevelWords(sql);
   const keyword = words[0] ?? '';
-  let kind: StatementKind = READ.has(keyword) ? 'read' : SESSION.has(keyword) ? 'session' : 'write';
+  let kind: StatementKind = READ.has(keyword)
+    ? 'read'
+    : SESSION.has(keyword)
+      ? 'session'
+      : WRITE.has(keyword)
+        ? 'write'
+        : 'unknown';
 
   if (keyword === 'WITH' && words.some((w) => WRITE_IN_WITH.has(w))) kind = 'write';
   if (keyword === 'SELECT' || keyword === 'WITH') {
@@ -126,7 +179,8 @@ export function classify(sql: string): StatementInfo {
       }
     }
   }
-  const effective = keyword === 'WITH' ? (words.find((w) => WRITE_IN_WITH.has(w)) ?? keyword) : keyword;
+  const effective =
+    keyword === 'WITH' ? (words.find((w) => WRITE_IN_WITH.has(w)) ?? keyword) : keyword;
   const unbounded = (effective === 'UPDATE' || effective === 'DELETE') && !words.includes('WHERE');
   return { kind, keyword, unbounded };
 }
@@ -160,7 +214,8 @@ export function topLevelWords(sql: string): string[] {
     else if (ch === '/' && next === '*' && sql[i + 2] !== '!') {
       const end = sql.indexOf('*/', i + 2);
       i = end === -1 ? sql.length : end + 2;
-    } else if (ch === '/' && next === '*') i += 3; // executable comment: read its contents
+    } else if (ch === '/' && next === '*')
+      i += 3; // executable comment: read its contents
     else if (ch === "'" || ch === '"' || ch === '`') i = skipQuoted(sql, i, ch);
     else if (ch === '(') {
       depth++;

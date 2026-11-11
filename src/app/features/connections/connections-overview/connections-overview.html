@@ -47,7 +47,12 @@
         @let error = store.errors()[c.id];
         <article class="card" [class.card-error]="status === 'error'">
           <div class="card-head">
-            <span class="badge">MySQL</span>
+            <span class="row-tight"
+              ><span class="badge">MySQL</span>
+              @if (c.readOnly) {
+                <span class="ro-badge">Alleen-lezen</span>
+              }
+            </span>
             <span class="status" [class]="'status status-' + status"
               ><span class="dot"></span>{{ label[status] }}</span
             >

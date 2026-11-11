@@ -255,3 +255,72 @@ app-data-grid { flex: 1; min-height: 0; display: flex; }
 .dg-cell.is-empty { color: var(--text-3); }
 .dg-cell.is-binary { color: #c3a6ff; }
 .dg-cell.is-truncated::after { content: ' …'; color: var(--text-3); }
+
+/* ── Step 4: workspace, SQL editor, updates ────────────────────── */
+.btn-danger { background: var(--err); color: #2a0b0a; font-weight: 600; }
+.banner-warn { border-color: #5a4520; background: #2a2110; }
+.banner-warn strong { color: #f0c674; }
+.warn-text { color: #f0c674; }
+.ok-text { color: var(--ok-text); }
+.row-tight { display: inline-flex; align-items: center; gap: 6px; }
+.ro-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; background: #3a2e14; color: #f0c674; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+.ro-badge.ro-small { height: 16px; padding: 0 4px; font-size: 10px; margin-left: 4px; vertical-align: 1px; }
+.dg-th.static { cursor: default; }
+.dg-th.static:hover { background: transparent; }
+.dg-th:disabled { color: var(--text); }
+
+app-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.main.main-object { padding: 0; }
+.ws-tabs { flex-shrink: 0; height: 40px; display: flex; align-items: flex-end; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--border); background: #121419; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.ws-tab { height: 34px; max-width: 220px; display: flex; align-items: center; gap: 6px; padding: 0 12px; margin-bottom: -1px; border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--text-2); font-size: 13px; cursor: pointer; flex-shrink: 0; }
+.ws-tab.active { background: var(--bg); border-color: var(--border); color: var(--text); }
+.ws-tab:hover:not(.active) { color: var(--text); background: #171b22; }
+.ws-tab .mono { font-family: var(--mono); font-size: 12.5px; }
+.ws-tab-sql { padding: 0 4px 0 0; }
+.ws-tab-main { height: 100%; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; border: none; background: transparent; color: inherit; font: inherit; cursor: pointer; min-width: 0; }
+.ws-tab-close { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 5px; background: transparent; color: var(--text-3); cursor: pointer; }
+.ws-tab-close:hover { background: var(--panel-2); color: var(--text); }
+.ws-new { height: 30px; margin: 0 0 4px 4px; display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; border: 1px dashed var(--border); border-radius: 7px; background: transparent; color: var(--text-2); font-size: 12.5px; cursor: pointer; flex-shrink: 0; }
+.ws-new:hover { color: var(--text); border-color: var(--text-3); }
+.ws-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 18px 24px 0; }
+.ws-body > app-connection-home { padding-top: 24px; gap: 32px; }
+.ws-body > app-object-view { flex: 1; min-height: 0; gap: 14px; }
+.spinner { width: 11px; height: 11px; border: 2px solid var(--text-3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+app-sql-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sql-toolbar { flex-shrink: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 10px; }
+.sql-toolbar .push { margin-left: auto; }
+.sql-toolbar .running { margin-left: 4px; }
+.sql-select { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.sql-select .select { max-width: 180px; }
+.sql-editor { flex-shrink: 0; min-height: 120px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+app-code-editor, .code-editor { display: block; height: 100%; }
+.code-editor .cm-editor { height: 100%; }
+.code-editor .cm-editor.cm-focused { outline: none; }
+.sql-editor:focus-within { border-color: #35537a; }
+.sql-divider { flex-shrink: 0; height: 12px; cursor: row-resize; position: relative; outline: none; }
+.sql-divider::after { content: ''; position: absolute; left: 50%; top: 5px; width: 40px; height: 3px; margin-left: -20px; border-radius: 2px; background: var(--border); }
+.sql-divider:hover::after, .sql-divider:focus-visible::after { background: var(--accent); }
+.sql-results { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; }
+.result-tabs { flex-shrink: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.result-tabs .push { margin-left: auto; }
+.result-tab { height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-2); font-size: 12.5px; cursor: pointer; }
+.result-tab.active { background: var(--accent-soft); border-color: #35537a; color: var(--text); }
+.result-tab.is-error { color: var(--err-text); border-color: var(--err-border); }
+.result-tab.is-error.active { background: var(--err-bg); }
+.result-grid { flex: 1; min-height: 0; display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.result-foot { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--text-2); }
+.result-message { display: flex; flex-direction: column; gap: 8px; padding: 12px 2px; }
+
+.update-banner { flex-shrink: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 8px 16px; background: var(--accent-soft); border-bottom: 1px solid #35537a; font-size: 13px; }
+.update-banner .push { margin-left: auto; }
+.update-banner a.btn { text-decoration: none; }
+.statusbar .link-btn { padding: 0 2px; font-size: 12px; color: var(--text-2); }
+.statusbar .link-btn:hover:not(:disabled) { color: var(--text); }
+.statusbar .link-btn:disabled { cursor: default; }
+
+.confirm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow: auto; }
+.confirm-list li { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.confirm-list .kw { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #f0c674; }
+.confirm-list code { font-size: 12px; word-break: break-word; color: var(--text); }

@@ -1,0 +1,63 @@
+<dialog
+  #dialog
+  class="dialog"
+  aria-labelledby="cw-title"
+  aria-describedby="cw-desc"
+  (close)="answer(false)"
+>
+  <div class="dialog-head">
+    <h2 id="cw-title">Gegevens wijzigen?</h2>
+  </div>
+  <div class="dialog-body">
+    <p id="cw-desc">
+      @if (request().statements.length === request().total) {
+        {{ request().total === 1 ? 'Dit statement wijzigt' : 'Deze statements wijzigen' }}
+      } @else {
+        {{ request().statements.length }} van de {{ request().total }} statements wijzigen
+      }
+      gegevens op <strong>{{ connectionName() }}</strong
+      >:
+    </p>
+    <ul class="confirm-list">
+      @for (s of shown(); track $index) {
+        <li>
+          <span class="kw">{{ s.keyword }}</span>
+          <code class="mono">{{ preview(s.sql) }}</code>
+          @if (s.unbounded) {
+            <span class="warn-text small">Zonder WHERE: raakt alle rijen van de tabel.</span>
+          }
+        </li>
+      }
+      @if (hidden() > 0) {
+        <li class="muted small">en nog {{ hidden() }} meer</li>
+      }
+    </ul>
+    @if (unbounded()) {
+      <div class="banner banner-warn" role="alert">
+        <strong>Let op: een UPDATE of DELETE zonder WHERE.</strong>
+        <span class="small">Controleer of dat echt de bedoeling is.</span>
+      </div>
+    }
+    <label class="check muted">
+      <input
+        type="checkbox"
+        [checked]="dontAskAgain()"
+        (change)="dontAskAgain.set($any($event.target).checked)"
+      />
+      Niet meer vragen voor deze verbinding (tot de app sluit)
+    </label>
+  </div>
+  <div class="dialog-foot">
+    <span class="grow"></span>
+    <button type="button" class="btn btn-ghost" autofocus (click)="answer(false)">Annuleren</button>
+    <button
+      type="button"
+      class="btn"
+      [class.btn-primary]="!unbounded()"
+      [class.btn-danger]="unbounded()"
+      (click)="answer(true)"
+    >
+      Uitvoeren
+    </button>
+  </div>
+</dialog>

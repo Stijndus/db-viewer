@@ -161,25 +161,36 @@ export class SqlStore {
     this.patch(connectionId, tabId, { activeResult: index });
   }
 
-  /** Column names per table of a database, for autocompletion. Loaded once per connection. */
-  completionColumns(connectionId: string, database: string | null): Record<string, string[]> {
+  /** Column names per table of a database, for autocompletion (empty until loaded). */
+  completionColumns(
+    connectionId: string,
+    database: string | null,
+  ): Record<string, string[]> | undefined {
     if (!database) return {};
+    return this.columnsCache()[`${connectionId}\u0001${database}`];
+  }
+
+  /** Loads the autocompletion columns once; call from an effect, never while rendering. */
+  loadCompletionColumns(connectionId: string, database: string | null): void {
+    if (!database) return;
     const key = `${connectionId}\u0001${database}`;
-    const cached = this.columnsCache()[key];
-    if (!cached) {
-      this.columnsCache.update((c) => ({ ...c, [key]: {} }));
-      void this.api.listAllColumns(connectionId, database).then((r) => {
-        if (r.ok) this.columnsCache.update((c) => ({ ...c, [key]: r.data }));
-      });
-    }
-    return cached ?? {};
+    if (this.columnsCache()[key]) return;
+    this.columnsCache.update((c) => ({ ...c, [key]: {} }));
+    void this.api.listAllColumns(connectionId, database).then((r) => {
+      if (r.ok) this.columnsCache.update((c) => ({ ...c, [key]: r.data }));
+    });
   }
 
   /**
    * Runs the selection, or the statement under the cursor, or everything. Statements that change
    * data are confirmed first, unless the connection is read-only (the server refuses them anyway).
    */
-  async run(connectionId: string, tabId: string, mode: 'current' | 'all', editor: EditorSnapshot): Promise<void> {
+  async run(
+    connectionId: string,
+    tabId: string,
+    mode: 'current' | 'all',
+    editor: EditorSnapshot,
+  ): Promise<void> {
     const tab = this.find(connectionId, tabId);
     if (!tab || tab.running) return;
 
@@ -187,7 +198,11 @@ export class SqlStore {
     if (statements.length === 0) {
       this.patch(connectionId, tabId, {
         ...emptyRunState(),
-        error: { code: 'EMPTY', message: 'Niets om uit te voeren.', hint: 'Typ een statement, of zet de cursor erin.' },
+        error: {
+          code: 'EMPTY',
+          message: 'Niets om uit te voeren.',
+          hint: 'Typ een statement, of zet de cursor erin.',
+        },
       });
       return;
     }
@@ -235,7 +250,11 @@ export class SqlStore {
       });
       this.persist(connectionId);
       // DDL may have changed the schema: refresh what the tree shows on its next look.
-      if (statements.some((s) => /^(CREATE|ALTER|DROP|RENAME|TRUNCATE)$/.test(classify(s.sql).keyword))) {
+      if (
+        statements.some((s) =>
+          /^(CREATE|ALTER|DROP|RENAME|TRUNCATE)$/.test(classify(s.sql).keyword),
+        )
+      ) {
         this.columnsCache.set({});
       }
     } else {
@@ -258,7 +277,9 @@ export class SqlStore {
   private patch(connectionId: string, tabId: string, changes: Partial<SqlTab>): void {
     this.tabsByConnection.update((all) => ({
       ...all,
-      [connectionId]: (all[connectionId] ?? []).map((t) => (t.id === tabId ? { ...t, ...changes } : t)),
+      [connectionId]: (all[connectionId] ?? []).map((t) =>
+        t.id === tabId ? { ...t, ...changes } : t,
+      ),
     }));
   }
 
@@ -295,20 +316,25 @@ export class SqlStore {
   /** Saves after a short pause, so typing doesn't write on every key. */
   private persist(connectionId: string): void {
     clearTimeout(this.saveTimers.get(connectionId));
-    this.saveTimers.set(connectionId, setTimeout(() => {
-      const tabs = (this.tabsByConnection()[connectionId] ?? []).map(({ id, title, text, database, maxRows }) => ({
-        id,
-        title,
-        text,
-        database,
-        maxRows,
-      }));
-      try {
-        localStorage.setItem(STORAGE_PREFIX + connectionId, JSON.stringify(tabs));
-      } catch {
-        // Storage full or unavailable: the tabs just aren't remembered.
-      }
-    }, 400));
+    this.saveTimers.set(
+      connectionId,
+      setTimeout(() => {
+        const tabs = (this.tabsByConnection()[connectionId] ?? []).map(
+          ({ id, title, text, database, maxRows }) => ({
+            id,
+            title,
+            text,
+            database,
+            maxRows,
+          }),
+        );
+        try {
+          localStorage.setItem(STORAGE_PREFIX + connectionId, JSON.stringify(tabs));
+        } catch {
+          // Storage full or unavailable: the tabs just aren't remembered.
+        }
+      }, 400),
+    );
   }
 }
 

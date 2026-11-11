@@ -343,7 +343,9 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
       expect(first.results[4]).toMatchObject({ affectedRows: 1 });
 
       // Same tab, same session: the variable survives.
-      const second = await run('SELECT @answer AS answer, (SELECT GROUP_CONCAT(v) FROM sql_scratch) AS vs');
+      const second = await run(
+        'SELECT @answer AS answer, (SELECT GROUP_CONCAT(v) FROM sql_scratch) AS vs',
+      );
       expect(second.results[0]).toMatchObject({ kind: 'rows', rows: [['42', 'a,c']] });
 
       // Another tab has its own session.
@@ -371,7 +373,10 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
 
   it('returns the result sets of a procedure call', async () => {
     await withSession(async (s) => {
-      const { results } = await s.runScript(newTab(), { statements: ['CALL refresh_stats()'], maxRows: 10 });
+      const { results } = await s.runScript(newTab(), {
+        statements: ['CALL refresh_stats()'],
+        maxRows: 10,
+      });
       expect(results[0]).toMatchObject({ kind: 'rows', rows: [['1']] });
     });
   });
@@ -384,9 +389,15 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
         maxRows: 10,
       });
       const tx = newTab();
-      await s.runScript(tx, { statements: ['BEGIN', 'INSERT INTO sql_tx VALUES (1)'], maxRows: 10 });
+      await s.runScript(tx, {
+        statements: ['BEGIN', 'INSERT INTO sql_tx VALUES (1)'],
+        maxRows: 10,
+      });
       await s.closeEditor(tx);
-      const check = await s.runScript(setup, { statements: ['SELECT COUNT(*) FROM sql_tx'], maxRows: 10 });
+      const check = await s.runScript(setup, {
+        statements: ['SELECT COUNT(*) FROM sql_tx'],
+        maxRows: 10,
+      });
       expect(check.results[0]).toMatchObject({ rows: [['0']] });
       await s.runScript(setup, { statements: ['DROP TABLE sql_tx'], maxRows: 10 });
     });
@@ -414,8 +425,14 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
   it('refuses writes on a read-only connection, also when they hide in a function', async () => {
     await withSession(async (s) => {
       const id = newTab();
-      const blocked = await s.runScript(id, { statements: ["INSERT INTO counter VALUES (99)"], maxRows: 10 });
-      expect(blocked.results[0]).toMatchObject({ kind: 'error', error: { code: 'READ_ONLY_CONNECTION' } });
+      const blocked = await s.runScript(id, {
+        statements: ['INSERT INTO counter VALUES (99)'],
+        maxRows: 10,
+      });
+      expect(blocked.results[0]).toMatchObject({
+        kind: 'error',
+        error: { code: 'READ_ONLY_CONNECTION' },
+      });
 
       const lifted = await s.runScript(id, {
         statements: ['SET SESSION TRANSACTION READ WRITE'],
@@ -430,7 +447,10 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
         error: { code: 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION' },
       });
 
-      const read = await s.runScript(id, { statements: ['SELECT COUNT(*) FROM counter'], maxRows: 10 });
+      const read = await s.runScript(id, {
+        statements: ['SELECT COUNT(*) FROM counter'],
+        maxRows: 10,
+      });
       expect(read.results[0]).toMatchObject({ kind: 'rows' });
     }, true);
   });

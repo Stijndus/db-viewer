@@ -45,7 +45,9 @@ export class Updater {
         this.set({ ...this.state, percent: Math.round(p.percent) });
       }
     });
-    autoUpdater.on('update-downloaded', (info) => this.set({ status: 'ready', version: info.version }));
+    autoUpdater.on('update-downloaded', (info) =>
+      this.set({ status: 'ready', version: info.version }),
+    );
     autoUpdater.on('error', (err) => {
       // A failed check (offline, GitHub down) must never disturb work: keep a ready update ready.
       if (this.state.status !== 'ready') {

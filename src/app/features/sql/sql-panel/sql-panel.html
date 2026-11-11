@@ -1,0 +1,190 @@
+<div class="sql-toolbar">
+  @if (tab().running) {
+    <button type="button" class="btn btn-danger btn-sm" (click)="stop()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <rect x="6" y="6" width="12" height="12" rx="2" />
+      </svg>
+      Stop
+    </button>
+    <span class="muted small running">Bezig…</span>
+  } @else {
+    <button
+      type="button"
+      class="btn btn-primary btn-sm"
+      title="Ctrl+Enter"
+      (click)="run('current')"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M7 5v14l11-7z" />
+      </svg>
+      Uitvoeren
+    </button>
+    <button
+      type="button"
+      class="btn btn-secondary btn-sm"
+      title="Ctrl+Shift+Enter"
+      (click)="run('all')"
+    >
+      Alles uitvoeren
+    </button>
+  }
+  <span class="push"></span>
+  @if (profile()?.readOnly) {
+    <span class="ro-badge" title="Deze verbinding weigert alles wat gegevens wijzigt"
+      >Alleen-lezen</span
+    >
+  }
+  <label class="sql-select">
+    <span class="muted">Database</span>
+    <select
+      class="select"
+      [value]="tab().database ?? ''"
+      (change)="setDatabase($any($event.target).value)"
+    >
+      @if (!tab().database) {
+        <option value="" selected>(geen)</option>
+      }
+      @for (db of databases(); track db) {
+        <option [value]="db" [selected]="db === tab().database">{{ db }}</option>
+      }
+    </select>
+  </label>
+  <label class="sql-select">
+    <span class="muted">Limiet</span>
+    <select class="select" (change)="setLimit($any($event.target).value)">
+      @for (limit of limits; track limit) {
+        <option [value]="limit ?? 'none'" [selected]="limit === tab().maxRows">
+          {{ limitLabel(limit) }}
+        </option>
+      }
+    </select>
+  </label>
+</div>
+
+<div class="sql-editor" [style.height.px]="editorHeight()">
+  <app-code-editor
+    [text]="tab().text"
+    [mariaDb]="mariaDb()"
+    [completion]="completion()"
+    (textChange)="sql.setText(connectionId(), tab().id, $event)"
+    (run)="run($event)"
+  />
+</div>
+
+<div
+  class="sql-divider"
+  role="separator"
+  aria-orientation="horizontal"
+  aria-label="Hoogte van de editor"
+  tabindex="0"
+  (pointerdown)="startResize($event)"
+  (keydown)="resizeWithKeys($event)"
+></div>
+
+<div class="sql-results">
+  @if (tab().error; as error) {
+    <div class="banner banner-error" role="alert">
+      <strong>{{ error.message }}</strong>
+      @if (error.hint) {
+        <span class="small">{{ error.hint }}</span>
+      }
+    </div>
+  } @else if (results().length > 0) {
+    <div class="result-tabs" role="tablist" aria-label="Resultaten">
+      @for (r of results(); track $index; let i = $index) {
+        <button
+          type="button"
+          role="tab"
+          class="result-tab"
+          [class.active]="i === tab().activeResult"
+          [class.is-error]="r.kind === 'error'"
+          [attr.aria-selected]="i === tab().activeResult"
+          (click)="sql.setActiveResult(connectionId(), tab().id, i)"
+        >
+          {{ resultLabel(r, i) }}
+        </button>
+      }
+      <span class="push"></span>
+      <span class="muted small">{{ summary() }}</span>
+    </div>
+
+    @if (active(); as r) {
+      @switch (r.kind) {
+        @case ('rows') {
+          @if (r.rows.length > 0) {
+            <div class="result-grid">
+              <app-data-grid
+                [columns]="gridColumns()"
+                [rows]="r.rows"
+                [sortable]="false"
+                (copied)="onCopied($event)"
+              />
+            </div>
+          } @else {
+            <div class="result-message muted">Geen rijen.</div>
+          }
+          <div class="result-foot">
+            @if (note(); as text) {
+              <span class="dt-note" role="status">{{ text }}</span>
+            } @else {
+              <span
+                >{{ r.rows.length }} {{ r.rows.length === 1 ? 'rij' : 'rijen' }} ·
+                {{ r.durationMs }} ms</span
+              >
+              @if (r.truncated) {
+                <span class="warn-text"
+                  >Afgekapt op de limiet van {{ r.rows.length }} rijen. Zet de limiet hoger om meer
+                  te zien.</span
+                >
+              }
+            }
+          </div>
+        }
+        @case ('ok') {
+          <div class="result-message">
+            <strong class="ok-text">{{ okText(r) }}</strong>
+            @if (r.info) {
+              <span class="muted small mono">{{ r.info }}</span>
+            }
+            <span class="muted small">{{ r.durationMs }} ms</span>
+          </div>
+        }
+        @case ('error') {
+          <div class="result-message">
+            <div class="banner banner-error" role="alert">
+              <strong>Fout in statement {{ r.index + 1 }}</strong>
+              <span class="mono small">{{ r.error.message }}</span>
+              @if (r.error.hint) {
+                <span class="small">{{ r.error.hint }}</span>
+              }
+              <span class="muted small">{{ r.error.code }}</span>
+            </div>
+            <div class="row">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                (click)="showInEditor(r.index)"
+              >
+                Toon in editor
+              </button>
+              @if (notRun() > 0) {
+                <span class="muted small"
+                  >{{ notRun() }} {{ notRun() === 1 ? 'statement is' : 'statements zijn' }} daarna
+                  niet uitgevoerd.</span
+                >
+              }
+            </div>
+          </div>
+        }
+      }
+    }
+  } @else if (!tab().running) {
+    <div class="result-message muted">
+      <span>Ctrl+Enter voert het statement onder de cursor uit (of de selectie).</span>
+      <span
+        >Ctrl+Shift+Enter voert alles uit. Elk tabblad heeft een eigen verbinding, dus
+        <span class="mono">USE</span>, variabelen en transacties blijven staan.</span
+      >
+    </div>
+  }
+</div>

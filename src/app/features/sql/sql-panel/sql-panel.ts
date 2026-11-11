@@ -1,4 +1,14 @@
-import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import type { StatementResult } from '../../../../../shared/models';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { DataGrid, type GridColumn } from '../../data/data-grid/data-grid';
@@ -39,14 +49,25 @@ export class SqlPanel {
 
   protected readonly databases = computed(() => {
     const state = this.schema.databases(this.connectionId());
-    const names = state?.status === 'loaded' ? state.data.filter((d) => !d.system).map((d) => d.name) : [];
+    const names =
+      state?.status === 'loaded' ? state.data.filter((d) => !d.system).map((d) => d.name) : [];
     const current = this.tab().database;
     return current && !names.includes(current) ? [current, ...names] : names;
   });
 
-  protected readonly completion = computed(() =>
-    this.sql.completionColumns(this.connectionId(), this.tab().database),
+  protected readonly completion = computed(
+    () => this.sql.completionColumns(this.connectionId(), this.tab().database) ?? {},
   );
+
+  constructor() {
+    // Fetch autocompletion columns for the tab's database (again after DDL cleared them).
+    effect(() => {
+      const id = this.connectionId();
+      const db = this.tab().database;
+      const missing = this.sql.completionColumns(id, db) === undefined;
+      if (missing) untracked(() => this.sql.loadCompletionColumns(id, db));
+    });
+  }
 
   protected readonly results = computed(() => this.tab().result?.results ?? []);
   protected readonly active = computed<StatementResult | null>(
@@ -91,7 +112,8 @@ export class SqlPanel {
   protected resultLabel(r: StatementResult, i: number): string {
     const n = this.results().length > 1 ? `${r.index + 1}` : '';
     const prefix = n ? `${n} · ` : '';
-    if (r.kind === 'rows') return `${prefix}${fmt(r.rows.length)}${r.truncated ? '+' : ''} ${r.rows.length === 1 ? 'rij' : 'rijen'}`;
+    if (r.kind === 'rows')
+      return `${prefix}${fmt(r.rows.length)}${r.truncated ? '+' : ''} ${r.rows.length === 1 ? 'rij' : 'rijen'}`;
     if (r.kind === 'ok') return `${prefix}${okShort(r)}`;
     return `${prefix}Fout`;
   }
@@ -99,7 +121,8 @@ export class SqlPanel {
   protected okText(r: StatementResult & { kind: 'ok' }): string {
     const parts = [okShort(r)];
     if (r.insertId) parts.push(`laatste ID ${r.insertId}`);
-    if (r.warnings) parts.push(`${r.warnings} ${r.warnings === 1 ? 'waarschuwing' : 'waarschuwingen'}`);
+    if (r.warnings)
+      parts.push(`${r.warnings} ${r.warnings === 1 ? 'waarschuwing' : 'waarschuwingen'}`);
     return parts.join(' · ');
   }
 
@@ -128,7 +151,11 @@ export class SqlPanel {
   }
 
   protected setLimit(value: string): void {
-    this.sql.setMaxRows(this.connectionId(), this.tab().id, value === 'none' ? null : (Number(value) as RowLimit));
+    this.sql.setMaxRows(
+      this.connectionId(),
+      this.tab().id,
+      value === 'none' ? null : (Number(value) as RowLimit),
+    );
   }
 
   protected onCopied(text: string): void {

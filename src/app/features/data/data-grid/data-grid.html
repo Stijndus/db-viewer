@@ -16,14 +16,20 @@
     [style.width.px]="totalWidth()"
   >
     <div class="dg-num dg-corner" role="columnheader">#</div>
-    @for (col of columns(); track col.name) {
+    @for (col of columns(); track $index) {
       <button
         type="button"
         class="dg-th"
         role="columnheader"
         [class.num]="col.numeric"
         [attr.aria-sort]="ariaSort(col)"
-        [title]="'Sorteer op ' + col.name + (col.primary ? ' (primaire sleutel)' : '')"
+        [class.static]="!sortable()"
+        [disabled]="!sortable()"
+        [title]="
+          sortable()
+            ? 'Sorteer op ' + col.name + (col.primary ? ' (primaire sleutel)' : '')
+            : col.name
+        "
         (click)="sortRequested.emit(col.name)"
       >
         <span class="dg-th-name">

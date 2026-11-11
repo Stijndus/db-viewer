@@ -48,7 +48,12 @@
       >
         <span class="color-bar" [class]="'color-bar color-' + c.color"></span>
         <span class="conn-text">
-          <span class="conn-name">{{ c.name }}</span>
+          <span class="conn-name"
+            >{{ c.name }}
+            @if (c.readOnly) {
+              <span class="ro-badge ro-small" title="Alleen-lezen">RO</span>
+            }
+          </span>
           <span class="mono muted small"
             >{{ c.host }}:{{ c.port }}{{ c.database ? ' / ' + c.database : '' }}</span
           >

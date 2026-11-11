@@ -10,12 +10,12 @@ describe('splitStatements', () => {
 
   it('ignores semicolons in strings, identifiers and comments', () => {
     const text = [
-      "SELECT 'a;b', \"c;d\", `e;f` FROM t; -- not; here",
+      'SELECT \'a;b\', "c;d", `e;f` FROM t; -- not; here',
       "SELECT 'it''s; fine', 'back\\'slash;';",
       '/* block; comment */ SELECT 2; # hash; comment',
     ].join('\n');
     expect(sqls(text)).toEqual([
-      "SELECT 'a;b', \"c;d\", `e;f` FROM t",
+      'SELECT \'a;b\', "c;d", `e;f` FROM t',
       "-- not; here\nSELECT 'it''s; fine', 'back\\'slash;'",
       '/* block; comment */ SELECT 2',
     ]);
@@ -80,6 +80,8 @@ describe('classify', () => {
     ['SET @x = 1', 'session'],
     ['BEGIN', 'session'],
     ['-- comment first\nSELECT 1', 'read'],
+    ['SELEC 1', 'unknown'],
+    ['TRUNCATE t', 'write'],
   ])('%s is %s', (sql, kind) => {
     expect(classify(sql).kind).toBe(kind);
   });
