@@ -34,10 +34,10 @@ Verbinding (één van):
   --connection, -c "Naam"        idem
   mysql://user:ww@host:3306/db   een URL (mysql, mariadb, postgres, mssql, sqlite)
   C:\\data\\app.db                 een SQLite-bestand
-  --type mysql --host ...        losse opties
+  --db-type mysql --host ...     losse opties
 
 Opties:
-  --type, -t       mysql | mariadb | postgres | mssql | sqlite
+  --db-type, -t    mysql | mariadb | postgres | mssql | sqlite
   --host, -h       host (standaard localhost)
   --port, -P       poort (standaard die van het type)
   --user, -u       gebruiker
@@ -88,7 +88,7 @@ const COLORS: Record<string, ConnectionColor> = {
 
 /** Options that take a value, with their short forms. */
 const VALUE_OPTIONS: Record<string, string> = {
-  '--type': 'type',
+  '--db-type': 'type',
   '-t': 'type',
   '--host': 'host',
   '-h': 'host',
@@ -153,6 +153,9 @@ export function parseCli(args: string[], ctx: CliContext): CliCommand {
       const value = eq > 0 ? arg.slice(eq + 1) : args[++i];
       if (value === undefined) return error(`Optie ${name} mist een waarde.`);
       values[VALUE_OPTIONS[name]] = value;
+    } else if (name === '--type') {
+      // Chromium reserves --type for its own child processes: the app cannot start with it.
+      return error('Gebruik --db-type in plaats van --type.', 'Bijvoorbeeld: --db-type mysql');
     } else if (FLAG_OPTIONS[name] && eq < 0) {
       flags[FLAG_OPTIONS[name]] = true;
     } else if (FOREIGN.test(arg) || arg === '.' || arg === '') {
@@ -229,8 +232,8 @@ export function parseCli(args: string[], ctx: CliContext): CliCommand {
           'Kies mysql, mariadb, postgres, mssql of sqlite.',
         )
       : error(
-          'Geef het databasetype met --type, of gebruik een URL.',
-          'Bijvoorbeeld: --type mysql',
+          'Geef het databasetype met --db-type, of gebruik een URL.',
+          'Bijvoorbeeld: --db-type mysql',
         );
   }
 

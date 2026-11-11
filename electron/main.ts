@@ -55,7 +55,7 @@ function zoom(action: 'in' | 'out' | 'reset' | 'get'): number {
 }
 
 // ── Command line ───────────────────────────────────────────────────
-// `db-viewer "Productie"`, `db-viewer mysql://…`, `db-viewer app.db`, `db-viewer --type …`.
+// `db-viewer "Productie"`, `db-viewer mysql://…`, `db-viewer app.db`, `db-viewer --db-type …`.
 // One app per user: a second start hands its arguments to the running window and quits.
 const launchData: LaunchData = {
   args: userArgs(process.argv, app.isPackaged, app.getAppPath()),

@@ -14,7 +14,7 @@ en release notes in de app (stap 8), openen vanaf de opdrachtregel (stap 9) impo
 db-viewer "Productie"                                  opgeslagen verbinding
 db-viewer mysql://stijn@db.example.com:3306/shop        URL (mysql, mariadb, postgres, mssql, sqlite)
 db-viewer C:\data\app.db                               SQLite-bestand
-db-viewer --type postgres --host db --user app --save   losse opties, en bewaren
+db-viewer --db-type postgres --host db --user app --save   losse opties, en bewaren
 db-viewer mysql://app@localhost/shop?ssh=stijn@server   via SSH-tunnel
 db-viewer --help                                        alle opties
 ```

@@ -32,7 +32,7 @@ describe('parseCli', () => {
   });
 
   it('builds a connection from options, with defaults per type', () => {
-    const cmd = parse(['--type', 'postgres', '--host', 'db.example.com', '-d', 'app', '-p', 'pw']);
+    const cmd = parse(['--db-type', 'postgres', '--host', 'db.example.com', '-d', 'app', '-p', 'pw']);
     expect(cmd).toMatchObject({
       kind: 'connect',
       save: false,
@@ -47,7 +47,7 @@ describe('parseCli', () => {
         ssh: null,
       },
     });
-    expect(parse(['--type=mssql'])).toMatchObject({
+    expect(parse(['--db-type=mssql'])).toMatchObject({
       input: { host: 'localhost', port: 1433, user: 'sa' },
     });
   });
@@ -113,7 +113,7 @@ describe('parseCli', () => {
     });
   });
 
-  it('opens SQLite files: a bare path, a URL, or --type sqlite', () => {
+  it('opens SQLite files: a bare path, a URL, or --db-type sqlite', () => {
     expect(parse(['data/app.db'])).toMatchObject({
       kind: 'connect',
       input: { type: 'sqlite', database: path.resolve(cwd, 'data/app.db'), name: 'app' },
@@ -125,7 +125,7 @@ describe('parseCli', () => {
     expect(parse(['./data/archief'], ctx({}, [noExt]))).toMatchObject({
       input: { type: 'sqlite', database: noExt },
     });
-    expect(parse(['--type', 'sqlite', '--file', 'x.db', '--save', '--read-only'])).toMatchObject({
+    expect(parse(['--db-type', 'sqlite', '--file', 'x.db', '--save', '--read-only'])).toMatchObject({
       save: true,
       input: { readOnly: true },
     });
@@ -142,7 +142,11 @@ describe('parseCli', () => {
     });
     expect(parse(['--host', 'x'])).toMatchObject({
       kind: 'error',
-      message: expect.stringContaining('--type'),
+      message: expect.stringContaining('--db-type'),
+    });
+    expect(parse(['--type', 'mysql'])).toMatchObject({
+      kind: 'error',
+      message: 'Gebruik --db-type in plaats van --type.',
     });
     expect(parse(['-t', 'oracle'])).toMatchObject({ message: 'Onbekend databasetype: oracle.' });
     expect(parse(['-t', 'mysql', '-P', '99999'])).toMatchObject({
