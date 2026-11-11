@@ -52,6 +52,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Python openpyxl (checks the Excel export)
+        run: pip install openpyxl
       - run: npm run typecheck
       - run: npm run build
       - run: npm test

@@ -35,6 +35,15 @@ function fakeSession(batches = [ROWS.slice(0, 2), ROWS.slice(2)]) {
 }
 
 let dir: string;
+/** The Excel check reads the file with Python's openpyxl (CI installs it). */
+const hasOpenpyxl = (() => {
+  try {
+    execFileSync('python3', ['-c', 'import openpyxl'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 async function run(
   request: Omit<ExportRequest, 'file'> & { file?: string },
   dialect: 'mysql' | 'postgres' | 'mssql' = 'mysql',
@@ -154,7 +163,7 @@ describe('export', () => {
     ).rejects.toMatchObject({ code: 'EXPORT_FORMAT' });
   });
 
-  it('writes an Excel file that Excel-compatible readers open', async () => {
+  it.skipIf(!hasOpenpyxl)('writes an Excel file that Excel-compatible readers open', async () => {
     const { file } = await run({
       source: table,
       format: 'xlsx',
