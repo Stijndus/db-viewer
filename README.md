@@ -5,7 +5,8 @@ Werkt met **MySQL/MariaDB**, **PostgreSQL**, **SQL Server** en **SQLite**.
 
 Klaar: verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken (stap 3), een
 SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5), tabellen en SQL naast
-elkaar in tabbladen (stap 6) en drivers voor PostgreSQL, SQL Server en SQLite (stap 7).
+elkaar in tabbladen (stap 6), drivers voor PostgreSQL, SQL Server en SQLite (stap 7) en SSH-tunnels
+en release notes in de app (stap 8).
 
 ## Downloaden
 
@@ -110,6 +111,12 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
   dezelfde die de gebruiker bij "SQL bekijken" ziet). De server controleert eerst dat het een tabel is
   en dat de primaire sleutel klopt; elke `UPDATE`/`DELETE` heeft `LIMIT 1` en moet precies één rij
   raken, anders volgt een rollback.
+- **SSH-tunnel:** `electron/db/ssh-tunnel.ts` logt in met `ssh2` (wachtwoord, sleutelbestand,
+  OpenSSH-agent of Pageant) en opent een lokale poort op `127.0.0.1` die elke socket doorstuurt
+  naar de database, zoals `ssh -L`. Pool en editor-tabbladen delen één SSH-login; valt SSH weg, dan
+  logt de volgende socket opnieuw in. De serversleutel wordt bij het eerste gebruik bevestigd
+  (SHA256-vingerafdruk, opgeslagen in het profiel) en daarna gecontroleerd. TLS naar de database
+  controleert het certificaat tegen de echte hostnaam, niet tegen `127.0.0.1`.
 - **Tabbladen:** `WorkspaceStore` beheert één rij tabbladen per verbinding (tabellen en SQL) en
   bewaart volgorde en actief tabblad in `localStorage`. Geopende tabbladen blijven gerenderd (verborgen
   als ze niet actief zijn), zodat pagina, filter, scrollpositie en niet-opgeslagen wijzigingen blijven.
@@ -151,6 +158,7 @@ scripts/         build van de Electron-bundels, testdatabases per type
 5. ~~Data wijzigen in de grid~~
 6. ~~Tabellen als tabbladen, in één rij met de SQL-tabbladen~~
 7. ~~Meer drivers: PostgreSQL, SQL Server, SQLite~~
+8. ~~SSH-tunnel en release notes in de app~~
 
-Mogelijke volgende stappen: exporteren (CSV, JSON, SQL), snel zoeken naar tabellen (Ctrl+P),
-query-geschiedenis, foreign keys volgen, SSH-tunnel, zoomen met Ctrl+scrollwiel.
+Mogelijke volgende stappen: zoomen met Ctrl+scrollwiel, exporteren (CSV, JSON, SQL), snel zoeken
+naar tabellen (Ctrl+P), query-geschiedenis, foreign keys volgen.

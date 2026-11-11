@@ -98,7 +98,10 @@ export class UpdateStore {
     if (entries.length === 0) return;
     this.whatsNew.set({
       title: entries.length === 1 ? `Nieuw in versie ${version}` : `Nieuw sinds versie ${since}`,
-      entries: entries.map((n) => ({ version: n.version, html: renderMarkdown(n.markdown) })),
+      entries: entries.map((n) => ({
+        version: n.version,
+        html: renderMarkdown(forApp(n.markdown)),
+      })),
     });
   }
 
@@ -106,7 +109,10 @@ export class UpdateStore {
   showAllNotes(): void {
     this.whatsNew.set({
       title: 'Release notes',
-      entries: this.notes().map((n) => ({ version: n.version, html: renderMarkdown(n.markdown) })),
+      entries: this.notes().map((n) => ({
+        version: n.version,
+        html: renderMarkdown(forApp(n.markdown)),
+      })),
     });
   }
 
@@ -134,4 +140,9 @@ export class UpdateStore {
     const s = this.state();
     if (s.status === 'ready' || s.status === 'manual') this.dismissedVersion.set(s.version);
   }
+}
+
+/** Leaves out what only matters on the download page: the files table and the Windows warning. */
+export function forApp(markdown: string): string {
+  return markdown.replace(/^## Downloaden\n[\s\S]*?(?=^## )/m, '');
 }

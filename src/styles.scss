@@ -521,6 +521,17 @@ app-connection-list {
 .dialog-sm {
   width: 420px;
 }
+/* Long forms scroll in the middle; title and buttons stay in view. */
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dialog-body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 0;
+}
 .dialog::backdrop {
   background: rgba(5, 7, 10, 0.72);
 }

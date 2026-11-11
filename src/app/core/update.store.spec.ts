@@ -3,7 +3,7 @@ import type { DbApi } from '../../../shared/ipc-contract';
 import type { ReleaseNote } from '../../../shared/models';
 import { fakeDbApi } from '../testing/fake-db-api';
 import { DB_API } from './db-api';
-import { compareVersions, UpdateStore } from './update.store';
+import { compareVersions, forApp, UpdateStore } from './update.store';
 
 const NOTES: ReleaseNote[] = [
   { version: '0.8.0', markdown: '## Nieuw\n\n- SSH-tunnel' },
@@ -72,6 +72,11 @@ describe('UpdateStore release notes', () => {
       pending: true,
       entries: [{ version: '0.9.0', html: '<p>Zoomen</p>' }],
     });
+  });
+
+  it('leaves the download section out of the notes in the app', () => {
+    const md = 'Intro\n\n## Downloaden\n\n| a | b |\n\n> Windows\n\n## Nieuw\n\n- x';
+    expect(forApp(md)).toBe('Intro\n\n## Nieuw\n\n- x');
   });
 
   it('compares versions numerically', () => {

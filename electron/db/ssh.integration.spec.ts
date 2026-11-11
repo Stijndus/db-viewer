@@ -5,7 +5,7 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DbType, SshSettings } from '../../shared/models';
 import { ConnectionStore } from '../store/connection-store';
 import { fakeCipher, input } from '../test-helpers';
@@ -40,6 +40,8 @@ const servers: {
     schema: 'dbo',
   },
 ];
+
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 for (const server of servers) {
   describe.skipIf(!server.host)(`${server.type} through an SSH tunnel`, () => {

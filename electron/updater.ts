@@ -95,7 +95,14 @@ export class Updater {
 
 /** GitHub's release text (HTML). Several versions behind: all of them, newest first. */
 function notesOf(info: UpdateInfo): { notes?: string } {
-  const notes = info.releaseNotes;
+  // The download table and the SmartScreen tip only matter on the download page.
+  const strip = (html: string) =>
+    html.replace(/<h2[^>]*>\s*Downloaden\s*<\/h2>[\s\S]*?(?=<h2)/i, '');
+  const raw = info.releaseNotes;
+  const notes =
+    typeof raw === 'string'
+      ? strip(raw)
+      : raw?.map((n) => ({ ...n, note: n.note && strip(n.note) }));
   if (typeof notes === 'string') return notes.trim() ? { notes } : {};
   if (Array.isArray(notes)) {
     const html = notes

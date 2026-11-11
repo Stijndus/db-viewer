@@ -78,7 +78,7 @@ export async function openTunnel(
               forwardError = new AppError(
                 'SSH_FORWARD_FAILED',
                 `De SSH-server kan ${target.host}:${target.port} niet bereiken.`,
-                `Controleer host en poort van de database, gezien vanaf ${settings.host} (vaak localhost). Server: ${err.message}`,
+                `Controleer host en poort van de database, gezien vanaf ${settings.host} (vaak localhost).`,
               );
               socket.destroy();
               return;
