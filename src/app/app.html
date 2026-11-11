@@ -150,6 +150,10 @@
   <app-password-prompt [prompt]="prompt" />
 }
 
+@if (transfer.importFor(); as connectionId) {
+  <app-import-dialog [connectionId]="connectionId" />
+}
+
 @if (updates.whatsNew(); as content) {
   <app-whats-new [content]="content" />
 }

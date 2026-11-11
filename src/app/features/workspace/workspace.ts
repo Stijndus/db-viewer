@@ -5,6 +5,7 @@ import { ObjectView } from '../schema/object-view/object-view';
 import type { SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
 import { SqlStore } from '../sql/sql.store';
+import { TransferStore } from '../transfer/transfer.store';
 import { WorkspaceStore, type WorkspaceTab } from './workspace.store';
 
 interface TabMenu {
@@ -28,6 +29,7 @@ export class Workspace {
 
   protected readonly ws = inject(WorkspaceStore);
   protected readonly sql = inject(SqlStore);
+  protected readonly transfer = inject(TransferStore);
   private readonly bar = viewChild<ElementRef<HTMLElement>>('bar');
   protected readonly menu = signal<TabMenu | null>(null);
 

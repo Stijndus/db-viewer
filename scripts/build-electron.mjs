@@ -21,7 +21,7 @@ const configs = [
     ...common,
     entryPoints: ['electron/main.ts'],
     outfile: 'dist-electron/main.js',
-    external: ['electron', 'mysql2', 'pg', 'pg-cursor', 'mssql', 'ssh2', 'electron-updater'],
+    external: ['electron', 'mysql2', 'pg', 'pg-cursor', 'mssql', 'ssh2', '7zip-bin', 'electron-updater'],
   },
   { ...common, entryPoints: ['electron/preload.ts'], outfile: 'dist-electron/preload.js' },
   // SQLite runs in its own utility process (see electron/db/sqlite.connection.ts).

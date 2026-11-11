@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, LAUNCH_EVENT, UPDATE_STATE_EVENT, type DbApi } from '../shared/ipc-contract';
-import type { LaunchRequest, UpdateState } from '../shared/models';
+import {
+  IPC,
+  LAUNCH_EVENT,
+  TRANSFER_EVENT,
+  UPDATE_STATE_EVENT,
+  type DbApi,
+} from '../shared/ipc-contract';
+import type { LaunchRequest, TransferProgress, UpdateState } from '../shared/models';
 
 // Only these functions reach the renderer. No ipcRenderer, no Node, no generic invoke.
 const api: DbApi = {
@@ -32,6 +38,15 @@ const api: DbApi = {
   installUpdate: () => ipcRenderer.invoke(IPC.installUpdate),
   releaseNotes: () => ipcRenderer.invoke(IPC.releaseNotes),
   takeLaunch: () => ipcRenderer.invoke(IPC.takeLaunch),
+  pickImportFile: (current) => ipcRenderer.invoke(IPC.pickImportFile, current),
+  inspectImportFile: (file, password) => ipcRenderer.invoke(IPC.inspectImportFile, file, password),
+  startSqlImport: (id, request) => ipcRenderer.invoke(IPC.startSqlImport, id, request),
+  cancelTransfer: (jobId) => ipcRenderer.invoke(IPC.cancelTransfer, jobId),
+  onTransfer: (listener) => {
+    const handler = (_event: unknown, progress: TransferProgress) => listener(progress);
+    ipcRenderer.on(TRANSFER_EVENT, handler);
+    return () => ipcRenderer.removeListener(TRANSFER_EVENT, handler);
+  },
   onLaunch: (listener) => {
     const handler = (_event: unknown, launch: LaunchRequest) => listener(launch);
     ipcRenderer.on(LAUNCH_EVENT, handler);

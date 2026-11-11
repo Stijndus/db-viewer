@@ -1,0 +1,244 @@
+<dialog
+  #dialog
+  class="dialog"
+  aria-labelledby="imp-title"
+  (close)="onClose()"
+  (cancel)="onCancel($event)"
+>
+  <div class="dialog-head">
+    <h2 id="imp-title">SQL-bestand importeren</h2>
+    @if (!running()) {
+      <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="close()">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    }
+  </div>
+
+  <div class="dialog-body">
+    @if (jobId() === null) {
+      @if (profile()?.readOnly) {
+        <div class="banner banner-error" role="alert">
+          <strong>Deze verbinding is alleen-lezen.</strong>
+          <span class="small"
+            >Importeren wijzigt de database. Gebruik een verbinding zonder alleen-lezen.</span
+          >
+        </div>
+      }
+
+      <div class="field">
+        <label for="imp-file" class="field-label">Bestand</label>
+        <div class="row">
+          <input
+            id="imp-file"
+            class="input mono grow"
+            [value]="file()"
+            readonly
+            placeholder="Kies een .sql, .sql.gz, .zip of .7z"
+          />
+          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="choose()">
+            Kiezen…
+          </button>
+        </div>
+        <span class="muted small"
+          >Ook versleutelde zip- en 7z-archieven. Grote dumps worden in stukken gelezen.</span
+        >
+      </div>
+
+      @if (needsPasswordToList() && !info()) {
+        <form class="field" (submit)="$event.preventDefault(); inspect()">
+          <label for="imp-pw-list" class="field-label">Wachtwoord van het archief</label>
+          <div class="row">
+            <input
+              #pwl
+              id="imp-pw-list"
+              class="input grow"
+              type="password"
+              autocomplete="off"
+              [value]="password()"
+              (input)="password.set(pwl.value)"
+            />
+            <button type="submit" class="btn btn-secondary" [disabled]="!password() || busy()">
+              Openen
+            </button>
+          </div>
+          <span class="muted small">Dit archief verbergt ook de bestandsnamen.</span>
+        </form>
+      }
+
+      @if (info(); as i) {
+        @if (i.kind === 'archive') {
+          <fieldset class="field">
+            <legend class="field-label">Bestand uit het archief</legend>
+            <div class="entry-list" role="radiogroup">
+              @for (e of i.entries; track e.path) {
+                <label class="entry" [class.muted]="!e.script">
+                  <input
+                    type="radio"
+                    name="imp-entry"
+                    [checked]="entry() === e.path"
+                    (change)="entry.set(e.path)"
+                  />
+                  <span class="mono grow">{{ e.path }}</span>
+                  @if (e.encrypted) {
+                    <span class="small muted" title="Versleuteld">🔒</span>
+                  }
+                  <span class="small muted">{{ size(e.size) }}</span>
+                </label>
+              } @empty {
+                <span class="muted small">Het archief is leeg.</span>
+              }
+            </div>
+          </fieldset>
+          @if (selectedEntry()?.encrypted && !needsPasswordToList()) {
+            <div class="field">
+              <label for="imp-pw" class="field-label">Wachtwoord van het archief</label>
+              <input
+                #pw
+                id="imp-pw"
+                class="input"
+                type="password"
+                autocomplete="off"
+                [value]="password()"
+                (input)="password.set(pw.value)"
+              />
+              <span class="muted small">Alleen voor deze import; wordt niet opgeslagen.</span>
+            </div>
+          }
+        } @else {
+          <p class="muted small">
+            {{ i.name }} · {{ size(i.size) }}{{ i.kind === 'gzip' ? ' (gzip)' : '' }}
+          </p>
+        }
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="imp-db" class="field-label">Uitvoeren in {{ container() }}</label>
+            <select
+              #db
+              id="imp-db"
+              class="input"
+              [value]="database()"
+              (change)="database.set(db.value)"
+            >
+              @for (d of databases(); track d) {
+                <option [value]="d" [selected]="d === database()">{{ d }}</option>
+              }
+            </select>
+            <span class="muted small">Een USE of SET search_path in het script gaat voor.</span>
+          </div>
+          <fieldset class="field">
+            <legend class="field-label">Bij een fout</legend>
+            <label class="check">
+              <input
+                type="radio"
+                name="imp-err"
+                [checked]="onError() === 'stop'"
+                (change)="onError.set('stop')"
+              />
+              Stoppen
+            </label>
+            <label class="check">
+              <input
+                type="radio"
+                name="imp-err"
+                [checked]="onError() === 'skip'"
+                (change)="onError.set('skip')"
+              />
+              Overslaan en doorgaan
+            </label>
+          </fieldset>
+        </div>
+      }
+
+      @if (error(); as e) {
+        <div class="banner banner-error" role="alert">
+          <strong>{{ e.message }}</strong>
+          @if (e.hint) {
+            <span class="small">{{ e.hint }}</span>
+          }
+        </div>
+      }
+    } @else {
+      @let p = progress();
+      <div class="import-progress" role="status" aria-live="polite">
+        @switch (p?.phase ?? 'running') {
+          @case ('running') {
+            <strong>Bezig met importeren…</strong>
+          }
+          @case ('done') {
+            <strong class="ok-text">Klaar: alle statements zijn uitgevoerd.</strong>
+          }
+          @case ('done-with-errors') {
+            <strong
+              >Klaar, met {{ count(p!.failed) }}
+              {{ p!.failed === 1 ? 'fout' : 'fouten' }} overgeslagen.</strong
+            >
+          }
+          @case ('stopped-at-error') {
+            <strong class="err-text">Gestopt bij een fout.</strong>
+          }
+          @case ('cancelled') {
+            <strong
+              >Gestopt. Wat al was uitgevoerd, blijft staan; een open transactie is
+              teruggedraaid.</strong
+            >
+          }
+          @case ('failed') {
+            <strong class="err-text">{{ p?.error?.message ?? 'Import mislukt.' }}</strong>
+            @if (p?.error?.hint) {
+              <span class="small">{{ p?.error?.hint }}</span>
+            }
+          }
+        }
+        <div class="bar" [class.indeterminate]="percent() === null && running()">
+          <span [style.width.%]="percent() ?? (running() ? 30 : 100)"></span>
+        </div>
+        <span class="muted small mono">
+          {{ count(p?.statements ?? 0) }} statements uitgevoerd
+          @if (p?.failed) {
+            · {{ count(p!.failed) }} mislukt
+          }
+          @if (p?.totalBytes) {
+            · {{ size(p!.bytes) }} van {{ size(p!.totalBytes) }}
+          }
+        </span>
+      </div>
+      @if (p?.errors?.length) {
+        <div class="import-errors">
+          @for (e of p!.errors; track e.statement) {
+            <div class="import-error">
+              <span class="small muted">Statement {{ count(e.statement) }}</span>
+              <code class="mono small">{{ e.sql }}</code>
+              <span class="small err-text">{{ e.message }}</span>
+            </div>
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <div class="dialog-foot">
+    <span class="grow"></span>
+    @if (jobId() === null) {
+      <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
+      <button type="button" class="btn btn-primary" [disabled]="!canStart()" (click)="start()">
+        Importeren
+      </button>
+    } @else if (running()) {
+      <button type="button" class="btn btn-danger-ghost" (click)="stop()">Stoppen</button>
+    } @else {
+      <button type="button" class="btn btn-primary" (click)="close()">Sluiten</button>
+    }
+  </div>
+</dialog>

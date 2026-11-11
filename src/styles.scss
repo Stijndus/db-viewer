@@ -1916,3 +1916,105 @@ app-object-view [hidden] {
 .launch-banner .muted {
   margin-left: 8px;
 }
+
+/* Import and export */
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.entry + .entry {
+  border-top: 1px solid var(--border);
+}
+.entry:hover {
+  background: var(--panel-2);
+}
+.import-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+.bar.indeterminate > span {
+  animation: bar-slide 1.2s ease-in-out infinite;
+}
+@keyframes bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+.import-errors {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--err-border);
+  border-radius: 8px;
+}
+.import-error {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+}
+.import-error + .import-error {
+  border-top: 1px solid var(--border);
+}
+.import-error code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-2);
+}
+.ok-text {
+  color: var(--ok-text);
+}
+.err-text {
+  color: var(--err-text);
+}
+.ws-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  margin-left: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ws-tool:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.ws-tabs .push { margin-left: auto; }
+.ws-tabs .ws-tool { align-self: center; flex-shrink: 0; }

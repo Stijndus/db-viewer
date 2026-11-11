@@ -142,7 +142,8 @@ function startApp(): void {
       },
       pickFile: (options) =>
         mainWindow ? dialog.showOpenDialog(mainWindow, options) : dialog.showOpenDialog(options),
-      takeLaunch: () => {
+      send: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+    takeLaunch: () => {
         const launch = pendingLaunch;
         pendingLaunch = Promise.resolve(null);
         return launch;

@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { ipcMain, type IpcMainInvokeEvent, type OpenDialogOptions } from 'electron';
-import { IPC, type AppInfo } from '../../shared/ipc-contract';
-import type { LaunchRequest, ReleaseNote, Result } from '../../shared/models';
+import { IPC, TRANSFER_EVENT, type AppInfo } from '../../shared/ipc-contract';
+import { inspectImportFile, importSql } from '../transfer/sql-import';
+import type { LaunchRequest, ReleaseNote, Result, TransferProgress } from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
@@ -12,7 +14,11 @@ import {
   idSchema,
   optionalIdSchema,
   connectSecretsSchema,
+  filePathSchema,
+  jobIdSchema,
+  sqlImportRequestSchema,
   fingerprintSchema,
+  optionalPasswordSchema,
   optionalPathSchema,
   rowsRequestSchema,
   runRequestSchema,
@@ -27,6 +33,8 @@ export interface HandlerDeps {
   updater: Updater;
   version: string;
   /** The OS open-file dialog (Electron's dialog.showOpenDialog on the main window). */
+  /** Sends an event to the window (import and export progress). */
+  send(channel: string, payload: unknown): void;
   /** The command line's launch, once; null afterwards. */
   takeLaunch(): Promise<LaunchRequest | null>;
   /** Release notes bundled with the app (dist-electron/release-notes.json). */
@@ -98,6 +106,58 @@ export function registerHandlers(deps: HandlerDeps): void {
 
   handle(IPC.releaseNotes, () => deps.releaseNotes());
   handle(IPC.takeLaunch, () => deps.takeLaunch());
+
+  // Import and export: long jobs that report progress as events and can be cancelled.
+  const jobs = new Map<string, AbortController>();
+
+  handle(IPC.pickImportFile, async (rawCurrent) => {
+    const current = optionalPathSchema.parse(rawCurrent);
+    const result = await deps.pickFile({
+      title: 'SQL-bestand of archief kiezen',
+      defaultPath: current || undefined,
+      properties: ['openFile'],
+      filters: [
+        { name: 'SQL-scripts en archieven', extensions: ['sql', 'gz', 'zip', '7z', 'txt'] },
+        { name: 'Alle bestanden', extensions: ['*'] },
+      ],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+
+  handle(IPC.inspectImportFile, (rawFile, rawPassword) =>
+    inspectImportFile(filePathSchema.parse(rawFile), optionalPasswordSchema.parse(rawPassword)),
+  );
+
+  handle(IPC.startSqlImport, async (rawId, rawRequest) => {
+    const id = idSchema.parse(rawId);
+    const request = sqlImportRequestSchema.parse(rawRequest);
+    const session = manager.session(id);
+    const profile = await store.get(id);
+    const jobId = randomUUID();
+    const controller = new AbortController();
+    jobs.set(jobId, controller);
+    const report = (p: TransferProgress) => deps.send(TRANSFER_EVENT, p);
+    void importSql(session, profile.type, profile.readOnly, request, jobId, report, controller.signal)
+      .then(report, (err: unknown) =>
+        report({
+          jobId,
+          kind: 'import',
+          phase: controller.signal.aborted ? 'cancelled' : 'failed',
+          bytes: 0,
+          totalBytes: null,
+          statements: 0,
+          failed: 0,
+          errors: [],
+          error: toDbError(err),
+        }),
+      )
+      .finally(() => jobs.delete(jobId));
+    return { jobId };
+  });
+
+  handle(IPC.cancelTransfer, (rawJob) => {
+    jobs.get(jobIdSchema.parse(rawJob))?.abort();
+  });
 
   handle(IPC.updateState, () => updater.getState());
   handle(IPC.checkForUpdates, () => updater.check());

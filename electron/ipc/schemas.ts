@@ -108,3 +108,15 @@ export const changeSetSchema = z
     inserts: z.array(z.object({ values: rowValues })).max(5000),
   })
   .refine((c) => c.deletes.length + c.updates.length + c.inserts.length > 0, 'Geen wijzigingen');
+
+export const filePathSchema = z.string().min(1).max(4096);
+
+export const sqlImportRequestSchema = z.object({
+  file: filePathSchema,
+  entry: z.string().min(1).max(4096).optional(),
+  password: z.string().max(1024).optional(),
+  database: identifierSchema.optional(),
+  onError: z.enum(['stop', 'skip']),
+});
+
+export const jobIdSchema = z.string().regex(/^[a-z0-9-]{8,64}$/i, 'Ongeldige taak');

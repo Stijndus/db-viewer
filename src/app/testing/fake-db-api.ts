@@ -169,6 +169,18 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     checkForUpdates: () => ok({ status: 'current' as const }),
     installUpdate: () => ok(undefined),
     releaseNotes: () => ok([]),
+    pickImportFile: () => ok('/home/test/dump.sql'),
+    inspectImportFile: (file) =>
+      ok({
+        file,
+        name: file.split('/').pop() ?? file,
+        size: 1234,
+        kind: 'script' as const,
+        entries: [],
+      }),
+    startSqlImport: () => ok({ jobId: 'job-00000001' }),
+    cancelTransfer: () => ok(undefined),
+    onTransfer: () => () => undefined,
     takeLaunch: () => ok(null),
     onLaunch: () => () => undefined,
     onUpdateState: () => () => undefined,

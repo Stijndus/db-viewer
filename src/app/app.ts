@@ -6,6 +6,8 @@ import { ConnectionList } from './features/connections/connection-list/connectio
 import { ConnectionsOverview } from './features/connections/connections-overview/connections-overview';
 import { ConnectionsStore, connectionLocation } from './features/connections/connections.store';
 import { WhatsNew } from './core/whats-new/whats-new';
+import { ImportDialog } from './features/transfer/import-dialog/import-dialog';
+import { TransferStore } from './features/transfer/transfer.store';
 import { HostKeyPrompt } from './features/connections/host-key-prompt/host-key-prompt';
 import { PasswordPrompt } from './features/connections/password-prompt/password-prompt';
 import { SchemaTree } from './features/schema/schema-tree/schema-tree';
@@ -23,6 +25,7 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     PasswordPrompt,
     HostKeyPrompt,
     WhatsNew,
+    ImportDialog,
     SchemaTree,
     Workspace,
     ConfirmWrite,
@@ -34,6 +37,7 @@ export class App implements OnInit {
   protected readonly sql = inject(SqlStore);
   protected readonly updates = inject(UpdateStore);
   protected readonly ws = inject(WorkspaceStore);
+  protected readonly transfer = inject(TransferStore);
   /** Database name, or the file name for SQLite. */
   protected location(c: ConnectionProfile): string {
     return c.type === 'sqlite' ? connectionLocation(c) : c.database;

@@ -111,6 +111,28 @@
     </svg>
     SQL
   </button>
+  <span class="push"></span>
+  <button
+    type="button"
+    class="ws-tool"
+    title="Een .sql-, .sql.gz-, .zip- of .7z-bestand uitvoeren op deze verbinding"
+    (click)="transfer.openImport(connection().id)"
+  >
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+    </svg>
+    Importeren
+  </button>
 </div>
 
 <div class="ws-body">

@@ -3,6 +3,7 @@ import type { ConnectionProfile } from '../../../../../shared/models';
 import { DIALECTS } from '../../../../../shared/dialect';
 import { ConnectionsStore, connectionAddress } from '../../connections/connections.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
+import { TransferStore } from '../../transfer/transfer.store';
 import { SchemaStore } from '../schema.store';
 
 /** Main panel for an open connection with nothing selected yet. */
@@ -31,6 +32,13 @@ import { SchemaStore } from '../schema.store';
       <button type="button" class="btn btn-primary" (click)="newSql.emit()">
         Nieuwe SQL-query
       </button>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="transfer.openImport(connection().id)"
+      >
+        SQL-bestand importeren…
+      </button>
       <button type="button" class="btn btn-ghost" (click)="ws.disconnect(connection().id)">
         Verbreken
       </button>
@@ -43,6 +51,7 @@ export class ConnectionHome {
   protected readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
   protected readonly ws = inject(WorkspaceStore);
+  protected readonly transfer = inject(TransferStore);
   protected readonly address = connectionAddress;
   protected readonly dialect = computed(() => DIALECTS[this.connection().type]);
 

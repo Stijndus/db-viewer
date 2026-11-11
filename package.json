@@ -68,7 +68,7 @@
   "build": {
     "appId": "io.github.stijndus.dbviewer",
     "productName": "DB Viewer",
-    "copyright": "Copyright © 2026 Stijndus",
+    "copyright": "Copyright \u00a9 2026 Stijndus",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -103,6 +103,12 @@
           "from": "build/db-viewer.cmd",
           "to": "db-viewer.cmd"
         }
+      ],
+      "files": [
+        "!node_modules/7zip-bin/mac/**",
+        "!node_modules/7zip-bin/linux/**",
+        "!node_modules/7zip-bin/win/ia32/**",
+        "!node_modules/7zip-bin/win/arm64/**"
       ]
     },
     "nsis": {
@@ -123,7 +129,11 @@
     },
     "linux": {
       "target": "AppImage",
-      "category": "Development"
+      "category": "Development",
+      "files": [
+        "!node_modules/7zip-bin/mac/**",
+        "!node_modules/7zip-bin/win/**"
+      ]
     },
     "publish": [
       {
@@ -133,7 +143,10 @@
         "releaseType": "release"
       }
     ],
-    "npmRebuild": false
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/7zip-bin/**"
+    ]
   },
   "engines": {
     "node": "^22.22.3 || ^24.15.0 || >=26.0.0"

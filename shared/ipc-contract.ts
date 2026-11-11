@@ -6,7 +6,10 @@ import type {
   ConnectResult,
   ConnectSecrets,
   DatabaseInfo,
+  ImportFileInfo,
   LaunchRequest,
+  SqlImportRequest,
+  TransferProgress,
   ReleaseNote,
   Result,
   RowsPage,
@@ -42,6 +45,10 @@ export const IPC = {
   installUpdate: 'updates:install',
   releaseNotes: 'app:release-notes',
   takeLaunch: 'cli:take',
+  pickImportFile: 'dialog:import-file',
+  inspectImportFile: 'transfer:inspect',
+  startSqlImport: 'transfer:import-sql',
+  cancelTransfer: 'transfer:cancel',
   pickDatabaseFile: 'dialog:database-file',
   pickKeyFile: 'dialog:key-file',
   trustHostKey: 'connections:trust-host-key',
@@ -49,6 +56,9 @@ export const IPC = {
 
 /** Pushed from main to the renderer whenever the update state changes. */
 export const UPDATE_STATE_EVENT = 'updates:state';
+
+/** Pushed while an import or export runs, and once when it ends. */
+export const TRANSFER_EVENT = 'transfer:progress';
 
 /** Pushed when `db-viewer …` is run again while the app is open. */
 export const LAUNCH_EVENT = 'cli:launch';
@@ -125,6 +135,16 @@ export interface DbApi {
   // Updates.
   updateState(): Promise<Result<UpdateState>>;
   checkForUpdates(): Promise<Result<UpdateState>>;
+  // Import and export.
+  /** File dialog for a SQL script or an archive (.sql, .gz, .zip, .7z); null when cancelled. */
+  pickImportFile(current?: string): Promise<Result<string | null>>;
+  /** What is in the file: a script, or the files in an archive (password needed for hidden names). */
+  inspectImportFile(file: string, password?: string): Promise<Result<ImportFileInfo>>;
+  /** Starts running a SQL script on a connection; progress arrives through onTransfer. */
+  startSqlImport(connectionId: string, request: SqlImportRequest): Promise<Result<{ jobId: string }>>;
+  cancelTransfer(jobId: string): Promise<Result<void>>;
+  onTransfer(listener: (progress: TransferProgress) => void): () => void;
+
   /** What the command line asked to open at start; null when nothing (asked once). */
   takeLaunch(): Promise<Result<LaunchRequest | null>>;
   /** Later launches from the command line while the app runs. Returns an unsubscribe function. */
