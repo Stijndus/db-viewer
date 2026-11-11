@@ -6,7 +6,7 @@ Werkt met **MySQL/MariaDB**, **PostgreSQL**, **SQL Server** en **SQLite**.
 Klaar: verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken (stap 3), een
 SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5), tabellen en SQL naast
 elkaar in tabbladen (stap 6), drivers voor PostgreSQL, SQL Server en SQLite (stap 7) en SSH-tunnels
-en release notes in de app (stap 8) en openen vanaf de opdrachtregel (stap 9).
+en release notes in de app (stap 8), openen vanaf de opdrachtregel (stap 9) en importeren en exporteren (stap 10).
 
 ## Opdrachtregel
 
@@ -127,6 +127,12 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
   dezelfde die de gebruiker bij "SQL bekijken" ziet). De server controleert eerst dat het een tabel is
   en dat de primaire sleutel klopt; elke `UPDATE`/`DELETE` heeft `LIMIT 1` en moet precies één rij
   raken, anders volgt een rollback.
+- **Import en export:** `electron/transfer/`. Een SQL-import leest het bestand in stukken
+  (`ScriptSplitter` in `shared/sql.ts` houdt quotes, `DELIMITER` en `GO` bij over de stukken heen) en
+  voert het in batches uit op een eigen editor-sessie. Archieven gaan via de meegeleverde 7-Zip
+  (`7zip-bin`, uitgepakt naast `app.asar`), als stream: niets onversleuteld op schijf, behalve bij het
+  maken van een versleutelde zip. Een export leest rijen per batch (`streamRows` per driver, met
+  volledige waarden) en schrijft CSV, JSON, SQL of xlsx (eigen streaming writer in `xlsx.ts`).
 - **SSH-tunnel:** `electron/db/ssh-tunnel.ts` logt in met `ssh2` (wachtwoord, sleutelbestand,
   OpenSSH-agent of Pageant) en opent een lokale poort op `127.0.0.1` die elke socket doorstuurt
   naar de database, zoals `ssh -L`. Pool en editor-tabbladen delen één SSH-login; valt SSH weg, dan
@@ -176,6 +182,7 @@ scripts/         build van de Electron-bundels, testdatabases per type
 7. ~~Meer drivers: PostgreSQL, SQL Server, SQLite~~
 8. ~~SSH-tunnel en release notes in de app~~
 9. ~~Openen vanaf de opdrachtregel~~ (0.9.0)
-10. Thema's en zoomen (0.10.0)
-11. Exporteren naar CSV, JSON en SQL (0.11.0)
-12. Query-geschiedenis (0.12.0), daarna testen en 1.0.0
+10. ~~SQL-import (ook uit versleutelde zip/7z) en export naar CSV, Excel, JSON en SQL~~ (0.10.0)
+11. CSV, JSON en Excel importeren in een tabel (0.11.0)
+12. Thema's en zoomen (0.12.0)
+13. Query-geschiedenis (0.13.0), daarna testen en 1.0.0
