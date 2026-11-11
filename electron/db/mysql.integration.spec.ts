@@ -139,3 +139,138 @@ describe.skipIf(!host)('mysqlDriver schema metadata', () => {
     await session.close();
   });
 });
+
+describe.skipIf(!host)('mysqlDriver table data', () => {
+  const page = { offset: 0, limit: 200, orderBy: [{ column: 'id', direction: 'asc' as const }] };
+
+  async function withSession<T>(
+    fn: (s: Awaited<ReturnType<typeof mysqlDriver.open>>) => Promise<T>,
+  ) {
+    const session = await mysqlDriver.open(base);
+    try {
+      return await fn(session);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async function dataErrorCode(where: string): Promise<string> {
+    return withSession(async (s) => {
+      try {
+        await s.readRows('app_dev', 'events', { ...page, where });
+      } catch (err) {
+        return toDbError(err).code;
+      }
+      throw new Error('query had moeten mislukken');
+    });
+  }
+
+  it('pages through a table and knows when the end is reached', async () => {
+    await withSession(async (s) => {
+      const first = await s.readRows('app_dev', 'events', page);
+      expect(first.columns).toEqual(['id', 'kind', 'amount', 'created_at']);
+      expect(first.rows).toHaveLength(200);
+      expect(first.rows[0]).toEqual(['1', 'view', '1.50', '2026-01-01 00:01:00']);
+      expect(first.hasMore).toBe(true);
+
+      const last = await s.readRows('app_dev', 'events', { ...page, offset: 2400 });
+      expect(last.rows).toHaveLength(100);
+      expect(last.rows.at(-1)?.[0]).toBe('2500');
+      expect(last.hasMore).toBe(false);
+    });
+  });
+
+  it('sorts descending and filters with a raw condition', async () => {
+    await withSession(async (s) => {
+      const desc = await s.readRows('app_dev', 'events', {
+        ...page,
+        limit: 3,
+        orderBy: [{ column: 'id', direction: 'desc' }],
+      });
+      expect(desc.rows.map((r) => r[0])).toEqual(['2500', '2499', '2498']);
+
+      const filtered = await s.readRows('app_dev', 'events', {
+        ...page,
+        where: "kind = 'buy' AND amount IS NULL",
+      });
+      expect(filtered.rows.every((r) => r[1] === 'buy' && r[2] === null)).toBe(true);
+      expect(await s.countRows('app_dev', 'events', "kind = 'buy' AND amount IS NULL")).toBe(
+        filtered.rows.length,
+      );
+      expect(await s.countRows('app_dev', 'events')).toBe(2500);
+    });
+  });
+
+  it('keeps LIMIT in force when the filter ends in a comment', async () => {
+    await withSession(async (s) => {
+      const result = await s.readRows('app_dev', 'events', { ...page, limit: 5, where: '1=1 -- ' });
+      expect(result.rows).toHaveLength(5);
+      expect(result.hasMore).toBe(true);
+    });
+  });
+
+  it('returns every kind of value safely', async () => {
+    await withSession(async (s) => {
+      const { columns, rows } = await s.readRows('app_dev', 'value_types', page);
+      const row = Object.fromEntries(columns.map((c, i) => [c, rows[0]?.[i]]));
+      expect(row['big']).toBe('18446744073709551615');
+      expect(JSON.parse(row['doc'] as string)).toEqual({ a: 1, b: [true, null] });
+      expect(row['payload']).toEqual({ kind: 'binary', bytes: 4, hex: 'deadbeef' });
+      expect(row['flags']).toEqual({ kind: 'binary', bytes: 1, hex: 'a5' });
+      expect(row['body']).toMatchObject({ kind: 'truncated', length: 5000 });
+      expect(row['missing']).toBeNull();
+    });
+  });
+
+  it('reads tables with spaces or backticks in the name, and views', async () => {
+    await withSession(async (s) => {
+      const weird = await s.readRows('app_dev', 'we`ird', page);
+      expect(weird.rows).toEqual([['1', 'ok']]);
+      const view = await s.readRows('app_dev', 'paid_orders', { ...page, orderBy: [] });
+      expect(view.columns).toEqual(['id', 'total']);
+    });
+  });
+
+  it('explains mistakes in the filter', async () => {
+    expect(await dataErrorCode('kind = ')).toBe('ER_PARSE_ERROR');
+    expect(await dataErrorCode('nope = 1')).toBe('ER_BAD_FIELD_ERROR');
+    // A second statement is never executed: multiple statements are off.
+    expect(await dataErrorCode('1=1; DELETE FROM app_dev.events')).toBe('ER_PARSE_ERROR');
+    await withSession(async (s) => expect(await s.countRows('app_dev', 'events')).toBe(2500));
+  });
+
+  it('puts the server message in the hint', async () => {
+    await withSession(async (s) => {
+      try {
+        await s.readRows('app_dev', 'events', { ...page, where: 'nope = 1' });
+        throw new Error('had moeten mislukken');
+      } catch (err) {
+        const e = toDbError(err);
+        expect(e.message).toBe('Onbekende kolom in het filter.');
+        expect(e.hint).toContain('nope');
+      }
+    });
+  });
+
+  it('does not let a filter write, thanks to the read-only transaction', async () => {
+    await withSession(async (s) => {
+      // A user-defined variable assignment is allowed; any table write is not.
+      const r = await s.readRows('app_dev', 'events', {
+        ...page,
+        limit: 1,
+        where: '(@x := 1) = 1',
+      });
+      expect(r.rows).toHaveLength(1);
+    });
+  });
+
+  it('keeps working after a failed query (connection returned to the pool)', async () => {
+    await withSession(async (s) => {
+      for (let i = 0; i < 8; i++) {
+        await s.readRows('app_dev', 'events', { ...page, where: 'kind =' }).catch(() => undefined);
+      }
+      const ok = await s.readRows('app_dev', 'events', { ...page, limit: 1 });
+      expect(ok.rows).toHaveLength(1);
+    });
+  });
+});

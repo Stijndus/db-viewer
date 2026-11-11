@@ -1,0 +1,175 @@
+<form class="dt-toolbar" (submit)="applyFilter($event)">
+  <label for="where" class="dt-where-label mono">WHERE</label>
+  <input
+    id="where"
+    class="input mono dt-where"
+    autocomplete="off"
+    spellcheck="false"
+    placeholder="bijv. status = 'paid' AND total > 100"
+    [value]="whereDraft()"
+    (input)="whereDraft.set($any($event.target).value)"
+  />
+  <button type="submit" class="btn btn-primary btn-sm">Toepassen</button>
+  @if (whereApplied()) {
+    <button type="button" class="btn btn-ghost btn-sm" (click)="clearFilter()">Wissen</button>
+  }
+  <button
+    type="button"
+    class="icon-btn"
+    aria-label="Data vernieuwen"
+    title="Vernieuwen"
+    [disabled]="loading()"
+    (click)="load()"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+      <path d="M20 4v7h-7" />
+    </svg>
+  </button>
+</form>
+
+@if (error(); as e) {
+  <div class="banner banner-error" role="alert">
+    <strong>{{ e.message }}</strong>
+    @if (e.hint) {
+      <span class="small mono">{{ e.hint }}</span>
+    }
+  </div>
+}
+
+<div class="dt-body" [class.is-loading]="loading()" [attr.aria-busy]="loading()">
+  @if (page(); as p) {
+    @if (p.rows.length > 0) {
+      <app-data-grid
+        [columns]="gridColumns()"
+        [rows]="p.rows"
+        [rowOffset]="offset()"
+        (sortRequested)="toggleSort($event)"
+        (copied)="onCopied($event)"
+      />
+    } @else {
+      <div class="dt-empty">
+        <strong>{{
+          whereApplied()
+            ? 'Geen rijen die aan het filter voldoen.'
+            : offset() > 0
+              ? 'Geen rijen meer.'
+              : 'Deze tabel is leeg.'
+        }}</strong>
+        @if (whereApplied()) {
+          <span class="muted mono small">WHERE {{ whereApplied() }}</span>
+        }
+      </div>
+    }
+  } @else if (error()) {
+    <div class="dt-empty muted">
+      {{
+        whereApplied()
+          ? 'Pas het filter aan, of klik op Wissen.'
+          : 'Klik op vernieuwen om het opnieuw te proberen.'
+      }}
+    </div>
+  } @else {
+    <div class="dt-empty muted">Data laden…</div>
+  }
+</div>
+
+<div class="dt-foot">
+  @if (note(); as text) {
+    <span class="dt-note" role="status">{{ text }}</span>
+  } @else {
+    @if (rangeText(); as range) {
+      <span>
+        {{ range }}
+        @if (totalText(); as total) {
+          {{ total }}
+        }
+      </span>
+    }
+    @switch (count().status) {
+      @case ('idle') {
+        @if (page()) {
+          <button
+            type="button"
+            class="link-btn small"
+            (click)="countRows()"
+            title="Telt alle rijen (kan bij grote tabellen even duren)"
+          >
+            Exact tellen
+          </button>
+        }
+      }
+      @case ('loading') {
+        <span class="muted">Tellen…</span>
+      }
+      @case ('error') {
+        <span class="error-text" [title]="$any(count()).error.hint ?? ''">Tellen mislukt</span>
+      }
+    }
+    @if (page(); as p) {
+      <span class="muted">· {{ orderText() }} · {{ p.durationMs }} ms</span>
+    }
+  }
+  <span class="push"></span>
+  <label class="dt-size muted">
+    Rijen per pagina
+    <select class="select" [value]="pageSize()" (change)="setPageSize($any($event.target).value)">
+      @for (size of pageSizes; track size) {
+        <option [value]="size" [selected]="size === pageSize()">{{ size }}</option>
+      }
+    </select>
+  </label>
+  <span class="muted">Pagina {{ pageNumber() }}</span>
+  <button
+    type="button"
+    class="icon-btn pager"
+    aria-label="Vorige pagina"
+    [disabled]="offset() === 0 || loading()"
+    (click)="goTo(offset() - pageSize())"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  </button>
+  <button
+    type="button"
+    class="icon-btn pager"
+    aria-label="Volgende pagina"
+    [disabled]="!page()?.hasMore || loading()"
+    (click)="goTo(offset() + pageSize())"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  </button>
+</div>

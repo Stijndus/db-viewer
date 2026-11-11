@@ -3,6 +3,8 @@ import type {
   ConnectionInput,
   DatabaseInfo,
   DbType,
+  RowsPage,
+  RowsRequest,
   SchemaObject,
 } from '../../shared/models';
 
@@ -29,6 +31,10 @@ export interface DbSession {
   listDatabases(): Promise<DatabaseInfo[]>;
   listObjects(database: string): Promise<SchemaObject[]>;
   listColumns(database: string, table: string): Promise<ColumnInfo[]>;
+
+  // Table data, read-only and time-limited.
+  readRows(database: string, table: string, request: RowsRequest): Promise<RowsPage>;
+  countRows(database: string, table: string, where?: string): Promise<number>;
 }
 
 export interface DbDriver {

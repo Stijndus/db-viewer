@@ -38,10 +38,10 @@
       }
     </aside>
 
-    <main class="main">
+    <main class="main" [class.main-object]="selectedInActive()">
       @if (store.active(); as active) {
         @if (selectedInActive(); as object) {
-          <app-object-structure [object]="object" />
+          <app-object-view [object]="object" />
         } @else {
           <app-connection-home [connection]="active" />
         }

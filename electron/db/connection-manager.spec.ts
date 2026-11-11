@@ -23,6 +23,8 @@ function fakeDriver() {
         listDatabases: async () => [],
         listObjects: async () => [],
         listColumns: async () => [],
+        readRows: async () => ({ columns: [], rows: [], hasMore: false, durationMs: 0 }),
+        countRows: async () => 0,
         close: async () => closed(),
       };
       return session;

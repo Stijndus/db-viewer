@@ -5,6 +5,8 @@ import type {
   ConnectResult,
   DatabaseInfo,
   Result,
+  RowsPage,
+  RowsRequest,
   SchemaObject,
   TestResult,
 } from './models';
@@ -21,6 +23,8 @@ export const IPC = {
   listDatabases: 'schema:databases',
   listObjects: 'schema:objects',
   listColumns: 'schema:columns',
+  readRows: 'data:rows',
+  countRows: 'data:count',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -49,4 +53,20 @@ export interface DbApi {
   listObjects(connectionId: string, database: string): Promise<Result<SchemaObject[]>>;
   /** Columns of one table or view, in table order. */
   listColumns(connectionId: string, database: string, table: string): Promise<Result<ColumnInfo[]>>;
+
+  // Table data (step 3). Always read-only, with a time limit.
+  /** One page of rows from a table or view. */
+  readRows(
+    connectionId: string,
+    database: string,
+    table: string,
+    request: RowsRequest,
+  ): Promise<Result<RowsPage>>;
+  /** Exact row count, optionally filtered. Can be slow on big tables, so the UI asks on demand. */
+  countRows(
+    connectionId: string,
+    database: string,
+    table: string,
+    where?: string,
+  ): Promise<Result<number>>;
 }

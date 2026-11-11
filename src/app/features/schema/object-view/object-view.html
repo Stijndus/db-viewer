@@ -1,0 +1,128 @@
+<div class="object-head">
+  <div class="object-title-row">
+    <h1 class="mono object-title">
+      <span class="muted object-db">{{ object().database }}.</span>{{ object().name }}
+    </h1>
+    <span class="badge">{{ object().kind === 'view' ? 'View' : 'Tabel' }}</span>
+    @if (rowEstimate(info()?.rowEstimate); as estimate) {
+      <span class="muted small" title="Schatting uit de tabelstatistieken, niet exact">{{
+        estimate
+      }}</span>
+    }
+    @if (columnCount(); as count) {
+      <span class="muted small">{{ count }} {{ count === 1 ? 'kolom' : 'kolommen' }}</span>
+    }
+  </div>
+  @if (comment(); as text) {
+    <p class="muted small">{{ text }}</p>
+  }
+</div>
+
+<div class="tabs" role="tablist" aria-label="Weergave">
+  <button
+    type="button"
+    role="tab"
+    class="tab"
+    id="tab-data"
+    aria-controls="panel-data"
+    [class.active]="schema.objectTab() === 'data'"
+    [attr.aria-selected]="schema.objectTab() === 'data'"
+    (click)="schema.objectTab.set('data')"
+  >
+    Data
+  </button>
+  <button
+    type="button"
+    role="tab"
+    class="tab"
+    id="tab-structure"
+    aria-controls="panel-structure"
+    [class.active]="schema.objectTab() === 'structure'"
+    [attr.aria-selected]="schema.objectTab() === 'structure'"
+    (click)="schema.objectTab.set('structure')"
+  >
+    Structuur
+  </button>
+</div>
+
+@if (schema.objectTab() === 'data') {
+  <app-table-data
+    id="panel-data"
+    role="tabpanel"
+    aria-labelledby="tab-data"
+    [object]="object()"
+    [columns]="columns()"
+    [estimate]="info()?.rowEstimate ?? null"
+  />
+} @else {
+  <div id="panel-structure" class="structure-panel" role="tabpanel" aria-labelledby="tab-structure">
+    @if (columns(); as state) {
+      @if (state.status === 'loaded') {
+        <div class="grid-wrap">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>Kolom</th>
+                <th>Type</th>
+                <th>Null</th>
+                <th>Sleutel</th>
+                <th>Standaard</th>
+                <th>Extra</th>
+                <th>Commentaar</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (col of state.data; track col.name; let i = $index) {
+                <tr>
+                  <td class="num muted">{{ i + 1 }}</td>
+                  <td class="mono strong">{{ col.name }}</td>
+                  <td class="mono type">{{ col.type }}</td>
+                  <td>{{ col.nullable ? 'ja' : 'nee' }}</td>
+                  <td>
+                    @if (col.key) {
+                      <span class="key-tag" [class.pk]="col.key === 'primary'">{{
+                        keyLabel[col.key]
+                      }}</span>
+                    }
+                  </td>
+                  <td class="mono">
+                    @if (col.defaultValue === null) {
+                      <span class="muted" aria-label="geen standaardwaarde">—</span>
+                    } @else if (col.defaultValue === '') {
+                      <span class="muted">''</span>
+                    } @else {
+                      {{ col.defaultValue }}
+                    }
+                  </td>
+                  <td class="mono muted">{{ col.extra }}</td>
+                  <td class="muted comment">{{ col.comment }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="muted">Geen kolommen zichtbaar voor deze gebruiker.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (state.status === 'error') {
+        <div class="banner banner-error" role="alert">
+          <strong>{{ state.error.message }}</strong>
+          @if (state.error.hint) {
+            <span class="small">{{ state.error.hint }}</span>
+          }
+          <div>
+            <button type="button" class="btn btn-secondary btn-sm" (click)="reload()">
+              Opnieuw proberen
+            </button>
+          </div>
+        </div>
+      } @else {
+        <p class="muted">Kolommen laden…</p>
+      }
+    } @else {
+      <p class="muted">Kolommen laden…</p>
+    }
+  </div>
+}

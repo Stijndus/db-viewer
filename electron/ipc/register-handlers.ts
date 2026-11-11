@@ -10,6 +10,8 @@ import {
   idSchema,
   optionalIdSchema,
   optionalPasswordSchema,
+  rowsRequestSchema,
+  whereSchema,
 } from './schemas';
 
 export interface HandlerDeps {
@@ -76,5 +78,26 @@ export function registerHandlers(deps: HandlerDeps): void {
     manager
       .session(idSchema.parse(rawId))
       .listColumns(identifierSchema.parse(rawDb), identifierSchema.parse(rawTable)),
+  );
+
+  // Table data: read-only and time-limited inside the driver.
+  handle(IPC.readRows, (rawId, rawDb, rawTable, rawRequest) =>
+    manager
+      .session(idSchema.parse(rawId))
+      .readRows(
+        identifierSchema.parse(rawDb),
+        identifierSchema.parse(rawTable),
+        rowsRequestSchema.parse(rawRequest),
+      ),
+  );
+
+  handle(IPC.countRows, (rawId, rawDb, rawTable, rawWhere) =>
+    manager
+      .session(idSchema.parse(rawId))
+      .countRows(
+        identifierSchema.parse(rawDb),
+        identifierSchema.parse(rawTable),
+        whereSchema.parse(rawWhere),
+      ),
   );
 }

@@ -51,6 +51,8 @@ export class SchemaStore {
   readonly selected = signal<SelectedObject | null>(null);
   readonly filter = signal('');
   readonly showSystem = signal(false);
+  /** Tab of the object panel; stays the same when another table is picked. */
+  readonly objectTab = signal<'data' | 'structure'>('data');
 
   constructor() {
     // Drop everything we know about a connection once it is no longer open.

@@ -5,7 +5,7 @@ import { ConnectionsOverview } from './features/connections/connections-overview
 import { ConnectionsStore } from './features/connections/connections.store';
 import { PasswordPrompt } from './features/connections/password-prompt/password-prompt';
 import { ConnectionHome } from './features/schema/connection-home/connection-home';
-import { ObjectStructure } from './features/schema/object-structure/object-structure';
+import { ObjectView } from './features/schema/object-view/object-view';
 import { SchemaTree } from './features/schema/schema-tree/schema-tree';
 import { SchemaStore } from './features/schema/schema.store';
 
@@ -17,7 +17,7 @@ import { SchemaStore } from './features/schema/schema.store';
     ConnectionForm,
     PasswordPrompt,
     SchemaTree,
-    ObjectStructure,
+    ObjectView,
     ConnectionHome,
   ],
   templateUrl: './app.html',

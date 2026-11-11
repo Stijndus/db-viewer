@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
+import * as data from './mysql.data';
 import * as meta from './mysql.metadata';
 
 export const CONNECT_TIMEOUT_MS = 8000;
@@ -20,6 +21,7 @@ export function createPoolOptions(cfg: ConnectionConfig): mysql.PoolOptions {
     dateStrings: true, // DATETIME/DATE as text, no timezone shift
     supportBigNumbers: true, // BIGINT/DECIMAL without precision loss
     bigNumberStrings: true,
+    jsonStrings: true, // JSON columns as stored text, not re-serialised objects
   };
 }
 
@@ -45,6 +47,8 @@ export const mysqlDriver: DbDriver = {
       listDatabases: () => meta.listDatabases(pool),
       listObjects: (database) => meta.listObjects(pool, database),
       listColumns: (database, table) => meta.listColumns(pool, database, table, isMariaDb),
+      readRows: (database, table, request) => data.readRows(pool, database, table, request),
+      countRows: (database, table, where) => data.countRows(pool, database, table, where),
       async query(sql, params) {
         const [rows, fields] = await pool.query(sql, params);
         return {

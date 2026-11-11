@@ -16,6 +16,8 @@ export class AppError extends Error {
 interface KnownError {
   message: string;
   hint?: string;
+  /** Use the server's own message as hint: it names the exact spot in the user's SQL. */
+  serverHint?: boolean;
 }
 
 /** MySQL / Node network errors translated for the UI. Keyed by `err.code`. */
@@ -56,6 +58,41 @@ const KNOWN: Record<string, KnownError> = {
     message: 'Certificaatketen bevat een self-signed certificaat.',
     hint: 'Zet "Self-signed certificaat toestaan" aan als je de server vertrouwt.',
   },
+
+  // Reading data (step 3): mostly mistakes in the user's filter.
+  ER_PARSE_ERROR: { message: 'Fout in het filter.', serverHint: true },
+  ER_BAD_FIELD_ERROR: { message: 'Onbekende kolom in het filter.', serverHint: true },
+  ER_WRONG_VALUE_COUNT_ON_ROW: { message: 'Fout in het filter.', serverHint: true },
+  ER_OPERAND_COLUMNS: { message: 'Fout in het filter.', serverHint: true },
+  ER_SUBQUERY_NO_1_ROW: {
+    message: 'Subquery in het filter geeft meer dan één rij.',
+    serverHint: true,
+  },
+  ER_TRUNCATED_WRONG_VALUE: { message: 'Ongeldige waarde in het filter.', serverHint: true },
+  ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION: {
+    message: 'Het filter mag geen gegevens wijzigen.',
+    hint: 'De data-weergave is alleen-lezen.',
+  },
+  ER_NO_SUCH_TABLE: {
+    message: 'Tabel bestaat niet (meer).',
+    hint: 'Vernieuw het schema met de knop boven de boom.',
+  },
+  ER_TABLEACCESS_DENIED_ERROR: {
+    message: 'Geen leesrechten op deze tabel.',
+    hint: 'Vraag een GRANT SELECT aan voor deze gebruiker.',
+  },
+  ER_VIEW_INVALID: {
+    message: 'Deze view verwijst naar iets dat niet (meer) bestaat.',
+    serverHint: true,
+  },
+  PROTOCOL_SEQUENCE_TIMEOUT: {
+    message: 'Query duurde langer dan 30 seconden en is afgebroken.',
+    hint: 'Verfijn het filter, of sorteer op een kolom met een index.',
+  },
+  PROTOCOL_CONNECTION_LOST: {
+    message: 'Verbinding met de server verbroken.',
+    hint: 'Verbreek en verbind opnieuw.',
+  },
 };
 
 /** Turns anything thrown into a DbError safe to send to the renderer. Never includes secrets. */
@@ -72,8 +109,13 @@ export function toDbError(err: unknown): DbError {
     typeof (err as { code?: unknown })?.code === 'string'
       ? (err as { code: string }).code
       : undefined;
-  if (code && KNOWN[code]) {
-    return { code, ...KNOWN[code] };
+  const known = code ? KNOWN[code] : undefined;
+  if (code && known) {
+    const serverMessage = (err as { sqlMessage?: unknown }).sqlMessage;
+    const hint = known.serverHint && typeof serverMessage === 'string' ? serverMessage : known.hint;
+    return hint === undefined
+      ? { code, message: known.message }
+      : { code, message: known.message, hint };
   }
   const message = err instanceof Error && err.message ? err.message : 'Onbekende fout.';
   return { code: code ?? 'UNKNOWN', message };

@@ -31,5 +31,7 @@ function browserFallback(): DbApi {
     listDatabases: fail,
     listObjects: fail,
     listColumns: fail,
+    readRows: fail,
+    countRows: fail,
   };
 }

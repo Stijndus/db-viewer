@@ -1,13 +1,15 @@
 import { Component, computed, inject, input } from '@angular/core';
 import type { SchemaObject } from '../../../../../shared/models';
+import { TableData } from '../../data/table-data/table-data';
 import { SchemaStore, type SelectedObject } from '../schema.store';
 
-/** Main panel for a selected table or view: its columns. Data view follows in step 3. */
+/** Main panel for a selected table or view: header, then its data or its structure. */
 @Component({
-  selector: 'app-object-structure',
-  templateUrl: './object-structure.html',
+  selector: 'app-object-view',
+  imports: [TableData],
+  templateUrl: './object-view.html',
 })
-export class ObjectStructure {
+export class ObjectView {
   readonly object = input.required<SelectedObject>();
   protected readonly schema = inject(SchemaStore);
 
@@ -38,7 +40,7 @@ export class ObjectStructure {
 
   protected rowEstimate(n: number | null | undefined): string | null {
     if (n === null || n === undefined) return null;
-    return `≈ ${new Intl.NumberFormat('nl-NL').format(n)} rijen`;
+    return `≈ ${new Intl.NumberFormat('nl-NL').format(n)} ${n === 1 ? 'rij' : 'rijen'}`;
   }
 
   protected reload(): void {

@@ -94,3 +94,48 @@ export interface ColumnInfo {
   extra: string;
   comment: string;
 }
+
+// ── Table data (step 3) ────────────────────────────────────────────
+
+/** Binary values (BLOB, BINARY, BIT): only a size and the first bytes as hex travel to the UI. */
+export interface BinaryCell {
+  kind: 'binary';
+  bytes: number;
+  /** Hex of at most the first 32 bytes. */
+  hex: string;
+}
+
+/** Text longer than the transfer limit: the start, plus the full length. */
+export interface TruncatedCell {
+  kind: 'truncated';
+  text: string;
+  length: number;
+}
+
+/** One value as shown in the grid. Numbers, dates and JSON arrive as text, exactly as stored. */
+export type Cell = string | null | BinaryCell | TruncatedCell;
+
+export type SortDirection = 'asc' | 'desc';
+
+export interface SortKey {
+  column: string;
+  direction: SortDirection;
+}
+
+export interface RowsRequest {
+  offset: number;
+  /** Rows per page, 1–1000. */
+  limit: number;
+  /** Empty = server order. The UI sends the primary key when the user picked no sort. */
+  orderBy: SortKey[];
+  /** Raw SQL condition typed by the user, without the word WHERE. Runs read-only. */
+  where?: string;
+}
+
+export interface RowsPage {
+  columns: string[];
+  rows: Cell[][];
+  /** True when at least one more row exists after this page. */
+  hasMore: boolean;
+  durationMs: number;
+}

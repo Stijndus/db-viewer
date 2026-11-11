@@ -14,7 +14,7 @@ import { SchemaStore } from '../schema.store';
       </p>
     </div>
     <div class="placeholder">
-      <strong>Kies een tabel of view in de boom links om de structuur te zien.</strong>
+      <strong>Kies een tabel of view in de boom links om de data en structuur te zien.</strong>
       <span class="muted">
         @if (databaseCount() !== null) {
           {{ databaseCount() }} {{ databaseCount() === 1 ? 'database' : 'databases' }} zichtbaar

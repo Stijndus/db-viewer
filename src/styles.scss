@@ -186,7 +186,7 @@ app-schema-tree { display: contents; }
 .object-head { display: flex; flex-direction: column; gap: 6px; }
 .object-title { font-size: 24px; font-weight: 600; word-break: break-all; }
 .wrap-tight { flex-wrap: wrap; gap: 6px 12px; }
-app-object-structure, app-connection-home { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+app-object-view, app-connection-home { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
 .tab { height: 36px; padding: 0 14px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 500; cursor: pointer; }
 .tab.active { color: var(--text); border-bottom-color: var(--accent); }
@@ -203,3 +203,55 @@ app-object-structure, app-connection-home { display: flex; flex-direction: colum
 .grid .comment { min-width: 120px; }
 .key-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: var(--panel-2); color: var(--text-2); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
 .key-tag.pk { background: #3a2e14; color: #f0c674; }
+
+/* ── Step 3: table data ────────────────────────────────────────── */
+.main.main-object { padding: 20px 24px 0; gap: 0; overflow: hidden; }
+.main.main-object app-object-view { flex: 1; min-height: 0; gap: 14px; }
+.object-title-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.object-title-row .object-title { font-size: 20px; }
+.object-db { font-weight: 400; }
+.structure-panel { flex: 1; min-height: 0; overflow: auto; padding-bottom: 24px; }
+.tabs { flex-shrink: 0; }
+
+app-table-data { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.dt-toolbar { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.dt-where-label { font-size: 12px; color: var(--text-2); }
+.dt-where { flex: 1; min-width: 120px; height: 34px; font-size: 12.5px; }
+.dt-toolbar .icon-btn { width: 34px; height: 34px; }
+.dt-body { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; }
+.dt-body.is-loading::after { content: ''; position: absolute; inset: 0; background: rgba(14, 16, 20, 0.45); pointer-events: none; }
+.dt-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px; text-align: center; }
+.dt-foot { flex-shrink: 0; min-height: 44px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 6px 0 8px; font-size: 12.5px; color: var(--text-2); }
+.dt-foot .push { margin-left: auto; }
+.dt-foot .link-btn { align-self: center; padding: 2px 4px; color: var(--accent); }
+.dt-note { color: var(--ok-text); }
+.dt-size { display: inline-flex; align-items: center; gap: 6px; }
+.select { height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); font-size: 12.5px; }
+.icon-btn.pager { width: 32px; height: 32px; }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+app-data-grid { flex: 1; min-height: 0; display: flex; }
+.dg { flex: 1; min-height: 0; overflow: auto; position: relative; font-family: var(--mono); font-size: 12.5px; outline: none; }
+.dg:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.dg-head { position: sticky; top: 0; z-index: 3; display: grid; background: var(--panel); border-bottom: 1px solid var(--border); }
+.dg-th { height: 44px; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 10px; border: none; border-right: 1px solid #1e232b; background: transparent; color: var(--text); text-align: left; cursor: pointer; min-width: 0; font: inherit; }
+.dg-th:hover { background: var(--panel-2); }
+.dg-th.num { text-align: right; align-items: flex-end; }
+.dg-th-name { display: flex; align-items: center; gap: 4px; max-width: 100%; font-family: var(--font); font-weight: 600; font-size: 12.5px; }
+.dg-th-type { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 11px; }
+.dg-key { flex-shrink: 0; color: #f0c674; }
+.dg-sort { color: var(--accent); font-weight: 700; }
+.dg-body { position: relative; }
+.dg-window { position: absolute; top: 0; left: 0; right: 0; will-change: transform; }
+.dg-row { display: grid; height: 30px; }
+.dg-row.odd { background: var(--row-alt); }
+.dg-row:hover { background: #1a1f27; }
+.dg-num { position: sticky; left: 0; z-index: 1; display: flex; align-items: center; justify-content: flex-end; padding: 0 10px; background: var(--panel); border-right: 1px solid var(--border); color: var(--text-3); font-size: 11.5px; }
+.dg-corner { z-index: 4; height: 44px; font-family: var(--font); }
+.dg-cell { min-width: 0; height: 30px; line-height: 30px; padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-right: 1px solid #1a1e25; border-bottom: 1px solid #1a1e25; cursor: default; }
+.dg-cell.num { text-align: right; }
+.dg-cell.selected { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.dg-cell.is-null { color: var(--text-3); font-style: italic; }
+.dg-cell.is-empty { color: var(--text-3); }
+.dg-cell.is-binary { color: #c3a6ff; }
+.dg-cell.is-truncated::after { content: ' …'; color: var(--text-3); }

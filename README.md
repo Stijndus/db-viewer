@@ -1,7 +1,7 @@
 # DB Viewer
 
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
-Klaar: MySQL/MariaDB-verbindingen beheren (stap 1) en het schema verkennen (stap 2).
+Klaar: MySQL/MariaDB-verbindingen beheren (stap 1), het schema verkennen (stap 2) en tabeldata bekijken (stap 3).
 
 ## Downloaden
 
@@ -29,14 +29,14 @@ Maak in de app een verbinding met host `127.0.0.1`, poort `3306`, gebruiker `roo
 
 ## Scripts
 
-| Script | Wat het doet |
-| --- | --- |
-| `npm run dev` | Ontwikkelen met hot reload |
-| `npm run start:prod` | Productiebuild draaien in Electron |
-| `npm run dist` | Installer bouwen in `release/` (Windows, macOS of Linux) |
-| `npm test` | Unit-tests: main-proces (Vitest) en Angular |
-| `npm run test:integration` | Driver-tests tegen een echte MySQL (zie hieronder) |
-| `npm run typecheck` | TypeScript-check van Electron- en Angular-code |
+| Script                     | Wat het doet                                             |
+| -------------------------- | -------------------------------------------------------- |
+| `npm run dev`              | Ontwikkelen met hot reload                               |
+| `npm run start:prod`       | Productiebuild draaien in Electron                       |
+| `npm run dist`             | Installer bouwen in `release/` (Windows, macOS of Linux) |
+| `npm test`                 | Unit-tests: main-proces (Vitest) en Angular              |
+| `npm run test:integration` | Driver-tests tegen een echte MySQL (zie hieronder)       |
+| `npm run typecheck`        | TypeScript-check van Electron- en Angular-code           |
 
 ### Integratietests
 
@@ -50,7 +50,7 @@ De CI-workflow doet hetzelfde tegen een MySQL 8.4-container.
 
 ## Releases
 
-Elke afgeronde stap krijgt een release: stap *N* wordt versie `0.N.0`. Zodra er een nieuwe versie
+Elke afgeronde stap krijgt een release: stap _N_ wordt versie `0.N.0`. Zodra er een nieuwe versie
 in `package.json` op `main` staat, test en bouwt `.github/workflows/release.yml` de app op Windows,
 maakt de tag aan en publiceert de `.exe`-bestanden als GitHub Release. Pushes zonder nieuwe versie
 doen niets.
@@ -78,6 +78,9 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 - **Wachtwoorden** worden versleuteld met Electron `safeStorage` (Keychain, DPAPI, libsecret) en opgeslagen in
   `connections.json` in de userData-map. Is er geen sleutelhanger (bijv. Linux zonder keyring), dan slaat de app
   geen wachtwoord op en vraagt het bij verbinden.
+- **Data alleen-lezen:** elke data-query draait in een `READ ONLY`-transactie met een limiet van
+  30 seconden. Het WHERE-filter van de gebruiker staat op eigen regels tussen haakjes, zodat een
+  `--`-commentaar de `LIMIT` niet kan wegnemen.
 - **Exacte waarden:** `BIGINT`, `DECIMAL` en `DATETIME` komen als tekst binnen, zodat er geen precisie of
   tijdzone verloren gaat.
 - **Venster:** `contextIsolation`, `sandbox`, geen `nodeIntegration`, een Content-Security-Policy, en IPC
@@ -88,7 +91,7 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 ```
 electron/        main-proces: main.ts, preload.ts, db/, ipc/, store/
 shared/          types en IPC-contract, gedeeld door Electron en Angular
-src/app/         Angular-UI: core/db-api.ts, features/connections/, features/schema/
+src/app/         Angular-UI: core/db-api.ts, features/connections/, features/schema/, features/data/
 scripts/         build van de Electron-bundels, test-database
 ```
 
@@ -96,6 +99,6 @@ scripts/         build van de Electron-bundels, test-database
 
 1. ~~Verbinding maken (MySQL)~~
 2. ~~Schema-boom: databases, tabellen, views, kolommen~~
-3. Tabeldata met paginering en virtual scroll
+3. ~~Tabeldata met paginering en virtual scroll~~
 4. SQL-editor met resultaatgrid
 5. Meer drivers: PostgreSQL, SQL Server, SQLite

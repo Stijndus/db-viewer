@@ -4,6 +4,8 @@ import type {
   ConnectionProfile,
   DatabaseInfo,
   Result,
+  RowsPage,
+  RowsRequest,
   SchemaObject,
 } from '../../../shared/models';
 
@@ -66,6 +68,22 @@ export const COLUMNS: ColumnInfo[] = [
 
 const ok = <T>(data: T): Promise<Result<T>> => Promise.resolve({ ok: true, data });
 
+/** A fake `customers` table with 450 rows: id, email, status (every 7th status NULL). */
+export const FAKE_ROW_COUNT = 450;
+
+export function fakeRows(request: RowsRequest): RowsPage {
+  let ids = Array.from({ length: FAKE_ROW_COUNT }, (_, i) => i + 1);
+  if (request.where) ids = ids.filter((id) => id % 2 === 0); // any filter: even ids only
+  if (request.orderBy[0]?.direction === 'desc') ids.reverse();
+  const slice = ids.slice(request.offset, request.offset + request.limit);
+  return {
+    columns: ['id', 'email', 'status'],
+    rows: slice.map((id) => [String(id), `user${id}@example.com`, id % 7 === 0 ? null : 'open']),
+    hasMore: request.offset + request.limit < ids.length,
+    durationMs: 3,
+  };
+}
+
 /** In-memory DbApi for component and store tests. Override any method per test. */
 export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
   return {
@@ -79,6 +97,8 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     listDatabases: () => ok(DATABASES),
     listObjects: () => ok(OBJECTS),
     listColumns: () => ok(COLUMNS),
+    readRows: (_id, _db, _table, request) => ok(fakeRows(request)),
+    countRows: (_id, _db, _table, where) => ok(where ? FAKE_ROW_COUNT / 2 : FAKE_ROW_COUNT),
     ...overrides,
   };
 }

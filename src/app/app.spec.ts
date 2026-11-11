@@ -74,6 +74,17 @@ describe('App', () => {
 
     expect(el.querySelector('.object-title')?.textContent).toContain('customers');
     expect(el.querySelector('.object-head')?.textContent).toContain('Klanten');
+
+    // Data is the default tab.
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('.tab.active')?.textContent).toContain('Data');
+    expect(el.querySelector('.dg-row .dg-cell')?.textContent?.trim()).toBe('1');
+
+    Array.from(el.querySelectorAll<HTMLButtonElement>('.tab'))
+      .find((t) => t.textContent?.includes('Structuur'))!
+      .click();
+    fixture.detectChanges();
     const cells = Array.from(el.querySelectorAll('.grid tbody tr')).map((r) =>
       r.children[1]?.textContent?.trim(),
     );

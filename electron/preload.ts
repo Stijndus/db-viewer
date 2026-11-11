@@ -13,6 +13,10 @@ const api: DbApi = {
   listDatabases: (id) => ipcRenderer.invoke(IPC.listDatabases, id),
   listObjects: (id, database) => ipcRenderer.invoke(IPC.listObjects, id, database),
   listColumns: (id, database, table) => ipcRenderer.invoke(IPC.listColumns, id, database, table),
+  readRows: (id, database, table, request) =>
+    ipcRenderer.invoke(IPC.readRows, id, database, table, request),
+  countRows: (id, database, table, where) =>
+    ipcRenderer.invoke(IPC.countRows, id, database, table, where),
 };
 
 contextBridge.exposeInMainWorld('dbApi', api);

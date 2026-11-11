@@ -28,3 +28,14 @@ export const identifierSchema = z
   .min(1, 'Naam ontbreekt')
   .max(64, 'Naam is langer dan 64 tekens')
   .refine((s) => !s.includes('\0'), 'Ongeldig teken in naam');
+
+export const whereSchema = z.string().max(10_000, 'Filter is langer dan 10.000 tekens').optional();
+
+export const rowsRequestSchema = z.object({
+  offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  limit: z.number().int().min(1).max(1000),
+  orderBy: z
+    .array(z.object({ column: identifierSchema, direction: z.enum(['asc', 'desc']) }))
+    .max(16),
+  where: whereSchema,
+});

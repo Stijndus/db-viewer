@@ -1,0 +1,89 @@
+<div
+  #scroller
+  class="dg"
+  role="grid"
+  tabindex="0"
+  aria-label="Tabeldata"
+  [attr.aria-rowcount]="rows().length + 1"
+  [attr.aria-colcount]="columns().length + 1"
+  (scroll)="onScroll()"
+  (keydown)="onKeydown($event)"
+>
+  <div
+    class="dg-head"
+    role="row"
+    [style.grid-template-columns]="template()"
+    [style.width.px]="totalWidth()"
+  >
+    <div class="dg-num dg-corner" role="columnheader">#</div>
+    @for (col of columns(); track col.name) {
+      <button
+        type="button"
+        class="dg-th"
+        role="columnheader"
+        [class.num]="col.numeric"
+        [attr.aria-sort]="ariaSort(col)"
+        [title]="'Sorteer op ' + col.name + (col.primary ? ' (primaire sleutel)' : '')"
+        (click)="sortRequested.emit(col.name)"
+      >
+        <span class="dg-th-name">
+          @if (col.primary) {
+            <svg
+              class="dg-key"
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="8" cy="15" r="4" />
+              <path d="M11 12l9-9M17 6l3 3" />
+            </svg>
+          }
+          <span class="tl">{{ col.name }}</span>
+          @if (col.sort) {
+            <span class="dg-sort" aria-hidden="true">{{ col.sort === 'asc' ? '↑' : '↓' }}</span>
+          }
+        </span>
+        <span class="dg-th-type">{{ col.type }}</span>
+      </button>
+    }
+  </div>
+
+  <div
+    class="dg-body"
+    [style.height.px]="rows().length * rowHeight"
+    [style.width.px]="totalWidth()"
+  >
+    <div class="dg-window" [style.transform]="'translateY(' + offsetY() + 'px)'">
+      @for (row of visible(); track row.index) {
+        <div
+          class="dg-row"
+          role="row"
+          [class.odd]="row.index % 2 === 1"
+          [attr.aria-rowindex]="row.index + 2"
+          [style.grid-template-columns]="template()"
+        >
+          <div class="dg-num" role="rowheader">{{ rowOffset() + row.index + 1 }}</div>
+          @for (cell of row.cells; track $index; let c = $index) {
+            <div
+              class="dg-cell"
+              role="gridcell"
+              [class]="'dg-cell ' + cell.cls"
+              [class.num]="columns()[c]?.numeric"
+              [class.selected]="isSelected(row.index, c)"
+              [attr.aria-selected]="isSelected(row.index, c)"
+              [attr.title]="cell.title"
+              (mousedown)="select(row.index, c)"
+            >
+              {{ cell.text }}
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
