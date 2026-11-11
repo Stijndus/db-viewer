@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classify, readOnlyViolation, splitStatements, statementAt } from './sql';
+import type { DbType } from './models';
+import { classify, readOnlyViolation, ScriptSplitter, splitStatements, statementAt } from './sql';
 
 const sqls = (text: string) => splitStatements(text).map((s) => s.sql);
 
@@ -210,5 +211,43 @@ describe('dialects', () => {
     expect(readOnlyViolation('DECLARE @x int', 'mssql')).toBeNull();
     expect(readOnlyViolation('IF 1=1 DROP TABLE t', 'mssql')).not.toBeNull();
     expect(readOnlyViolation('EXEC sp_who', 'mssql')).not.toBeNull();
+  });
+});
+
+describe('ScriptSplitter', () => {
+  const scripts: [DbType, string][] = [
+    [
+      'mysql',
+      "SET NAMES utf8mb4;\n/*!40101 SET @x=1 */;\nINSERT INTO t VALUES (1,'a;b'),(2,'it''s');\nDELIMITER ;;\nCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN SET NEW.a = 1; END ;;\nDELIMITER ;\n-- klaar; echt\nINSERT INTO t VALUES (3, \"x;y\");\nSELECT 1",
+    ],
+    [
+      'postgres',
+      "CREATE FUNCTION f() RETURNS int AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql;\nCOPY_LIKE /* nested /* ; */ */ 1;\nSELECT E'a\\';b';\nSELECT 2;",
+    ],
+    [
+      'mssql',
+      'CREATE PROCEDURE p AS\nBEGIN\n  SELECT 1; SELECT 2;\nEND\nGO\nDECLARE @a int = 1;\nPRINT @a\nGO\nSELECT [a;b] FROM t\n',
+    ],
+  ];
+
+  it.each(scripts)('gives the same statements as splitting at once (%s)', (dialect, script) => {
+    const whole = splitStatements(script, dialect).map((s) => s.sql);
+    for (const size of [1, 2, 3, 7, 16, 1000]) {
+      const splitter = new ScriptSplitter(dialect);
+      const got: string[] = [];
+      for (let i = 0; i < script.length; i += size)
+        got.push(...splitter.push(script.slice(i, i + size)));
+      got.push(...splitter.end());
+      expect(got, `pieces of ${size}`).toEqual(whole);
+    }
+  });
+
+  it('hands out complete statements before the end, and waits for an unfinished one', () => {
+    const splitter = new ScriptSplitter('mysql');
+    expect(splitter.push('INSERT INTO t VALUES (1);\nINSERT INTO t VALUES (')).toEqual([
+      'INSERT INTO t VALUES (1)',
+    ]);
+    expect(splitter.push("'a\n;b');\n")).toEqual(["INSERT INTO t VALUES ('a\n;b')"]);
+    expect(splitter.end()).toEqual([]);
   });
 });

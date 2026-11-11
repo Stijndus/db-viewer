@@ -19,11 +19,30 @@ export interface SqlStatement {
  * a batch with several statements returns several results.
  */
 export function splitStatements(text: string, dialect: DbType = 'mysql'): SqlStatement[] {
+  return splitFrom(text, dialect, defaultDelimiter(dialect)).statements;
+}
+
+function defaultDelimiter(dialect: DbType): string {
+  return dialect === 'mssql' ? '' : ';';
+}
+
+/**
+ * The splitter itself, starting with a given delimiter. Also says where the last complete
+ * statement ended (`cut`: after its delimiter, GO line or DELIMITER command) and which delimiter
+ * is in effect there, so a script can be split piece by piece (see ScriptSplitter).
+ */
+function splitFrom(
+  text: string,
+  dialect: DbType,
+  initialDelimiter: string,
+): { statements: SqlStatement[]; cut: number; delimiter: string } {
   const out: SqlStatement[] = [];
   const lexer = new Lexer(text, dialect);
-  let delimiter = dialect === 'mssql' ? '' : ';';
+  let delimiter = initialDelimiter;
   let start = 0; // start of the current statement segment
   let hasContent = false; // the segment holds something other than whitespace and comments
+  let cut = 0;
+  let delimiterAtCut = delimiter;
 
   const push = (end: number) => {
     if (hasContent) {
@@ -46,6 +65,8 @@ export function splitStatements(text: string, dialect: DbType = 'mysql'): SqlSta
         delimiter = match[1]!;
         lexer.i += match[0].length;
         start = lexer.i;
+        cut = start;
+        delimiterAtCut = delimiter;
         continue;
       }
     }
@@ -56,6 +77,7 @@ export function splitStatements(text: string, dialect: DbType = 'mysql'): SqlSta
         push(i);
         lexer.i += match[0].length;
         start = lexer.i;
+        cut = start;
         continue;
       }
     }
@@ -71,13 +93,56 @@ export function splitStatements(text: string, dialect: DbType = 'mysql'): SqlSta
       push(i);
       lexer.i = i + delimiter.length;
       start = lexer.i;
+      cut = start;
+      delimiterAtCut = delimiter;
       continue;
     }
     if (!/\s/.test(ch)) hasContent = true;
     lexer.i = i + 1;
   }
   push(text.length);
-  return out;
+  return { statements: out, cut, delimiter: delimiterAtCut };
+}
+
+/**
+ * Splits a script that arrives in pieces (a dump read from disk or an archive): `push` returns the
+ * statements that are complete so far, `end` the rest. Quotes, comments, DELIMITER and GO work
+ * across pieces. Only whole lines are judged, so a GO or DELIMITER line is never cut in two, and a
+ * long statement is not re-read for every piece (the next try waits until the text has doubled).
+ */
+export class ScriptSplitter {
+  private buffer = '';
+  private delimiter: string;
+  private nextTry = 0;
+
+  constructor(private readonly dialect: DbType) {
+    this.delimiter = defaultDelimiter(dialect);
+  }
+
+  push(chunk: string): string[] {
+    this.buffer += chunk;
+    if (this.buffer.length < this.nextTry) return [];
+    const nl = this.buffer.lastIndexOf('\n');
+    if (nl < 0) return [];
+    const head = this.buffer.slice(0, nl + 1);
+    const result = splitFrom(head, this.dialect, this.delimiter);
+    if (result.cut === 0) {
+      this.nextTry = this.buffer.length * 2;
+      return [];
+    }
+    this.nextTry = 0;
+    this.delimiter = result.delimiter;
+    this.buffer = head.slice(result.cut) + this.buffer.slice(nl + 1);
+    return result.statements.filter((st) => st.to <= result.cut).map((st) => st.sql);
+  }
+
+  end(): string[] {
+    const rest = splitFrom(this.buffer, this.dialect, this.delimiter).statements.map(
+      (st) => st.sql,
+    );
+    this.buffer = '';
+    return rest;
+  }
 }
 
 /** The statement the cursor is in: the last one that starts at or before it. */

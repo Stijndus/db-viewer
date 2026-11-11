@@ -89,8 +89,7 @@ export interface ConnectSecrets {
 
 /** What the command line asked the app to open; sent to the window. */
 export type LaunchRequest =
-  | { kind: 'open'; connectionId: string }
-  | { kind: 'error'; message: string; hint?: string };
+  { kind: 'open'; connectionId: string } | { kind: 'error'; message: string; hint?: string };
 
 export interface ConnectResult {
   serverVersion: string;
@@ -255,3 +254,48 @@ export type UpdateState =
   | { status: 'error'; message: string };
 
 /** `notes` on an update: the GitHub release text of the new version, as HTML. */
+
+// ── Import and export ──────────────────────────────────────────────
+
+/** A file chosen for a SQL import, as the dialog shows it. */
+export interface ImportFileInfo {
+  file: string;
+  name: string;
+  size: number;
+  /** A plain script, a .gz, or a zip/7z archive with `entries`. */
+  kind: 'script' | 'gzip' | 'archive';
+  /** Some file in the archive needs a password. */
+  encrypted?: boolean;
+  entries: { path: string; size: number | null; encrypted: boolean; script: boolean }[];
+}
+
+export interface SqlImportRequest {
+  file: string;
+  /** The file inside a zip or 7z archive. */
+  entry?: string;
+  /** Archive password; used for this import only, never stored. */
+  password?: string;
+  /** Run in this database (schema) first; the script's own USE statements still apply. */
+  database?: string;
+  /** Stop at the first failing statement, or note it and go on. */
+  onError: 'stop' | 'skip';
+}
+
+/** Progress of an import or export, pushed while it runs and once at the end. */
+export interface TransferProgress {
+  jobId: string;
+  kind: 'import' | 'export';
+  phase: 'running' | 'done' | 'done-with-errors' | 'stopped-at-error' | 'cancelled' | 'failed';
+  /** Bytes read (import) or written (export) so far. */
+  bytes: number;
+  totalBytes: number | null;
+  /** Statements run (import) or rows written (export). */
+  statements: number;
+  failed: number;
+  /** The first failing statements (at most 100), with the server's message. */
+  errors: { statement: number; sql: string; message: string }[];
+  /** Set when the whole job failed (phase 'failed'). */
+  error?: DbError;
+  /** Export: the file written. */
+  file?: string;
+}
