@@ -187,6 +187,6 @@ scripts/         build van de Electron-bundels, testdatabases per type
 8. ~~SSH-tunnel en release notes in de app~~
 9. ~~Openen vanaf de opdrachtregel~~ (0.9.0)
 10. ~~SQL-import (ook uit versleutelde zip/7z) en export naar CSV, Excel, JSON en SQL~~ (0.10.0)
-11. ~~Thema's (zeven, met kiezer en voorbeeld) en zoomen~~ (0.11.0)
+11. ~~Thema's (zeven, met kiezer en voorbeeld) en zoomen~~ (0.11.0; Codalt Donker en Licht in 0.11.1)
 12. CSV, JSON en Excel importeren in een tabel (0.12.0)
 13. Query-geschiedenis (0.13.0), daarna testen en 1.0.0
