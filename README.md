@@ -50,17 +50,18 @@ De CI-workflow doet hetzelfde tegen een MySQL 8.4-container.
 
 ## Releases
 
-Elke afgeronde stap krijgt een release: stap *N* wordt versie `0.N.0`. Een versietag start de
-workflow `.github/workflows/release.yml`, die op Windows test, bouwt en de `.exe`-bestanden publiceert.
+Elke afgeronde stap krijgt een release: stap *N* wordt versie `0.N.0`. Zodra er een nieuwe versie
+in `package.json` op `main` staat, test en bouwt `.github/workflows/release.yml` de app op Windows,
+maakt de tag aan en publiceert de `.exe`-bestanden als GitHub Release. Pushes zonder nieuwe versie
+doen niets.
 
 ```bash
 # 1. Release notes schrijven in .github/release-notes/v0.3.0.md (optioneel; anders automatisch)
-# 2. Versie ophogen, committen en taggen, dan pushen:
-npm version 0.3.0 -m "Release v%s"
-git push --follow-tags
+# 2. Versie ophogen en pushen:
+npm version 0.3.0 --no-git-tag-version
+git commit -am "Release v0.3.0"
+git push
 ```
-
-De workflow stopt als de tag niet overeenkomt met de versie in `package.json`.
 
 ## Architectuur
 

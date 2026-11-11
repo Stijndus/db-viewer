@@ -1,17 +1,49 @@
 name: Release
 
-# Pushing a version tag (v0.2.0 = step 2) builds the Windows .exe files and publishes them
-# as a GitHub Release. See "Releases" in the README.
+# A new version in package.json on main (v0.3.0 = step 3) builds the Windows .exe files and
+# publishes them as a GitHub Release; the workflow creates the tag itself. Pushes that keep the
+# version unchanged do nothing. See "Releases" in the README.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.exists.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG bestaat al; niets te doen."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   windows:
+    needs: check
+    if: needs.check.outputs.release == 'true'
     runs-on: windows-latest
+    env:
+      TAG: v${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,15 +51,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-
-      - name: Check that package.json version matches the tag
-        shell: bash
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME hoort niet bij package.json-versie $version"
-            exit 1
-          fi
 
       - run: npm ci
 
@@ -43,7 +66,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes=".github/release-notes/$GITHUB_REF_NAME.md"
-          args=(--title "DB Viewer $GITHUB_REF_NAME")
+          notes=".github/release-notes/$TAG.md"
+          args=(--title "DB Viewer $TAG" --target "$GITHUB_SHA")
           if [ -f "$notes" ]; then args+=(--notes-file "$notes"); else args+=(--generate-notes); fi
-          gh release create "$GITHUB_REF_NAME" release/*.exe "${args[@]}"
+          gh release create "$TAG" release/*.exe "${args[@]}"
