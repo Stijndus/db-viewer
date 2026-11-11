@@ -91,6 +91,7 @@ function toConfig(input: Omit<ConnectionInput, 'password'>, password: string): C
     user: input.user,
     ssl: input.ssl,
     allowSelfSigned: input.allowSelfSigned,
+    readOnly: input.readOnly ?? false,
     password,
   };
 }

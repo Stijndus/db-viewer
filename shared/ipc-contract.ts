@@ -7,8 +7,11 @@ import type {
   Result,
   RowsPage,
   RowsRequest,
+  RunRequest,
+  RunResult,
   SchemaObject,
   TestResult,
+  UpdateState,
 } from './models';
 
 /** IPC channel names. Main registers a handler for each; preload exposes one function per channel. */
@@ -23,15 +26,26 @@ export const IPC = {
   listDatabases: 'schema:databases',
   listObjects: 'schema:objects',
   listColumns: 'schema:columns',
+  listAllColumns: 'schema:all-columns',
   readRows: 'data:rows',
   countRows: 'data:count',
+  runScript: 'sql:run',
+  cancelScript: 'sql:cancel',
+  closeEditor: 'sql:close',
+  updateState: 'updates:get',
+  checkForUpdates: 'updates:check',
+  installUpdate: 'updates:install',
 } as const;
+
+/** Pushed from main to the renderer whenever the update state changes. */
+export const UPDATE_STATE_EVENT = 'updates:state';
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
 export interface AppInfo {
   /** False when the OS keychain is unavailable; passwords can then not be saved. */
   encryptionAvailable: boolean;
+  version: string;
 }
 
 /** The API exposed to the renderer as `window.dbApi`. */
@@ -54,6 +68,9 @@ export interface DbApi {
   /** Columns of one table or view, in table order. */
   listColumns(connectionId: string, database: string, table: string): Promise<Result<ColumnInfo[]>>;
 
+  /** Column names per table of one database (for autocompletion). */
+  listAllColumns(connectionId: string, database: string): Promise<Result<Record<string, string[]>>>;
+
   // Table data (step 3). Always read-only, with a time limit.
   /** One page of rows from a table or view. */
   readRows(
@@ -69,4 +86,20 @@ export interface DbApi {
     table: string,
     where?: string,
   ): Promise<Result<number>>;
+
+  // SQL editor (step 4). Each tab has its own server connection, opened on first run.
+  /** Runs statements one after another; stops at the first error. */
+  runScript(connectionId: string, tabId: string, request: RunRequest): Promise<Result<RunResult>>;
+  /** Stops the statement that is running in a tab. */
+  cancelScript(connectionId: string, tabId: string): Promise<Result<void>>;
+  /** Closes the tab's connection; an open transaction is rolled back. */
+  closeEditor(connectionId: string, tabId: string): Promise<Result<void>>;
+
+  // Updates.
+  updateState(): Promise<Result<UpdateState>>;
+  checkForUpdates(): Promise<Result<UpdateState>>;
+  /** Restarts the app into the downloaded update. */
+  installUpdate(): Promise<Result<void>>;
+  /** Subscribes to update state changes; returns a function that unsubscribes. */
+  onUpdateState(listener: (state: UpdateState) => void): () => void;
 }

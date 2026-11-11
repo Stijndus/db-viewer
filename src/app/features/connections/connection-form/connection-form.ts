@@ -58,6 +58,7 @@ export class ConnectionForm {
     ssl: [false],
     allowSelfSigned: [{ value: false, disabled: true }],
     color: ['green' as ConnectionColor],
+    readOnly: [false],
   });
 
   constructor() {

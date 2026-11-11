@@ -23,8 +23,12 @@ function fakeDriver() {
         listDatabases: async () => [],
         listObjects: async () => [],
         listColumns: async () => [],
+        listAllColumns: async () => ({}),
         readRows: async () => ({ columns: [], rows: [], hasMore: false, durationMs: 0 }),
         countRows: async () => 0,
+        runScript: async () => ({ results: [], database: null }),
+        cancelScript: async () => undefined,
+        closeEditor: async () => undefined,
         close: async () => closed(),
       };
       return session;

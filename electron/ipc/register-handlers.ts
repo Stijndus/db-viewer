@@ -3,6 +3,7 @@ import { IPC, type AppInfo } from '../../shared/ipc-contract';
 import type { Result } from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
+import type { Updater } from '../updater';
 import { toDbError } from './errors';
 import {
   connectionInputSchema,
@@ -11,6 +12,8 @@ import {
   optionalIdSchema,
   optionalPasswordSchema,
   rowsRequestSchema,
+  runRequestSchema,
+  tabIdSchema,
   whereSchema,
 } from './schemas';
 
@@ -18,6 +21,8 @@ export interface HandlerDeps {
   store: ConnectionStore;
   manager: ConnectionManager;
   cipher: SecretCipher;
+  updater: Updater;
+  version: string;
   /** Only messages from our own window are answered. */
   isTrustedSender(event: IpcMainInvokeEvent): boolean;
 }
@@ -32,7 +37,7 @@ export async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
 }
 
 export function registerHandlers(deps: HandlerDeps): void {
-  const { store, manager, cipher } = deps;
+  const { store, manager, cipher, updater } = deps;
 
   const handle = <T>(channel: string, fn: (...args: unknown[]) => Promise<T> | T) => {
     ipcMain.handle(channel, (event, ...args) => {
@@ -43,7 +48,14 @@ export function registerHandlers(deps: HandlerDeps): void {
     });
   };
 
-  handle<AppInfo>(IPC.appInfo, () => ({ encryptionAvailable: cipher.isAvailable() }));
+  handle<AppInfo>(IPC.appInfo, () => ({
+    encryptionAvailable: cipher.isAvailable(),
+    version: deps.version,
+  }));
+
+  handle(IPC.updateState, () => updater.getState());
+  handle(IPC.checkForUpdates, () => updater.check());
+  handle(IPC.installUpdate, () => updater.install());
 
   handle(IPC.listConnections, () => store.list());
 
@@ -80,6 +92,10 @@ export function registerHandlers(deps: HandlerDeps): void {
       .listColumns(identifierSchema.parse(rawDb), identifierSchema.parse(rawTable)),
   );
 
+  handle(IPC.listAllColumns, (rawId, rawDb) =>
+    manager.session(idSchema.parse(rawId)).listAllColumns(identifierSchema.parse(rawDb)),
+  );
+
   // Table data: read-only and time-limited inside the driver.
   handle(IPC.readRows, (rawId, rawDb, rawTable, rawRequest) =>
     manager
@@ -100,4 +116,21 @@ export function registerHandlers(deps: HandlerDeps): void {
         whereSchema.parse(rawWhere),
       ),
   );
+
+  // SQL editor: a dedicated connection per tab; read-only profiles are enforced in the driver.
+  handle(IPC.runScript, (rawId, rawTab, rawRequest) =>
+    manager
+      .session(idSchema.parse(rawId))
+      .runScript(tabIdSchema.parse(rawTab), runRequestSchema.parse(rawRequest)),
+  );
+
+  handle(IPC.cancelScript, (rawId, rawTab) =>
+    manager.session(idSchema.parse(rawId)).cancelScript(tabIdSchema.parse(rawTab)),
+  );
+
+  handle(IPC.closeEditor, async (rawId, rawTab) => {
+    const id = idSchema.parse(rawId);
+    // Closing a tab after disconnecting is fine: there is nothing left to close.
+    if (manager.isConnected(id)) await manager.session(id).closeEditor(tabIdSchema.parse(rawTab));
+  });
 }

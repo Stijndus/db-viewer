@@ -69,4 +69,5 @@ jobs:
           notes=".github/release-notes/$TAG.md"
           args=(--title "DB Viewer $TAG" --target "$GITHUB_SHA")
           if [ -f "$notes" ]; then args+=(--notes-file "$notes"); else args+=(--generate-notes); fi
-          gh release create "$TAG" release/*.exe "${args[@]}"
+          # latest.yml and the blockmap let installed apps find and download the update.
+          gh release create "$TAG" release/*.exe release/*.exe.blockmap release/latest.yml "${args[@]}"

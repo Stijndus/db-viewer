@@ -21,6 +21,7 @@ const base: ConnectionConfig = {
   password: 'test123',
   ssl: false,
   allowSelfSigned: false,
+  readOnly: false,
 };
 
 async function errorCodeOf(config: Partial<ConnectionConfig>): Promise<string> {
@@ -130,6 +131,14 @@ describe.skipIf(!host)('mysqlDriver schema metadata', () => {
     const cols = await session.listColumns('app_dev', 'Order Items');
     await session.close();
     expect(cols.map((c) => c.name)).toEqual(['id', 'Unit Price']);
+  });
+
+  it('lists all columns of a database per table, for autocompletion', async () => {
+    const session = await mysqlDriver.open(base);
+    const all = await session.listAllColumns('app_dev');
+    await session.close();
+    expect(all['events']).toEqual(['id', 'kind', 'amount', 'created_at']);
+    expect(all['Order Items']).toEqual(['id', 'Unit Price']);
   });
 
   it('returns no columns for a table the user cannot see', async () => {
@@ -272,5 +281,157 @@ describe.skipIf(!host)('mysqlDriver table data', () => {
       const ok = await s.readRows('app_dev', 'events', { ...page, limit: 1 });
       expect(ok.rows).toHaveLength(1);
     });
+  });
+});
+
+describe.skipIf(!host)('mysqlDriver SQL editor', () => {
+  type Session = Awaited<ReturnType<typeof mysqlDriver.open>>;
+  let tab = 0;
+  const newTab = () => `t${Date.now()}${tab++}`;
+
+  async function withSession<T>(fn: (s: Session) => Promise<T>, readOnly = false) {
+    const session = await mysqlDriver.open({ ...base, readOnly });
+    try {
+      return await fn(session);
+    } finally {
+      await session.close();
+    }
+  }
+
+  it('returns rows with column types and applies the row limit', async () => {
+    await withSession(async (s) => {
+      const { results } = await s.runScript(newTab(), {
+        statements: ['SELECT id, kind, amount, created_at FROM events ORDER BY id'],
+        maxRows: 100,
+      });
+      const r = results[0]!;
+      expect(r.kind).toBe('rows');
+      if (r.kind !== 'rows') return;
+      expect(r.rows).toHaveLength(100);
+      expect(r.truncated).toBe(true);
+      expect(r.columns.map((c) => c.type)).toEqual(['int', 'varchar', 'decimal', 'datetime']);
+      expect(r.rows[0]).toEqual(['1', 'view', '1.50', '2026-01-01 00:01:00']);
+    });
+  });
+
+  it('respects an explicit LIMIT and reports no truncation below the limit', async () => {
+    await withSession(async (s) => {
+      const { results } = await s.runScript(newTab(), {
+        statements: ['SELECT id FROM events ORDER BY id LIMIT 5'],
+        maxRows: 1000,
+      });
+      expect(results[0]).toMatchObject({ kind: 'rows', truncated: false });
+    });
+  });
+
+  it('runs several statements in one session: USE, variables, writes', async () => {
+    await withSession(async (s) => {
+      const id = newTab();
+      const run = (...statements: string[]) => s.runScript(id, { statements, maxRows: 1000 });
+
+      const first = await run(
+        'USE app_dev',
+        'DROP TABLE IF EXISTS sql_scratch',
+        'CREATE TABLE sql_scratch (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(10))',
+        "INSERT INTO sql_scratch (v) VALUES ('a'), ('b')",
+        "UPDATE sql_scratch SET v = 'c' WHERE id = 2",
+        'SET @answer = 42',
+      );
+      expect(first.database).toBe('app_dev');
+      expect(first.results.map((r) => r.kind)).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
+      expect(first.results[3]).toMatchObject({ affectedRows: 2, insertId: '1' });
+      expect(first.results[4]).toMatchObject({ affectedRows: 1 });
+
+      // Same tab, same session: the variable survives.
+      const second = await run('SELECT @answer AS answer, (SELECT GROUP_CONCAT(v) FROM sql_scratch) AS vs');
+      expect(second.results[0]).toMatchObject({ kind: 'rows', rows: [['42', 'a,c']] });
+
+      // Another tab has its own session.
+      const other = await s.runScript(newTab(), { statements: ['SELECT @answer'], maxRows: 10 });
+      expect(other.results[0]).toMatchObject({ rows: [[null]] });
+
+      await run('DROP TABLE sql_scratch');
+    });
+  });
+
+  it('stops at the first error and reports the server message', async () => {
+    await withSession(async (s) => {
+      const { results } = await s.runScript(newTab(), {
+        statements: ['SELECT 1', 'SELEC 2', 'SELECT 3'],
+        maxRows: 10,
+      });
+      expect(results.map((r) => r.kind)).toEqual(['rows', 'error']);
+      const err = results[1]!;
+      if (err.kind !== 'error') return;
+      expect(err.index).toBe(1);
+      expect(err.error.code).toBe('ER_PARSE_ERROR');
+      expect(err.error.message).toContain('SELEC 2');
+    });
+  });
+
+  it('returns the result sets of a procedure call', async () => {
+    await withSession(async (s) => {
+      const { results } = await s.runScript(newTab(), { statements: ['CALL refresh_stats()'], maxRows: 10 });
+      expect(results[0]).toMatchObject({ kind: 'rows', rows: [['1']] });
+    });
+  });
+
+  it('rolls back an open transaction when the tab is closed', async () => {
+    await withSession(async (s) => {
+      const setup = newTab();
+      await s.runScript(setup, {
+        statements: ['DROP TABLE IF EXISTS sql_tx', 'CREATE TABLE sql_tx (id INT PRIMARY KEY)'],
+        maxRows: 10,
+      });
+      const tx = newTab();
+      await s.runScript(tx, { statements: ['BEGIN', 'INSERT INTO sql_tx VALUES (1)'], maxRows: 10 });
+      await s.closeEditor(tx);
+      const check = await s.runScript(setup, { statements: ['SELECT COUNT(*) FROM sql_tx'], maxRows: 10 });
+      expect(check.results[0]).toMatchObject({ rows: [['0']] });
+      await s.runScript(setup, { statements: ['DROP TABLE sql_tx'], maxRows: 10 });
+    });
+  });
+
+  it('stops a long query on request', async () => {
+    await withSession(async (s) => {
+      const id = newTab();
+      const started = Date.now();
+      const running = s.runScript(id, {
+        statements: ['SELECT COUNT(*) FROM events a, events b, events c'],
+        maxRows: 10,
+      });
+      await new Promise((r) => setTimeout(r, 500));
+      await s.cancelScript(id);
+      const { results } = await running;
+      expect(results[0]).toMatchObject({ kind: 'error', error: { code: 'ER_QUERY_INTERRUPTED' } });
+      expect(Date.now() - started).toBeLessThan(5000);
+      // The tab keeps working afterwards.
+      const after = await s.runScript(id, { statements: ['SELECT 1'], maxRows: 10 });
+      expect(after.results[0]).toMatchObject({ kind: 'rows' });
+    });
+  });
+
+  it('refuses writes on a read-only connection, also when they hide in a function', async () => {
+    await withSession(async (s) => {
+      const id = newTab();
+      const blocked = await s.runScript(id, { statements: ["INSERT INTO counter VALUES (99)"], maxRows: 10 });
+      expect(blocked.results[0]).toMatchObject({ kind: 'error', error: { code: 'READ_ONLY_CONNECTION' } });
+
+      const lifted = await s.runScript(id, {
+        statements: ['SET SESSION TRANSACTION READ WRITE'],
+        maxRows: 10,
+      });
+      expect(lifted.results[0]).toMatchObject({ error: { code: 'READ_ONLY_CONNECTION' } });
+
+      // SELECT bump() looks like a read; the server's read-only session still refuses it.
+      const hidden = await s.runScript(id, { statements: ['SELECT bump()'], maxRows: 10 });
+      expect(hidden.results[0]).toMatchObject({
+        kind: 'error',
+        error: { code: 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION' },
+      });
+
+      const read = await s.runScript(id, { statements: ['SELECT COUNT(*) FROM counter'], maxRows: 10 });
+      expect(read.results[0]).toMatchObject({ kind: 'rows' });
+    }, true);
   });
 });

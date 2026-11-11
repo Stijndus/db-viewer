@@ -1,11 +1,13 @@
 import mysql from 'mysql2/promise';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
 import * as data from './mysql.data';
+import { EditorSessions } from './mysql.editor';
 import * as meta from './mysql.metadata';
 
 export const CONNECT_TIMEOUT_MS = 8000;
 
-export function createPoolOptions(cfg: ConnectionConfig): mysql.PoolOptions {
+/** Options for one connection; the pool and the SQL editor tabs share them. */
+export function createConnectionOptions(cfg: ConnectionConfig): mysql.ConnectionOptions {
   return {
     host: cfg.host,
     port: cfg.port,
@@ -13,9 +15,6 @@ export function createPoolOptions(cfg: ConnectionConfig): mysql.PoolOptions {
     password: cfg.password,
     database: cfg.database || undefined,
     ssl: cfg.ssl ? { rejectUnauthorized: !cfg.allowSelfSigned } : undefined,
-    connectionLimit: 5,
-    maxIdle: 2,
-    idleTimeout: 30_000,
     connectTimeout: CONNECT_TIMEOUT_MS,
     // A viewer must show values exactly as stored:
     dateStrings: true, // DATETIME/DATE as text, no timezone shift
@@ -23,6 +22,10 @@ export function createPoolOptions(cfg: ConnectionConfig): mysql.PoolOptions {
     bigNumberStrings: true,
     jsonStrings: true, // JSON columns as stored text, not re-serialised objects
   };
+}
+
+export function createPoolOptions(cfg: ConnectionConfig): mysql.PoolOptions {
+  return { ...createConnectionOptions(cfg), connectionLimit: 5, maxIdle: 2, idleTimeout: 30_000 };
 }
 
 export const mysqlDriver: DbDriver = {
@@ -41,14 +44,19 @@ export const mysqlDriver: DbDriver = {
 
     // MariaDB reports metadata slightly differently (see mysql.metadata.ts).
     const isMariaDb = /mariadb/i.test(version);
+    const editors = new EditorSessions(cfg, pool, createConnectionOptions);
 
     return {
       serverVersion: () => readVersion(pool),
       listDatabases: () => meta.listDatabases(pool),
       listObjects: (database) => meta.listObjects(pool, database),
       listColumns: (database, table) => meta.listColumns(pool, database, table, isMariaDb),
+      listAllColumns: (database) => meta.listAllColumns(pool, database),
       readRows: (database, table, request) => data.readRows(pool, database, table, request),
       countRows: (database, table, where) => data.countRows(pool, database, table, where),
+      runScript: (tabId, request) => editors.run(tabId, request),
+      cancelScript: (tabId) => editors.cancel(tabId),
+      closeEditor: (tabId) => editors.close(tabId),
       async query(sql, params) {
         const [rows, fields] = await pool.query(sql, params);
         return {
@@ -56,7 +64,10 @@ export const mysqlDriver: DbDriver = {
           fields: (fields ?? []).map((f) => f.name),
         };
       },
-      close: () => pool.end(),
+      async close() {
+        await editors.closeAll();
+        await pool.end();
+      },
     };
   },
 };

@@ -83,3 +83,15 @@ INSERT INTO app_dev.value_types VALUES
 DROP TABLE IF EXISTS app_dev.`we``ird`;
 CREATE TABLE app_dev.`we``ird` (id INT PRIMARY KEY, label VARCHAR(10));
 INSERT INTO app_dev.`we``ird` VALUES (1, 'ok');
+
+-- SQL editor fixtures (step 4): a function that writes, to prove read-only connections hold.
+DROP TABLE IF EXISTS app_dev.counter;
+CREATE TABLE app_dev.counter (n INT);
+DROP FUNCTION IF EXISTS app_dev.bump;
+DELIMITER $$
+CREATE FUNCTION app_dev.bump() RETURNS INT DETERMINISTIC MODIFIES SQL DATA
+BEGIN
+  INSERT INTO app_dev.counter VALUES (1);
+  RETURN 1;
+END$$
+DELIMITER ;

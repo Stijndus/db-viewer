@@ -14,7 +14,7 @@ function setup(overrides: Partial<DbApi> = {}) {
 describe('ConnectionsStore', () => {
   it('loads connections and encryption status on init', async () => {
     const store = setup({
-      appInfo: async () => ({ ok: true, data: { encryptionAvailable: false } }),
+      appInfo: async () => ({ ok: true, data: { encryptionAvailable: false, version: '0.0.0-test' } }),
     });
     await store.init();
     expect(store.connections()).toEqual([PROFILE]);

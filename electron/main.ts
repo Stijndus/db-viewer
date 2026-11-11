@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ConnectionManager } from './db/connection-manager';
 import { getDriver } from './db/driver-registry';
 import { registerHandlers } from './ipc/register-handlers';
+import { Updater } from './updater';
 import { ConnectionStore, type SecretCipher } from './store/connection-store';
 
 // Set by `npm run dev`. Without it the built Angular app is loaded from disk.
@@ -70,12 +71,14 @@ function isTrustedSender(event: IpcMainInvokeEvent): boolean {
 app.whenReady().then(() => {
   const store = new ConnectionStore(path.join(app.getPath('userData'), 'connections.json'), cipher);
   manager = new ConnectionManager(store, getDriver);
-  registerHandlers({ store, manager, cipher, isTrustedSender });
+  const updater = new Updater(() => mainWindow);
+  registerHandlers({ store, manager, cipher, updater, version: app.getVersion(), isTrustedSender });
 
   mainWindow = createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();
   });
+  updater.start();
 });
 
 app.on('window-all-closed', () => {

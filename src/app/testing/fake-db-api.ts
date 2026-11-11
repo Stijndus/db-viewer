@@ -6,8 +6,30 @@ import type {
   Result,
   RowsPage,
   RowsRequest,
+  RunRequest,
+  RunResult,
   SchemaObject,
 } from '../../../shared/models';
+
+/**
+ * Fake SQL execution: SELECT returns one row with the statement's number, `SELEC` is a syntax
+ * error, anything else is a write that changed one row. Stops at the first error, like the server.
+ */
+export function fakeRun(request: RunRequest): RunResult {
+  const results: RunResult['results'] = [];
+  for (const [index, sql] of request.statements.entries()) {
+    if (/^selec\b/i.test(sql)) {
+      results.push({ kind: 'error', index, sql, durationMs: 1, error: { code: 'ER_PARSE_ERROR', message: `syntax error near '${sql}'` } });
+      break;
+    }
+    if (/^select/i.test(sql)) {
+      results.push({ kind: 'rows', index, sql, durationMs: 1, columns: [{ name: 'n', type: 'int' }, { name: 'n', type: 'int' }], rows: [[String(index + 1), null]], truncated: false });
+    } else {
+      results.push({ kind: 'ok', index, sql, durationMs: 1, affectedRows: 1, insertId: null, warnings: 0, info: '' });
+    }
+  }
+  return { results, database: request.database ?? 'app_dev' };
+}
 
 export const PROFILE: ConnectionProfile = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -20,6 +42,7 @@ export const PROFILE: ConnectionProfile = {
   ssl: false,
   allowSelfSigned: false,
   color: 'green',
+  readOnly: false,
   hasPassword: true,
 };
 
@@ -87,7 +110,7 @@ export function fakeRows(request: RowsRequest): RowsPage {
 /** In-memory DbApi for component and store tests. Override any method per test. */
 export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
   return {
-    appInfo: () => ok({ encryptionAvailable: true }),
+    appInfo: () => ok({ encryptionAvailable: true, version: '0.0.0-test' }),
     listConnections: () => ok([PROFILE]),
     saveConnection: () => ok(PROFILE),
     deleteConnection: () => ok(undefined),
@@ -99,6 +122,14 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     listColumns: () => ok(COLUMNS),
     readRows: (_id, _db, _table, request) => ok(fakeRows(request)),
     countRows: (_id, _db, _table, where) => ok(where ? FAKE_ROW_COUNT / 2 : FAKE_ROW_COUNT),
+    listAllColumns: () => ok({ customers: ['id', 'email', 'status'], orders: ['id', 'total'] }),
+    runScript: (_id, _tab, request) => ok(fakeRun(request)),
+    cancelScript: () => ok(undefined),
+    closeEditor: () => ok(undefined),
+    updateState: () => ok({ status: 'unsupported' as const }),
+    checkForUpdates: () => ok({ status: 'current' as const }),
+    installUpdate: () => ok(undefined),
+    onUpdateState: () => () => undefined,
     ...overrides,
   };
 }

@@ -89,6 +89,8 @@ const KNOWN: Record<string, KnownError> = {
     message: 'Query duurde langer dan 30 seconden en is afgebroken.',
     hint: 'Verfijn het filter, of sorteer op een kolom met een index.',
   },
+  ER_QUERY_INTERRUPTED: { message: 'Query afgebroken.' },
+  BUSY: { message: 'Er loopt al een query in dit tabblad.' },
   PROTOCOL_CONNECTION_LOST: {
     message: 'Verbinding met de server verbroken.',
     hint: 'Verbreek en verbind opnieuw.',
@@ -119,4 +121,18 @@ export function toDbError(err: unknown): DbError {
   }
   const message = err instanceof Error && err.message ? err.message : 'Onbekende fout.';
   return { code: code ?? 'UNKNOWN', message };
+}
+
+/**
+ * Errors from the SQL editor. The user wrote the SQL, so the server's own message (which names
+ * the exact spot) is the most useful; only a few cases get a Dutch explanation.
+ */
+export function toSqlError(err: unknown): DbError {
+  const known = toDbError(err);
+  if (known.code === 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION') {
+    return { code: known.code, message: 'Deze verbinding is alleen-lezen.', hint: 'De server weigert wijzigingen.' };
+  }
+  if (known.code === 'ER_QUERY_INTERRUPTED') return { code: known.code, message: 'Query afgebroken.' };
+  const sqlMessage = (err as { sqlMessage?: unknown })?.sqlMessage;
+  return typeof sqlMessage === 'string' ? { code: known.code, message: sqlMessage } : known;
 }

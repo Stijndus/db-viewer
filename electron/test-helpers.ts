@@ -21,6 +21,7 @@ export function input(overrides: Partial<ConnectionInput> = {}): ConnectionInput
     ssl: false,
     allowSelfSigned: false,
     color: 'green',
+    readOnly: false,
     password: 'test123',
     savePassword: true,
     ...overrides,

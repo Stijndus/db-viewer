@@ -5,6 +5,8 @@ import type {
   DbType,
   RowsPage,
   RowsRequest,
+  RunRequest,
+  RunResult,
   SchemaObject,
 } from '../../shared/models';
 
@@ -31,10 +33,16 @@ export interface DbSession {
   listDatabases(): Promise<DatabaseInfo[]>;
   listObjects(database: string): Promise<SchemaObject[]>;
   listColumns(database: string, table: string): Promise<ColumnInfo[]>;
+  listAllColumns(database: string): Promise<Record<string, string[]>>;
 
   // Table data, read-only and time-limited.
   readRows(database: string, table: string, request: RowsRequest): Promise<RowsPage>;
   countRows(database: string, table: string, where?: string): Promise<number>;
+
+  // SQL editor: one dedicated connection per tab, identified by the UI's tab id.
+  runScript(tabId: string, request: RunRequest): Promise<RunResult>;
+  cancelScript(tabId: string): Promise<void>;
+  closeEditor(tabId: string): Promise<void>;
 }
 
 export interface DbDriver {

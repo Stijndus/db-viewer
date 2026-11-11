@@ -135,6 +135,10 @@
         <input type="checkbox" formControlName="allowSelfSigned" />
         Self-signed certificaat toestaan
       </label>
+      <label class="check" title="Weigert alles wat gegevens wijzigt, ook in de SQL-editor">
+        <input type="checkbox" formControlName="readOnly" />
+        Alleen-lezen
+      </label>
       <div class="swatches" role="radiogroup" aria-label="Kleurlabel">
         @for (c of colors; track c.value) {
           <label class="swatch" [class]="'swatch color-' + c.value" [title]="c.label">

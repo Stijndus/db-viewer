@@ -20,6 +20,8 @@ export interface ConnectionProfile {
   ssl: boolean;
   allowSelfSigned: boolean;
   color: ConnectionColor;
+  /** Refuse anything that changes data, in every part of the app. */
+  readOnly: boolean;
   /** True when an encrypted password is stored for this profile. */
   hasPassword: boolean;
 }
@@ -37,6 +39,7 @@ export interface ConnectionInput {
   ssl: boolean;
   allowSelfSigned: boolean;
   color: ConnectionColor;
+  readOnly: boolean;
   /** Empty or missing on update = keep the stored password. */
   password?: string;
   /** Store the password encrypted with the OS keychain. */
@@ -139,3 +142,67 @@ export interface RowsPage {
   hasMore: boolean;
   durationMs: number;
 }
+
+// ── SQL editor (step 4) ────────────────────────────────────────────
+
+export interface ResultColumn {
+  name: string;
+  /** Type label derived from the result metadata, e.g. `int`, `varchar`, `datetime`. */
+  type: string;
+}
+
+interface StatementBase {
+  /** Position of the statement in the script that was run, from 0. */
+  index: number;
+  sql: string;
+  durationMs: number;
+}
+
+export type StatementResult =
+  | (StatementBase & {
+      kind: 'rows';
+      columns: ResultColumn[];
+      rows: Cell[][];
+      /** More rows existed than the row limit allowed. */
+      truncated: boolean;
+    })
+  | (StatementBase & {
+      kind: 'ok';
+      affectedRows: number;
+      /** Last AUTO_INCREMENT value, as text; null when none. */
+      insertId: string | null;
+      warnings: number;
+      info: string;
+    })
+  | (StatementBase & { kind: 'error'; error: DbError });
+
+export interface RunRequest {
+  statements: string[];
+  /** Run in this database (USE) first; undefined = stay in the current one. */
+  database?: string;
+  /** Row limit per result; null = no limit (up to a hard safety cap). */
+  maxRows: number | null;
+}
+
+export interface RunResult {
+  /** One entry per statement that ran; execution stops at the first error. */
+  results: StatementResult[];
+  /** Current database of the editor session after the run (USE may change it). */
+  database: string | null;
+}
+
+// ── Updates ────────────────────────────────────────────────────────
+
+/** What the app knows about updates; pushed from main to the UI whenever it changes. */
+export type UpdateState =
+  /** Development build or a platform without auto-update. */
+  | { status: 'unsupported' }
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'current' }
+  | { status: 'downloading'; version: string; percent: number }
+  /** Downloaded; installs on restart or when the app quits. */
+  | { status: 'ready'; version: string }
+  /** The portable exe can't replace itself: the user downloads the new version. */
+  | { status: 'manual'; version: string; url: string }
+  | { status: 'error'; message: string };

@@ -82,6 +82,7 @@ export class ConnectionStore {
       ssl: input.ssl,
       allowSelfSigned: input.ssl && input.allowSelfSigned,
       color: input.color,
+      readOnly: input.readOnly,
       encryptedPassword,
     };
 
@@ -135,7 +136,8 @@ export class ConnectionStore {
 }
 
 function toProfile({ encryptedPassword, ...rest }: StoredConnection): ConnectionProfile {
-  return { ...rest, hasPassword: Boolean(encryptedPassword) };
+  // Profiles saved before v0.4.0 have no readOnly field.
+  return { ...rest, readOnly: rest.readOnly ?? false, hasPassword: Boolean(encryptedPassword) };
 }
 
 function notFound(): AppError {

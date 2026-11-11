@@ -33,5 +33,13 @@ function browserFallback(): DbApi {
     listColumns: fail,
     readRows: fail,
     countRows: fail,
+    listAllColumns: fail,
+    runScript: fail,
+    cancelScript: fail,
+    closeEditor: fail,
+    updateState: async () => ({ ok: true, data: { status: 'unsupported' } }),
+    checkForUpdates: async () => ({ ok: true, data: { status: 'unsupported' } }),
+    installUpdate: fail,
+    onUpdateState: () => () => undefined,
   };
 }

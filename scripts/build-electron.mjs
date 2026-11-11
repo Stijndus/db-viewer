@@ -16,7 +16,7 @@ const common = {
 
 const configs = [
   // mysql2 stays external: it's a runtime dependency packaged in node_modules.
-  { ...common, entryPoints: ['electron/main.ts'], outfile: 'dist-electron/main.js', external: ['electron', 'mysql2'] },
+  { ...common, entryPoints: ['electron/main.ts'], outfile: 'dist-electron/main.js', external: ['electron', 'mysql2', 'electron-updater'] },
   { ...common, entryPoints: ['electron/preload.ts'], outfile: 'dist-electron/preload.js' },
 ];
 

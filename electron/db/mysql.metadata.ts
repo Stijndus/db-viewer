@@ -74,6 +74,20 @@ export async function listColumns(
   return rows.map((r) => mapColumnRow(r, isMariaDb));
 }
 
+/** Every column name per table of one database, for autocompletion in the SQL editor. */
+export async function listAllColumns(pool: Pool, database: string): Promise<Record<string, string[]>> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT TABLE_NAME AS t, COLUMN_NAME AS c
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+      ORDER BY TABLE_NAME, ORDINAL_POSITION`,
+    [database],
+  );
+  const out: Record<string, string[]> = {};
+  for (const r of rows) (out[String(r['t'])] ??= []).push(String(r['c']));
+  return out;
+}
+
 export function mapTableRow(r: RowDataPacket | Record<string, unknown>): SchemaObject {
   const type = String(r['type'] ?? '').toUpperCase();
   const isView = type === 'VIEW' || type === 'SYSTEM VIEW';
