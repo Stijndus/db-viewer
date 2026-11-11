@@ -2,7 +2,7 @@
 
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
 Klaar: MySQL/MariaDB-verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken
-(stap 3) en een SQL-editor met automatische updates (stap 4).
+(stap 3), een SQL-editor met automatische updates (stap 4) en data wijzigen in de grid (stap 5).
 
 ## Downloaden
 
@@ -94,6 +94,10 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 - **Alleen-lezen-verbindingen:** de editor-sessie draait met `SET SESSION TRANSACTION READ ONLY`, dus
   de server weigert wijzigingen; de app blokkeert ook pogingen om dat terug te zetten. Dit beschermt
   tegen vergissingen. Voor echte afscherming gebruik je een databasegebruiker met alleen `SELECT`.
+- **Bewerken in de grid:** wijzigingen gaan in één transactie (`shared/changes.ts` maakt de SQL,
+  dezelfde die de gebruiker bij "SQL bekijken" ziet). De server controleert eerst dat het een tabel is
+  en dat de primaire sleutel klopt; elke `UPDATE`/`DELETE` heeft `LIMIT 1` en moet precies één rij
+  raken, anders volgt een rollback.
 - **Exacte waarden:** `BIGINT`, `DECIMAL` en `DATETIME` komen als tekst binnen, zodat er geen precisie of
   tijdzone verloren gaat.
 - **Venster:** `contextIsolation`, `sandbox`, geen `nodeIntegration`, een Content-Security-Policy, en IPC
@@ -114,4 +118,5 @@ scripts/         build van de Electron-bundels, test-database
 2. ~~Schema-boom: databases, tabellen, views, kolommen~~
 3. ~~Tabeldata met paginering en virtual scroll~~
 4. ~~SQL-editor met resultaatgrid~~
-5. Meer drivers: PostgreSQL, SQL Server, SQLite
+5. ~~Data wijzigen in de grid~~
+6. Meer drivers: PostgreSQL, SQL Server, SQLite

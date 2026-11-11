@@ -34,6 +34,7 @@ function browserFallback(): DbApi {
     readRows: fail,
     countRows: fail,
     listAllColumns: fail,
+    applyChanges: fail,
     runScript: fail,
     cancelScript: fail,
     closeEditor: fail,

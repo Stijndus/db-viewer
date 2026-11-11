@@ -324,3 +324,26 @@ app-code-editor, .code-editor { display: block; height: 100%; }
 .confirm-list li { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
 .confirm-list .kw { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: #f0c674; }
 .confirm-list code { font-size: 12px; word-break: break-word; color: var(--text); }
+
+/* ── Step 5: editing in the grid ───────────────────────────────── */
+.dt-edit { flex-shrink: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.dt-edit .push { margin-left: auto; }
+.dt-edit-hint { margin-left: 4px; }
+.dt-locked { gap: 6px; }
+.change-count { padding: 3px 9px; border-radius: 999px; background: #3a2e14; color: #f0c674; font-size: 12px; font-weight: 600; }
+.dg-cell.edited { background: rgba(240, 198, 116, 0.12); box-shadow: inset 3px 0 0 #f0c674; }
+.dg-cell.edited.selected { box-shadow: inset 0 0 0 2px var(--accent), inset 3px 0 0 #f0c674; }
+.dg-cell.is-default { color: var(--text-3); font-style: italic; }
+.dg-row.is-new { background: rgba(63, 185, 122, 0.08); }
+.dg-row.is-new .dg-num { color: var(--ok-text); font-weight: 700; }
+.dg-row.is-deleted { background: rgba(242, 112, 107, 0.1); }
+.dg-row.is-deleted .dg-cell { text-decoration: line-through; color: var(--text-3); }
+.dg-row.is-deleted .dg-num { color: var(--err-text); }
+.dg-cell.editing { padding: 0; display: flex; overflow: visible; box-shadow: inset 0 0 0 2px var(--accent); background: var(--bg); }
+.dg-input { flex: 1; min-width: 0; height: 100%; padding: 0 8px; border: none; outline: none; background: transparent; color: var(--text); font: inherit; }
+.dg-input.num { text-align: right; }
+.dg-null-btn { flex-shrink: 0; align-self: center; height: 20px; margin-right: 4px; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); color: var(--text-2); font-family: var(--mono); font-size: 10.5px; cursor: pointer; }
+.dg-null-btn:hover { color: var(--text); border-color: var(--text-3); }
+.dialog-wide { width: 760px; }
+.sql-preview { max-height: 360px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.ws-body > [hidden], app-object-view [hidden] { display: none !important; }

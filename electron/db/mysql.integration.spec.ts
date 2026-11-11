@@ -456,3 +456,219 @@ describe.skipIf(!host)('mysqlDriver SQL editor', () => {
     }, true);
   });
 });
+
+describe.skipIf(!host)('mysqlDriver grid edits', () => {
+  type Session = Awaited<ReturnType<typeof mysqlDriver.open>>;
+  const none = { deletes: [], updates: [], inserts: [] };
+
+  async function withSession<T>(fn: (s: Session) => Promise<T>, readOnly = false) {
+    const session = await mysqlDriver.open({ ...base, readOnly });
+    try {
+      return await fn(session);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async function rows(s: Session, table: string) {
+    const page = await s.readRows('app_dev', table, {
+      offset: 0,
+      limit: 100,
+      orderBy: [{ column: 'id', direction: 'asc' }],
+    });
+    return page.rows;
+  }
+
+  async function errorOf(fn: () => Promise<unknown>) {
+    try {
+      await fn();
+    } catch (err) {
+      return toDbError(err);
+    }
+    throw new Error('had moeten mislukken');
+  }
+
+  it('applies deletes, updates and inserts together', async () => {
+    await withSession(async (s) => {
+      await s.runScript('reset1', {
+        statements: [
+          'DELETE FROM editable',
+          "INSERT INTO editable (id, name, qty, note) VALUES (1, 'appel', 3, 'rood'), (2, 'peer', 5, NULL), (3, 'kiwi', 7, 'groen')",
+        ],
+        maxRows: 10,
+      });
+      const result = await s.applyChanges('app_dev', 'editable', {
+        primaryKey: ['id'],
+        deletes: [{ key: { id: '3' } }],
+        updates: [{ key: { id: '2' }, values: { qty: '6', note: 'geel' } }],
+        inserts: [{ values: { name: 'mango' } }],
+      });
+      expect(result).toEqual({ deleted: 1, updated: 1, inserted: 1 });
+      expect(await rows(s, 'editable')).toEqual([
+        ['1', 'appel', '3', 'rood'],
+        ['2', 'peer', '6', 'geel'],
+        // Columns left out of an insert get their DEFAULT, the id its AUTO_INCREMENT.
+        [expect.any(String), 'mango', null, 'n/a'],
+      ]);
+    });
+  });
+
+  it('counts an update that keeps the same value as one row (no false conflict)', async () => {
+    await withSession(async (s) => {
+      const result = await s.applyChanges('app_dev', 'editable', {
+        primaryKey: ['id'],
+        ...none,
+        updates: [{ key: { id: '1' }, values: { name: 'appel' } }],
+      });
+      expect(result.updated).toBe(1);
+    });
+  });
+
+  it('rolls everything back when a row is gone', async () => {
+    await withSession(async (s) => {
+      const before = await rows(s, 'editable');
+      const error = await errorOf(() =>
+        s.applyChanges('app_dev', 'editable', {
+          primaryKey: ['id'],
+          ...none,
+          updates: [
+            { key: { id: '1' }, values: { qty: '99' } },
+            { key: { id: '9999' }, values: { qty: '1' } },
+          ],
+        }),
+      );
+      expect(error.code).toBe('ROW_CHANGED');
+      expect(error.message).toContain('id = 9999');
+      expect(error.hint).toContain('Er is niets opgeslagen.');
+      expect(await rows(s, 'editable')).toEqual(before);
+    });
+  });
+
+  it('reports invalid values with the row, and saves nothing', async () => {
+    await withSession(async (s) => {
+      const before = await rows(s, 'editable');
+      const notNull = await errorOf(() =>
+        s.applyChanges('app_dev', 'editable', {
+          primaryKey: ['id'],
+          ...none,
+          updates: [{ key: { id: '1' }, values: { name: null } }],
+        }),
+      );
+      expect(notNull.code).toBe('ER_BAD_NULL_ERROR');
+      expect(notNull.message).toContain('id = 1');
+
+      const notANumber = await errorOf(() =>
+        s.applyChanges('app_dev', 'editable', {
+          primaryKey: ['id'],
+          ...none,
+          inserts: [{ values: { name: 'x', qty: 'veel' } }],
+        }),
+      );
+      expect(notANumber.message).toContain('nieuwe rij 1');
+      expect(await rows(s, 'editable')).toEqual(before);
+    });
+  });
+
+  it('updates rows with a composite key', async () => {
+    await withSession(async (s) => {
+      await s.applyChanges('app_dev', 'pairs', {
+        primaryKey: ['a', 'b'],
+        ...none,
+        updates: [{ key: { a: '1', b: '2' }, values: { v: 'TWEE' } }],
+      });
+      const { rows: r } = await s.readRows('app_dev', 'pairs', {
+        offset: 0,
+        limit: 10,
+        orderBy: [],
+      });
+      expect(r).toContainEqual(['1', '2', 'TWEE']);
+      expect(r).toContainEqual(['1', '1', 'een']);
+    });
+  });
+
+  it('refuses views, tables without a key, and a key that does not match', async () => {
+    await withSession(async (s) => {
+      const change = { ...none, updates: [{ key: { id: '1' }, values: { total: '1' } }] };
+      expect(
+        (
+          await errorOf(() =>
+            s.applyChanges('app_dev', 'paid_orders', { primaryKey: ['id'], ...change }),
+          )
+        ).code,
+      ).toBe('NOT_EDITABLE');
+      expect(
+        (
+          await errorOf(() =>
+            s.applyChanges('app_dev', 'nopk', {
+              primaryKey: ['x'],
+              ...none,
+              deletes: [{ key: { x: '1' } }],
+            }),
+          )
+        ).code,
+      ).toBe('NOT_EDITABLE');
+      // Claiming "name" is the key would let one change hit many rows: refused.
+      expect(
+        (
+          await errorOf(() =>
+            s.applyChanges('app_dev', 'editable', {
+              primaryKey: ['name'],
+              ...none,
+              deletes: [{ key: { name: 'appel' } }],
+            }),
+          )
+        ).code,
+      ).toBe('NOT_EDITABLE');
+    });
+  });
+
+  it('refuses edits on a read-only connection', async () => {
+    await withSession(async (s) => {
+      const error = await errorOf(() =>
+        s.applyChanges('app_dev', 'editable', {
+          primaryKey: ['id'],
+          ...none,
+          deletes: [{ key: { id: '1' } }],
+        }),
+      );
+      expect(error.code).toBe('READ_ONLY_CONNECTION');
+    }, true);
+  });
+
+  it('handles a question mark in a table name, a filter and a value', async () => {
+    await withSession(async (s) => {
+      const all = await s.readRows('app_dev', 'wat?', {
+        offset: 0,
+        limit: 10,
+        orderBy: [{ column: 'id', direction: 'asc' }],
+      });
+      expect(all.rows).toEqual([
+        ['1', 'echt?'],
+        ['2', 'ja'],
+      ]);
+      const filtered = await s.readRows('app_dev', 'wat?', {
+        offset: 0,
+        limit: 10,
+        orderBy: [],
+        where: "label LIKE '%?%'",
+      });
+      expect(filtered.rows).toEqual([['1', 'echt?']]);
+      await s.applyChanges('app_dev', 'wat?', {
+        primaryKey: ['id'],
+        ...none,
+        updates: [{ key: { id: '2' }, values: { label: 'nee?' } }],
+      });
+      const after = await s.readRows('app_dev', 'wat?', {
+        offset: 0,
+        limit: 10,
+        orderBy: [{ column: 'id', direction: 'asc' }],
+      });
+      expect(after.rows[1]).toEqual(['2', 'nee?']);
+      await s.applyChanges('app_dev', 'wat?', {
+        primaryKey: ['id'],
+        ...none,
+        updates: [{ key: { id: '2' }, values: { label: 'ja' } }],
+      });
+    });
+  });
+});

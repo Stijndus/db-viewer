@@ -19,6 +19,8 @@ const api: DbApi = {
     ipcRenderer.invoke(IPC.readRows, id, database, table, request),
   countRows: (id, database, table, where) =>
     ipcRenderer.invoke(IPC.countRows, id, database, table, where),
+  applyChanges: (id, database, table, changes) =>
+    ipcRenderer.invoke(IPC.applyChanges, id, database, table, changes),
   runScript: (id, tabId, request) => ipcRenderer.invoke(IPC.runScript, id, tabId, request),
   cancelScript: (id, tabId) => ipcRenderer.invoke(IPC.cancelScript, id, tabId),
   closeEditor: (id, tabId) => ipcRenderer.invoke(IPC.closeEditor, id, tabId),

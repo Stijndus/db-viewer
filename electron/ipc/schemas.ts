@@ -49,3 +49,16 @@ export const runRequestSchema = z.object({
   database: identifierSchema.optional(),
   maxRows: z.number().int().min(1).max(100_000).nullable(),
 });
+
+const cellValue = z.string().max(16_000_000).nullable();
+const rowKey = z.record(identifierSchema, z.string().max(65_535));
+const rowValues = z.record(identifierSchema, cellValue);
+
+export const changeSetSchema = z
+  .object({
+    primaryKey: z.array(identifierSchema).min(1).max(16),
+    deletes: z.array(z.object({ key: rowKey })).max(5000),
+    updates: z.array(z.object({ key: rowKey, values: rowValues })).max(5000),
+    inserts: z.array(z.object({ values: rowValues })).max(5000),
+  })
+  .refine((c) => c.deletes.length + c.updates.length + c.inserts.length > 0, 'Geen wijzigingen');

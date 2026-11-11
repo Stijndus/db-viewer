@@ -95,3 +95,25 @@ BEGIN
   RETURN 1;
 END$$
 DELIMITER ;
+
+-- Grid editing fixtures (step 5).
+DROP TABLE IF EXISTS app_dev.editable;
+CREATE TABLE app_dev.editable (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(20) NOT NULL,
+  qty INT,
+  note VARCHAR(50) DEFAULT 'n/a'
+);
+INSERT INTO app_dev.editable (name, qty, note) VALUES ('appel', 3, 'rood'), ('peer', 5, NULL), ('kiwi', 7, 'groen');
+
+DROP TABLE IF EXISTS app_dev.pairs;
+CREATE TABLE app_dev.pairs (a INT, b INT, v VARCHAR(10), PRIMARY KEY (a, b));
+INSERT INTO app_dev.pairs VALUES (1, 1, 'een'), (1, 2, 'twee');
+
+DROP TABLE IF EXISTS app_dev.nopk;
+CREATE TABLE app_dev.nopk (x INT);
+
+-- A question mark in a table name and in data: must never be taken for a query parameter.
+DROP TABLE IF EXISTS app_dev.`wat?`;
+CREATE TABLE app_dev.`wat?` (id INT PRIMARY KEY, label VARCHAR(20));
+INSERT INTO app_dev.`wat?` VALUES (1, 'echt?'), (2, 'ja');

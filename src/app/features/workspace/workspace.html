@@ -103,13 +103,13 @@
 </div>
 
 <div class="ws-body">
-  @if (sql.view().kind === 'object') {
-    @if (selected(); as object) {
-      <app-object-view [object]="object" />
-    } @else {
-      <app-connection-home [connection]="connection()" (newSql)="newTab()" />
-    }
-  } @else {
+  <!-- The table view stays alive behind SQL tabs, so unsaved grid edits are not lost. -->
+  @if (selected(); as object) {
+    <app-object-view [object]="object" [hidden]="sql.view().kind !== 'object'" />
+  } @else if (sql.view().kind === 'object') {
+    <app-connection-home [connection]="connection()" (newSql)="newTab()" />
+  }
+  @if (sql.view().kind === 'sql') {
     <!-- One-item loop keyed by tab id: another tab gets its own editor instance. -->
     @for (tab of activeTabs(); track tab.id) {
       @defer (on immediate) {

@@ -217,3 +217,179 @@ describe('column helpers', () => {
     expect(fakeRows({ offset: 440, limit: 200, orderBy: [] }).rows).toHaveLength(10);
   });
 });
+
+describe('TableData editing', () => {
+  async function editable(overrides: Partial<DbApi> = {}) {
+    const applied: Parameters<DbApi['applyChanges']>[3][] = [];
+    const ctx = await setup({
+      ...overrides,
+      applyChanges: async (_c, _d, _t, changes) => {
+        applied.push(changes);
+        return overrides.applyChanges
+          ? overrides.applyChanges(_c, _d, _t, changes)
+          : {
+              ok: true,
+              data: {
+                deleted: changes.deletes.length,
+                updated: changes.updates.length,
+                inserted: changes.inserts.length,
+              },
+            };
+      },
+    });
+    const cell = (row: number, col: number) =>
+      ctx.el.querySelectorAll('.dg-row')[row]!.querySelectorAll<HTMLElement>('.dg-cell')[col]!;
+    const edit = async (row: number, col: number, value: string) => {
+      cell(row, col).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await ctx.settle();
+      const input = ctx.el.querySelector<HTMLInputElement>('.dg-input')!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await ctx.settle();
+    };
+    return { ...ctx, applied, cell, edit };
+  }
+
+  it('marks an edited cell and saves it as one UPDATE by primary key', async () => {
+    const { el, applied, cell, edit, button, settle, requests } = await editable();
+    await edit(0, 1, 'nieuw@example.com');
+    expect(cell(0, 1).textContent?.trim()).toBe('nieuw@example.com');
+    expect(cell(0, 1).classList).toContain('edited');
+    expect(el.querySelector('.change-count')?.textContent).toContain('1 wijziging');
+
+    const before = requests.length;
+    button('Opslaan').click();
+    await settle();
+    expect(applied[0]).toEqual({
+      primaryKey: ['id'],
+      deletes: [],
+      updates: [{ key: { id: '1' }, values: { email: 'nieuw@example.com' } }],
+      inserts: [],
+    });
+    // Reloaded afterwards, without pending changes.
+    expect(requests.length).toBe(before + 1);
+    expect(el.querySelector('.change-count')).toBeNull();
+    expect(el.querySelector('.dt-note')?.textContent).toContain('1 gewijzigd');
+  });
+
+  it('typing the original value back removes the change', async () => {
+    const { el, edit } = await editable();
+    await edit(0, 1, 'x');
+    await edit(0, 1, 'user1@example.com');
+    expect(el.querySelector('.change-count')).toBeNull();
+  });
+
+  it('adds a row with defaults, deletes and restores a row', async () => {
+    const { el, button, settle, cell, edit, applied } = await editable({
+      readRows: async (_c, _d, _t, req) => ({
+        ok: true,
+        data: { ...fakeRows(req), rows: fakeRows(req).rows.slice(0, 3), hasMore: false },
+      }),
+    });
+    button('Rij toevoegen').click();
+    await settle();
+    const rows = el.querySelectorAll('.dg-row');
+    expect(rows).toHaveLength(4);
+    expect(rows[3]!.classList).toContain('is-new');
+    expect(cell(3, 0).textContent?.trim()).toBe('DEFAULT');
+    await edit(3, 1, 'nieuw@x.nl');
+
+    cell(1, 0).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await settle();
+    button('Rij verwijderen').click();
+    await settle();
+    expect(el.querySelectorAll('.dg-row')[1]!.classList).toContain('is-deleted');
+    button('Rij herstellen').click();
+    await settle();
+    expect(el.querySelectorAll('.dg-row')[1]!.classList).not.toContain('is-deleted');
+    button('Rij verwijderen').click();
+    await settle();
+
+    button('Opslaan').click();
+    await settle();
+    expect(applied[0]).toEqual({
+      primaryKey: ['id'],
+      deletes: [{ key: { id: '2' } }],
+      updates: [],
+      inserts: [{ values: { email: 'nieuw@x.nl' } }],
+    });
+  });
+
+  it('sets NULL from the toolbar and shows the SQL before saving', async () => {
+    const { el, button, settle, cell, fixture } = await editable();
+    // The toolbar NULL is only offered for nullable columns.
+    fixture.componentInstance.columns.set({
+      status: 'loaded',
+      data: COLUMNS.map((c) => (c.name === 'status' ? { ...c, nullable: true } : c)),
+    });
+    await settle();
+    cell(0, 2).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    await settle();
+    button('NULL').click();
+    await settle();
+    expect(cell(0, 2).textContent?.trim()).toBe('NULL');
+    expect(el.querySelector('.sql-preview')?.textContent).toBe(
+      "UPDATE `app_dev`.`customers` SET `status` = NULL WHERE `id` = '1' LIMIT 1;",
+    );
+  });
+
+  it('keeps the edits and shows the error when saving fails', async () => {
+    const { el, edit, button, settle } = await editable({
+      applyChanges: async () => ({
+        ok: false,
+        error: {
+          code: 'ROW_CHANGED',
+          message: 'Een rij is intussen gewijzigd of verwijderd.',
+          hint: 'Er is niets opgeslagen.',
+        },
+      }),
+    });
+    await edit(0, 1, 'x');
+    button('Opslaan').click();
+    await settle();
+    expect(el.querySelector('.banner-error')?.textContent).toContain('intussen gewijzigd');
+    expect(el.querySelector('.change-count')?.textContent).toContain('1 wijziging');
+  });
+
+  it('asks before throwing edits away, and stays when the answer is no', async () => {
+    const { edit, button, settle, requests } = await editable();
+    await edit(0, 1, 'x');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const before = requests.length;
+    button('Volgende pagina').click();
+    await settle();
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(requests.length).toBe(before);
+    confirmSpy.mockReturnValue(true);
+    button('Volgende pagina').click();
+    await settle();
+    expect(requests.at(-1)?.offset).toBe(200);
+    confirmSpy.mockRestore();
+  });
+
+  it('explains why a view or a table without key is read-only', async () => {
+    const { fixture, el, settle } = await setup();
+    fixture.componentInstance.object.set({
+      connectionId: PROFILE.id,
+      database: 'app_dev',
+      name: 'v',
+      kind: 'view',
+    });
+    await settle();
+    expect(el.querySelector('.dt-locked')?.textContent).toContain('Views zijn alleen-lezen');
+    fixture.componentInstance.object.set({
+      connectionId: PROFILE.id,
+      database: 'app_dev',
+      name: 'nopk',
+      kind: 'table',
+    });
+    fixture.componentInstance.columns.set({
+      status: 'loaded',
+      data: COLUMNS.map((c) => ({ ...c, key: null })),
+    });
+    await settle();
+    expect(el.querySelector('.dt-locked')?.textContent).toContain('Geen primaire sleutel');
+    expect(el.querySelector('.dg-row')).not.toBeNull();
+  });
+});

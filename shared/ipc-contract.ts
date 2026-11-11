@@ -1,3 +1,4 @@
+import type { ApplyResult, ChangeSet } from './changes';
 import type {
   ColumnInfo,
   ConnectionInput,
@@ -29,6 +30,7 @@ export const IPC = {
   listAllColumns: 'schema:all-columns',
   readRows: 'data:rows',
   countRows: 'data:count',
+  applyChanges: 'data:apply',
   runScript: 'sql:run',
   cancelScript: 'sql:cancel',
   closeEditor: 'sql:close',
@@ -86,6 +88,14 @@ export interface DbApi {
     table: string,
     where?: string,
   ): Promise<Result<number>>;
+
+  /** Saves edits from the grid in one transaction: all or nothing. */
+  applyChanges(
+    connectionId: string,
+    database: string,
+    table: string,
+    changes: ChangeSet,
+  ): Promise<Result<ApplyResult>>;
 
   // SQL editor (step 4). Each tab has its own server connection, opened on first run.
   /** Runs statements one after another; stops at the first error. */

@@ -1,3 +1,4 @@
+import type { ApplyResult, ChangeSet } from '../../shared/changes';
 import type {
   ColumnInfo,
   ConnectionInput,
@@ -38,6 +39,8 @@ export interface DbSession {
   // Table data, read-only and time-limited.
   readRows(database: string, table: string, request: RowsRequest): Promise<RowsPage>;
   countRows(database: string, table: string, where?: string): Promise<number>;
+  /** Saves grid edits in one transaction; refused on read-only connections. */
+  applyChanges(database: string, table: string, changes: ChangeSet): Promise<ApplyResult>;
 
   // SQL editor: one dedicated connection per tab, identified by the UI's tab id.
   runScript(tabId: string, request: RunRequest): Promise<RunResult>;

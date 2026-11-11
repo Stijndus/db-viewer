@@ -149,6 +149,12 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     readRows: (_id, _db, _table, request) => ok(fakeRows(request)),
     countRows: (_id, _db, _table, where) => ok(where ? FAKE_ROW_COUNT / 2 : FAKE_ROW_COUNT),
     listAllColumns: () => ok({ customers: ['id', 'email', 'status'], orders: ['id', 'total'] }),
+    applyChanges: (_id, _db, _table, changes) =>
+      ok({
+        deleted: changes.deletes.length,
+        updated: changes.updates.length,
+        inserted: changes.inserts.length,
+      }),
     runScript: (_id, _tab, request) => ok(fakeRun(request)),
     cancelScript: () => ok(undefined),
     closeEditor: () => ok(undefined),

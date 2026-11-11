@@ -6,6 +6,7 @@ import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
 import { toDbError } from './errors';
 import {
+  changeSetSchema,
   connectionInputSchema,
   identifierSchema,
   idSchema,
@@ -114,6 +115,16 @@ export function registerHandlers(deps: HandlerDeps): void {
         identifierSchema.parse(rawDb),
         identifierSchema.parse(rawTable),
         whereSchema.parse(rawWhere),
+      ),
+  );
+
+  handle(IPC.applyChanges, (rawId, rawDb, rawTable, rawChanges) =>
+    manager
+      .session(idSchema.parse(rawId))
+      .applyChanges(
+        identifierSchema.parse(rawDb),
+        identifierSchema.parse(rawTable),
+        changeSetSchema.parse(rawChanges),
       ),
   );
 

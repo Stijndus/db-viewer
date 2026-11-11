@@ -13,7 +13,7 @@ describe('quoteIdent', () => {
 describe('buildSelect', () => {
   it('builds a plain paged select', () => {
     expect(buildSelect('app', 'orders', { offset: 0, limit: 100, orderBy: [] })).toBe(
-      'SELECT * FROM `app`.`orders` LIMIT ? OFFSET ?',
+      'SELECT * FROM `app`.`orders` LIMIT 101 OFFSET 0',
     );
   });
 
@@ -27,7 +27,7 @@ describe('buildSelect', () => {
       ],
     });
     expect(sql).toBe(
-      'SELECT * FROM `app`.`orders` ORDER BY `created_at` DESC, `id` ASC LIMIT ? OFFSET ?',
+      'SELECT * FROM `app`.`orders` ORDER BY `created_at` DESC, `id` ASC LIMIT 101 OFFSET 0',
     );
   });
 
@@ -39,10 +39,10 @@ describe('buildSelect', () => {
       where: "status = 'paid') -- ",
     });
     expect(sql).toBe(
-      "SELECT * FROM `app`.`orders` WHERE (\nstatus = 'paid') --\n) LIMIT ? OFFSET ?",
+      "SELECT * FROM `app`.`orders` WHERE (\nstatus = 'paid') --\n) LIMIT 101 OFFSET 0",
     );
     // The comment ends at the newline: the closing parenthesis and LIMIT stay in force.
-    expect(sql.split('\n').at(-1)).toBe(') LIMIT ? OFFSET ?');
+    expect(sql.split('\n').at(-1)).toBe(') LIMIT 101 OFFSET 0');
   });
 
   it('ignores an empty or blank filter', () => {

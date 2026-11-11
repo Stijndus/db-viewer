@@ -70,10 +70,20 @@
           class="dg-row"
           role="row"
           [class.odd]="row.index % 2 === 1"
+          [class.is-new]="row.mark === 'new'"
+          [class.is-deleted]="row.mark === 'deleted'"
           [attr.aria-rowindex]="row.index + 2"
           [style.grid-template-columns]="template()"
         >
-          <div class="dg-num" role="rowheader">{{ rowOffset() + row.index + 1 }}</div>
+          <div
+            class="dg-num"
+            role="rowheader"
+            [title]="
+              row.mark === 'new' ? 'Nieuwe rij' : row.mark === 'deleted' ? 'Wordt verwijderd' : ''
+            "
+          >
+            {{ row.mark === 'new' ? '+' : rowOffset() + row.index + 1 }}
+          </div>
           @for (cell of row.cells; track $index; let c = $index) {
             <div
               class="dg-cell"
@@ -81,11 +91,36 @@
               [class]="'dg-cell ' + cell.cls"
               [class.num]="columns()[c]?.numeric"
               [class.selected]="isSelected(row.index, c)"
+              [class.edited]="cell.edited"
+              [class.editing]="isEditing(row.index, c)"
               [attr.aria-selected]="isSelected(row.index, c)"
               [attr.title]="cell.title"
               (mousedown)="select(row.index, c)"
+              (dblclick)="startEdit(row.index, c)"
             >
-              {{ cell.text }}
+              @if (isEditing(row.index, c)) {
+                <input
+                  #editor
+                  class="dg-input"
+                  [class.num]="columns()[c]?.numeric"
+                  [attr.aria-label]="'Nieuwe waarde voor ' + columns()[c]?.name"
+                  [value]="editing()?.draft ?? ''"
+                  (input)="onDraft($any($event.target).value)"
+                  (keydown)="onEditorKeydown($event)"
+                  (blur)="commit()"
+                  (mousedown)="$event.stopPropagation()"
+                />
+                <button
+                  type="button"
+                  class="dg-null-btn"
+                  title="Op NULL zetten"
+                  (mousedown)="$event.preventDefault(); $event.stopPropagation(); commit(null)"
+                >
+                  NULL
+                </button>
+              } @else {
+                {{ cell.text }}
+              }
             </div>
           }
         </div>

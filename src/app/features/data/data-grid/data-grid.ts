@@ -6,6 +6,7 @@ import {
   effect,
   ElementRef,
   inject,
+  Injector,
   input,
   output,
   signal,
@@ -22,6 +23,25 @@ export interface GridColumn {
   width: number;
   primary: boolean;
   sort: SortDirection | null;
+}
+
+/** A column of a new row that will get its DEFAULT (the value was left untouched). */
+export const DEFAULT_CELL = { kind: 'default' } as const;
+export type GridCell = Cell | typeof DEFAULT_CELL;
+
+export type RowMark = 'new' | 'deleted' | null;
+
+export interface CellEdit {
+  row: number;
+  col: number;
+  /** New value; null is SQL NULL. */
+  value: string | null;
+}
+
+interface Editing {
+  row: number;
+  col: number;
+  draft: string;
 }
 
 interface CellView {
@@ -45,13 +65,22 @@ const OVERSCAN = 12;
 })
 export class DataGrid {
   readonly columns = input.required<GridColumn[]>();
-  readonly rows = input.required<Cell[][]>();
+  readonly rows = input.required<GridCell[][]>();
+  /** Changes when a new page is shown: scroll back to the top and clear the selection. */
+  readonly pageKey = input<unknown>(undefined);
+  /** Cells can be edited (double-click, Enter, F2 or just start typing). */
+  readonly editable = input(false);
+  readonly rowMarks = input<readonly RowMark[]>([]);
+  /** `row:col` of cells with an unsaved change. */
+  readonly editedCells = input<ReadonlySet<string>>(new Set());
   /** Absolute number of the first row on this page, for the row-number column. */
   readonly rowOffset = input(0);
   /** Query results are shown as returned; only table data can be re-sorted by the server. */
   readonly sortable = input(true);
   readonly sortRequested = output<string>();
   readonly copied = output<string>();
+  readonly cellEdited = output<CellEdit>();
+  readonly selectionChange = output<{ row: number; col: number } | null>();
 
   protected readonly rowHeight = ROW_HEIGHT;
   private readonly destroyRef = inject(DestroyRef);
@@ -59,6 +88,9 @@ export class DataGrid {
   private readonly scrollTop = signal(0);
   private readonly viewportHeight = signal(0);
   protected readonly selected = signal<{ row: number; col: number } | null>(null);
+  protected readonly editing = signal<Editing | null>(null);
+  private readonly editor = viewChild<ElementRef<HTMLInputElement>>('editor');
+  private readonly injector = inject(Injector);
 
   protected readonly template = computed(
     () =>
@@ -83,19 +115,31 @@ export class DataGrid {
       rows.length,
       Math.ceil((this.scrollTop() + this.viewportHeight()) / ROW_HEIGHT) + OVERSCAN,
     );
-    const out: { index: number; cells: CellView[] }[] = [];
+    const marks = this.rowMarks();
+    const edited = this.editedCells();
+    const out: { index: number; mark: RowMark; cells: (CellView & { edited: boolean })[] }[] = [];
     for (let i = first; i < last; i++) {
-      out.push({ index: i, cells: (rows[i] ?? []).map(viewOf) });
+      out.push({
+        index: i,
+        mark: marks[i] ?? null,
+        cells: (rows[i] ?? []).map((cell, c) => ({
+          ...viewOf(cell),
+          edited: edited.has(`${i}:${c}`),
+        })),
+      });
     }
     return out;
   });
 
   constructor() {
-    // A new page starts at the top with nothing selected.
+    // A new page starts at the top with nothing selected. Without a page key, new rows do.
     effect(() => {
-      this.rows();
+      const key = this.pageKey();
+      if (key === undefined) this.rows();
       untracked(() => {
+        this.editing.set(null);
         this.selected.set(null);
+        this.selectionChange.emit(null);
         this.scrollTop.set(0);
         const el = this.scroller()?.nativeElement;
         if (el) el.scrollTop = 0;
@@ -127,8 +171,106 @@ export class DataGrid {
   }
 
   protected select(row: number, col: number): void {
-    this.selected.set({ row, col });
+    const editing = this.editing();
+    if (editing && (editing.row !== row || editing.col !== col)) this.commit();
+    this.setSelected(row, col);
+    if (!this.editing()) this.scroller().nativeElement.focus({ preventScroll: true });
+  }
+
+  /** Selects a cell from outside (e.g. a freshly added row) and scrolls it into view. */
+  focusCell(row: number, col: number): void {
+    this.setSelected(row, col);
+    // The row may only just have been added: wait for it to render.
+    afterNextRender(
+      () => {
+        this.scrollIntoView(row, col);
+        // Never steal focus from a cell editor the user already opened.
+        if (!this.editing()) this.scroller().nativeElement.focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected canEdit(row: number, col: number): boolean {
+    if (!this.editable() || this.rowMarks()[row] === 'deleted') return false;
+    const cell = this.rows()[row]?.[col];
+    // Binary and cut-off values would be destroyed by editing their preview.
+    return !(
+      cell &&
+      typeof cell === 'object' &&
+      (cell.kind === 'binary' || cell.kind === 'truncated')
+    );
+  }
+
+  protected startEdit(row: number, col: number, initial?: string): void {
+    if (!this.canEdit(row, col)) return;
+    const cell = this.rows()[row]?.[col] ?? null;
+    const current = typeof cell === 'string' ? cell : '';
+    this.setSelected(row, col);
+    this.editing.set({ row, col, draft: initial ?? current });
+    afterNextRender(
+      () => {
+        const input = this.editor()?.nativeElement;
+        if (!input) return;
+        input.focus();
+        if (initial === undefined) input.select();
+        else input.setSelectionRange(input.value.length, input.value.length);
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected isEditing(row: number, col: number): boolean {
+    const e = this.editing();
+    return e !== null && e.row === row && e.col === col;
+  }
+
+  protected onDraft(value: string): void {
+    const e = this.editing();
+    if (e) this.editing.set({ ...e, draft: value });
+  }
+
+  /** Saves the draft into the pending changes (not yet to the database). */
+  protected commit(value?: string | null): void {
+    const e = this.editing();
+    if (!e) return;
+    this.editing.set(null);
+    this.cellEdited.emit({ row: e.row, col: e.col, value: value === undefined ? e.draft : value });
+  }
+
+  protected cancelEdit(): void {
+    this.editing.set(null);
     this.scroller().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected onEditorKeydown(event: KeyboardEvent): void {
+    const e = this.editing();
+    if (!e) return;
+    event.stopPropagation(); // the grid's own keys (arrows, Ctrl+C) don't apply while typing
+    const next = (row: number, col: number) => {
+      this.commit();
+      this.setSelected(
+        clamp(row, 0, this.rows().length - 1),
+        clamp(col, 0, this.columns().length - 1),
+      );
+      this.scrollIntoView(this.selected()!.row, this.selected()!.col);
+      this.scroller().nativeElement.focus({ preventScroll: true });
+    };
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      next(e.row + (event.shiftKey ? -1 : 1), e.col);
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      next(e.row, e.col + (event.shiftKey ? -1 : 1));
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cancelEdit();
+    }
+  }
+
+  private setSelected(row: number, col: number): void {
+    this.selected.set({ row, col });
+    this.selectionChange.emit({ row, col });
   }
 
   protected isSelected(row: number, col: number): boolean {
@@ -141,6 +283,17 @@ export class DataGrid {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
+    // Typing fast after selecting a cell: keys can arrive before the editor input has focus.
+    const editing = this.editing();
+    if (editing) {
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        this.editing.set({ ...editing, draft: editing.draft + event.key });
+      } else if (['Enter', 'Tab', 'Escape'].includes(event.key)) {
+        this.onEditorKeydown(event);
+      }
+      return;
+    }
     const s = this.selected();
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
       if (s) {
@@ -150,6 +303,23 @@ export class DataGrid {
       return;
     }
     if (!s) return;
+    if (event.key === 'Enter' || event.key === 'F2') {
+      event.preventDefault();
+      this.startEdit(s.row, s.col);
+      return;
+    }
+    // Typing a character starts editing with it, like a spreadsheet.
+    if (
+      event.key.length === 1 &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      this.canEdit(s.row, s.col)
+    ) {
+      event.preventDefault();
+      this.startEdit(s.row, s.col, event.key);
+      return;
+    }
     const moves: Record<string, [number, number]> = {
       ArrowUp: [-1, 0],
       ArrowDown: [1, 0],
@@ -163,7 +333,7 @@ export class DataGrid {
     event.preventDefault();
     const row = clamp(s.row + move[0], 0, this.rows().length - 1);
     const col = clamp(s.col + move[1], 0, this.columns().length - 1);
-    this.selected.set({ row, col });
+    this.setSelected(row, col);
     this.scrollIntoView(row, col);
   }
 
@@ -209,8 +379,11 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-export function viewOf(cell: Cell): CellView {
+export function viewOf(cell: GridCell): CellView {
   if (cell === null) return { text: 'NULL', cls: 'is-null', title: null };
+  if (typeof cell === 'object' && cell.kind === 'default') {
+    return { text: 'DEFAULT', cls: 'is-default', title: 'Krijgt de standaardwaarde van de kolom' };
+  }
   if (typeof cell === 'string') {
     if (cell === '') return { text: "''", cls: 'is-empty', title: 'Lege tekst' };
     return { text: cell, cls: '', title: cell.length > 30 ? cell.slice(0, 500) : null };
@@ -231,9 +404,10 @@ export function viewOf(cell: Cell): CellView {
 }
 
 /** What Ctrl+C puts on the clipboard for one cell. */
-export function copyText(cell: Cell): string {
+export function copyText(cell: GridCell): string {
   if (cell === null) return 'NULL';
   if (typeof cell === 'string') return cell;
+  if (cell.kind === 'default') return '';
   if (cell.kind === 'binary') return `0x${cell.hex.toUpperCase()}`;
   return cell.text;
 }
