@@ -34,12 +34,12 @@ describe('App', () => {
     const el = fixture.nativeElement as HTMLElement;
 
     (el.querySelector('.card .btn-primary') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(el.querySelector('h1')?.textContent).toContain('Verbonden met lokaal-dev');
+    // Connecting, loading the workspace and the home view take a few async rounds.
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(el.querySelector('h1')?.textContent).toContain('Verbonden met lokaal-dev');
+    });
     expect(el.querySelector('.pill-connected')?.textContent).toContain('lokaal-dev');
   });
 

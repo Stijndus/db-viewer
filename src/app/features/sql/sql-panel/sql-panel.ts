@@ -46,6 +46,16 @@ export class SqlPanel {
   );
   protected readonly dialect = computed(() => this.sql.dialectOf(this.connectionId()));
   protected readonly dialectInfo = computed(() => DIALECTS[this.dialect()]);
+  protected readonly sessionExample = computed(() => {
+    switch (this.dialect()) {
+      case 'postgres':
+        return 'search_path, tijdelijke tabellen';
+      case 'sqlite':
+        return 'tijdelijke tabellen';
+      default:
+        return 'USE, variabelen';
+    }
+  });
   protected readonly mariaDb = computed(() =>
     /mariadb/i.test(this.connections.serverVersions()[this.connectionId()] ?? ''),
   );

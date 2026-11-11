@@ -35,21 +35,28 @@
     >
   }
   @if (dialectInfo().editorDefaultContainer) {
-  <label class="sql-select" [title]="dialectInfo().container === 'schema' ? 'Namen zonder schema worden hier gezocht (search_path)' : 'Namen zonder database worden hier gezocht (USE)'">
-    <span class="muted">{{ dialectInfo().container === 'schema' ? 'Schema' : 'Database' }}</span>
-    <select
-      class="select"
-      [value]="tab().database ?? ''"
-      (change)="setDatabase($any($event.target).value)"
+    <label
+      class="sql-select"
+      [title]="
+        dialectInfo().container === 'schema'
+          ? 'Namen zonder schema worden hier gezocht (search_path)'
+          : 'Namen zonder database worden hier gezocht (USE)'
+      "
     >
-      @if (!tab().database) {
-        <option value="" selected>(geen)</option>
-      }
-      @for (db of databases(); track db) {
-        <option [value]="db" [selected]="db === tab().database">{{ db }}</option>
-      }
-    </select>
-  </label>
+      <span class="muted">{{ dialectInfo().container === 'schema' ? 'Schema' : 'Database' }}</span>
+      <select
+        class="select"
+        [value]="tab().database ?? ''"
+        (change)="setDatabase($any($event.target).value)"
+      >
+        @if (!tab().database) {
+          <option value="" selected>(geen)</option>
+        }
+        @for (db of databases(); track db) {
+          <option [value]="db" [selected]="db === tab().database">{{ db }}</option>
+        }
+      </select>
+    </label>
   }
   <label class="sql-select">
     <span class="muted">Limiet</span>
@@ -183,11 +190,21 @@
     }
   } @else if (!tab().running) {
     <div class="result-message muted">
-      <span>Ctrl+Enter voert het statement onder de cursor uit (of de selectie).</span>
-      <span
-        >Ctrl+Shift+Enter voert alles uit. Elk tabblad heeft een eigen verbinding, dus
-        <span class="mono">USE</span>, variabelen en transacties blijven staan.</span
-      >
+      @if (dialect() === 'mssql') {
+        <span
+          >Ctrl+Enter voert de batch onder de cursor uit (tot de volgende GO), of de selectie.</span
+        >
+        <span
+          >Ctrl+Shift+Enter voert alles uit. Elk tabblad heeft een eigen verbinding, dus
+          <span class="mono">USE</span>, #tijdelijke tabellen en transacties blijven staan.</span
+        >
+      } @else {
+        <span>Ctrl+Enter voert het statement onder de cursor uit (of de selectie).</span>
+        <span
+          >Ctrl+Shift+Enter voert alles uit. Elk tabblad heeft een eigen verbinding, dus
+          {{ sessionExample() }} en transacties blijven staan.</span
+        >
+      }
     </div>
   }
 </div>

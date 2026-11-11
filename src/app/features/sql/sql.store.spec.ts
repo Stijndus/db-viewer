@@ -159,3 +159,20 @@ describe('SqlStore', () => {
     ]);
   });
 });
+
+describe('pickStatements per dialect', () => {
+  it('runs a SQL Server batch as a whole, split only on GO', () => {
+    const text = 'DECLARE @x int = 1;\nSELECT @x;\nGO\nSELECT 2';
+    const picked = pickStatements(snap(text, 5), 'current', 'mssql');
+    expect(picked.map((s) => s.sql)).toEqual(['DECLARE @x int = 1;\nSELECT @x;']);
+    expect(pickStatements(snap(text, 0), 'all', 'mssql')).toHaveLength(2);
+  });
+
+  it('keeps a PostgreSQL function body in one piece', () => {
+    const text = 'CREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql;\nSELECT f();';
+    expect(pickStatements(snap(text, 0), 'all', 'postgres').map((s) => s.sql)).toEqual([
+      'CREATE FUNCTION f() RETURNS int AS $$ SELECT 1; $$ LANGUAGE sql',
+      'SELECT f()',
+    ]);
+  });
+});

@@ -57,7 +57,11 @@
           [checked]="schema.showSystem()"
           (change)="schema.showSystem.set($any($event.target).checked)"
         />
-        Systeemdatabases tonen
+        {{
+          c.type === 'postgres' || c.type === 'mssql'
+            ? "Systeemschema's tonen"
+            : 'Systeemdatabases tonen'
+        }}
       </label>
     }
   </div>
