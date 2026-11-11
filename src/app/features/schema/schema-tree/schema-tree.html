@@ -1,6 +1,6 @@
 @if (conn(); as c) {
   <div class="tree-head">
-    <button type="button" class="link-btn" (click)="connections.activeId.set(null)">
+    <button type="button" class="link-btn" (click)="ws.leave(c.id)">
       <svg
         width="14"
         height="14"

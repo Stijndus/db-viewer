@@ -25,7 +25,8 @@ import type {
 } from '../../../../../shared/models';
 import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
-import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema.store';
+import type { Load, SelectedObject } from '../../schema/schema.store';
+import { WorkspaceStore } from '../../workspace/workspace.store';
 import {
   DataGrid,
   DEFAULT_CELL,
@@ -57,6 +58,8 @@ type CountState =
   | { status: 'error'; error: DbError };
 
 /** The Data tab: filter, sort and page through the rows of one table or view, and edit them. */
+let uidCounter = 0;
+
 @Component({
   selector: 'app-table-data',
   imports: [DataGrid],
@@ -65,6 +68,10 @@ type CountState =
 })
 export class TableData {
   readonly object = input.required<SelectedObject>();
+  /** The workspace tab this view lives in: shows a marker there while edits are unsaved. */
+  readonly tabId = input<string | null>(null);
+  /** Unique per instance: several tabs are rendered at once. */
+  protected readonly uid = `u${++uidCounter}`;
   /** Column metadata from the schema cache: types for the header, primary key for default order. */
   readonly columns = input<Load<ColumnInfo[]> | undefined>(undefined);
   /** Row estimate from table statistics, shown until an exact count is asked for. */
@@ -72,7 +79,7 @@ export class TableData {
 
   private readonly api = inject(DB_API);
   private readonly connections = inject(ConnectionsStore);
-  private readonly schema = inject(SchemaStore);
+  private readonly workspace = inject(WorkspaceStore);
   private readonly grid = viewChild(DataGrid);
   private readonly sqlDialog = viewChild<ElementRef<HTMLDialogElement>>('sqlDialog');
 
@@ -94,7 +101,6 @@ export class TableData {
   protected readonly selectedCell = signal<{ row: number; col: number } | null>(null);
   /** Bumped when a fresh page is loaded: the grid scrolls back to the top. */
   protected readonly pageVersion = signal(0);
-  private previousObject: SelectedObject | null = null;
 
   private requestId = 0;
   private objectKey = '';
@@ -278,13 +284,7 @@ export class TableData {
       untracked(() => {
         const key = `${o.connectionId}\u0001${o.database}\u0001${o.name}`;
         if (key !== this.objectKey) {
-          // Picking another table with unsaved edits: ask, and go back if the user wants to keep them.
-          if (this.hasChanges() && !confirm(DISCARD_QUESTION)) {
-            if (this.previousObject) this.schema.selected.set(this.previousObject);
-            return;
-          }
           this.objectKey = key;
-          this.previousObject = o;
           this.reset();
         }
         const ready = status === 'loaded' || status === 'error';
@@ -297,6 +297,14 @@ export class TableData {
   protected refresh(): void {
     if (this.confirmDiscard()) void this.load();
   }
+
+  /** Unsaved edits mark the tab, so they are not forgotten behind another tab. */
+  private readonly reportDirty = effect(() => {
+    const id = this.tabId();
+    this.pending();
+    const dirty = this.hasChanges();
+    if (id) untracked(() => this.workspace.setDirty(id, dirty));
+  });
 
   async load(): Promise<void> {
     const o = this.object();

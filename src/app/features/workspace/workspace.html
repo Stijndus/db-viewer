@@ -1,52 +1,28 @@
-<div class="ws-tabs" role="tablist" aria-label="Werkruimte">
-  <button
-    type="button"
-    role="tab"
-    class="ws-tab"
-    [class.active]="sql.view().kind === 'object'"
-    [attr.aria-selected]="sql.view().kind === 'object'"
-    (click)="showObject()"
-  >
-    @if (selected(); as s) {
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        aria-hidden="true"
-      >
-        @if (s.kind === 'view') {
-          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-          <circle cx="12" cy="12" r="3" />
-        } @else {
-          <rect x="3" y="4" width="18" height="16" rx="2" />
-          <path d="M3 10h18M9 10v10" />
-        }
-      </svg>
-      <span class="mono tl">{{ s.name }}</span>
-    } @else {
-      <span class="tl">Overzicht</span>
-    }
-  </button>
-
-  @for (tab of sql.tabs(); track tab.id) {
+<div #bar class="ws-tabs" role="tablist" aria-label="Geopende tabbladen">
+  @for (tab of ws.tabs(); track tab.id) {
+    @let active = ws.activeId() === tab.id;
+    @let sqlState = tab.kind === 'sql' ? sqlTab(tab) : undefined;
     <div
-      class="ws-tab ws-tab-sql"
-      [class.active]="sql.view().kind === 'sql' && sql.activeTab()?.id === tab.id"
+      class="ws-tab"
+      [class.active]="active"
+      [class.dirty]="ws.isDirty(tab.id)"
+      [class.ws-tab-sql]="tab.kind === 'sql'"
+      [attr.data-tab]="tab.id"
+      [title]="tab.kind === 'table' ? tab.database + '.' + tab.name : title(tab)"
       (auxclick)="onAuxClick(tab, $event)"
+      (mousedown)="$event.button === 1 && $event.preventDefault()"
+      (contextmenu)="openMenu(tab, $event)"
     >
       <button
         type="button"
         role="tab"
         class="ws-tab-main"
-        [attr.aria-selected]="sql.activeTab()?.id === tab.id"
-        (click)="showTab(tab)"
+        [attr.aria-selected]="active"
+        (click)="activate(tab)"
       >
-        @if (tab.running) {
+        @if (sqlState?.running) {
           <span class="spinner" aria-label="bezig"></span>
-        } @else {
+        } @else if (tab.kind === 'sql') {
           <svg
             width="13"
             height="13"
@@ -60,16 +36,51 @@
           >
             <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />
           </svg>
+        } @else if (tab.objectKind === 'view') {
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        } @else {
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 10h18M9 10v10" />
+          </svg>
         }
-        <span class="tl">{{ tab.title }}</span>
+        <span class="tl" [class.mono]="tab.kind === 'table'">
+          @if (showDatabase(tab) && tab.kind === 'table') {
+            <span class="muted">{{ tab.database }}.</span>
+          }
+          {{ title(tab) }}
+        </span>
       </button>
       <button
         type="button"
         class="ws-tab-close"
-        [attr.aria-label]="tab.title + ' sluiten'"
+        [attr.aria-label]="
+          title(tab) + (ws.isDirty(tab.id) ? ' (niet opgeslagen)' : '') + ' sluiten'
+        "
         (click)="close(tab, $event)"
       >
+        <span class="dirty-dot" aria-hidden="true"></span>
         <svg
+          class="close-x"
           width="12"
           height="12"
           viewBox="0 0 24 24"
@@ -85,7 +96,7 @@
     </div>
   }
 
-  <button type="button" class="ws-new" title="Nieuw SQL-tabblad" (click)="newTab()">
+  <button type="button" class="ws-new" title="Nieuw SQL-tabblad" (click)="newSql()">
     <svg
       width="14"
       height="14"
@@ -103,20 +114,49 @@
 </div>
 
 <div class="ws-body">
-  <!-- The table view stays alive behind SQL tabs, so unsaved grid edits are not lost. -->
-  @if (selected(); as object) {
-    <app-object-view [object]="object" [hidden]="sql.view().kind !== 'object'" />
-  } @else if (sql.view().kind === 'object') {
-    <app-connection-home [connection]="connection()" (newSql)="newTab()" />
-  }
-  @if (sql.view().kind === 'sql') {
-    <!-- One-item loop keyed by tab id: another tab gets its own editor instance. -->
-    @for (tab of activeTabs(); track tab.id) {
-      @defer (on immediate) {
-        <app-sql-panel [tab]="tab" [connectionId]="connection().id" />
-      } @placeholder {
-        <div class="dt-empty muted">Editor laden…</div>
-      }
+  <!-- Every opened tab keeps its view alive (hidden when inactive): switching is instant and
+       keeps the page, filter, scroll position, unsaved edits and editor state of each tab. -->
+  @for (tab of bodies(); track tab.id) {
+    @if (tab.kind === 'table') {
+      <app-object-view
+        [object]="objectOf(tab)"
+        [tabId]="tab.id"
+        [hidden]="ws.activeId() !== tab.id"
+      />
+    } @else if (sqlTab(tab); as st) {
+      <div class="ws-sql" [hidden]="ws.activeId() !== tab.id">
+        @defer (on immediate) {
+          <app-sql-panel [tab]="st" [connectionId]="connection().id" />
+        } @placeholder {
+          <div class="dt-empty muted">Editor laden…</div>
+        }
+      </div>
     }
   }
+  @if (!ws.active()) {
+    <app-connection-home [connection]="connection()" (newSql)="newSql()" />
+  }
 </div>
+
+@if (menu(); as m) {
+  <div class="tab-menu" role="menu" [style.left.px]="m.x" [style.top.px]="m.y">
+    <button type="button" role="menuitem" (click)="menuAction('close')">Sluiten</button>
+    <button
+      type="button"
+      role="menuitem"
+      [disabled]="ws.tabs().length < 2"
+      (click)="menuAction('others')"
+    >
+      Andere sluiten
+    </button>
+    <button
+      type="button"
+      role="menuitem"
+      [disabled]="!hasTabsRight(m.tab)"
+      (click)="menuAction('right')"
+    >
+      Rechts hiervan sluiten
+    </button>
+    <button type="button" role="menuitem" (click)="menuAction('all')">Alles sluiten</button>
+  </div>
+}

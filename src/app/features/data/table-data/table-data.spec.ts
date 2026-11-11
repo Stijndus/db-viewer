@@ -119,7 +119,7 @@ describe('TableData', () => {
 
   it('applies and clears a filter', async () => {
     const { el, requests, settle, button, foot } = await setup();
-    const input = el.querySelector<HTMLInputElement>('#where')!;
+    const input = el.querySelector<HTMLInputElement>('.dt-where')!;
     input.value = "status = 'open'";
     input.dispatchEvent(new Event('input'));
     el.querySelector<HTMLFormElement>('.dt-toolbar')!.dispatchEvent(new Event('submit'));

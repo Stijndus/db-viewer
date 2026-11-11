@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, output } from '@angular/core';
 import type { ConnectionProfile } from '../../../../../shared/models';
 import { ConnectionsStore, connectionAddress } from '../../connections/connections.store';
+import { WorkspaceStore } from '../../workspace/workspace.store';
 import { SchemaStore } from '../schema.store';
 
 /** Main panel for an open connection with nothing selected yet. */
@@ -27,7 +28,7 @@ import { SchemaStore } from '../schema.store';
       <button type="button" class="btn btn-primary" (click)="newSql.emit()">
         Nieuwe SQL-query
       </button>
-      <button type="button" class="btn btn-ghost" (click)="connections.disconnect(connection().id)">
+      <button type="button" class="btn btn-ghost" (click)="ws.disconnect(connection().id)">
         Verbreken
       </button>
     </div>
@@ -38,6 +39,7 @@ export class ConnectionHome {
   readonly newSql = output<void>();
   protected readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
+  protected readonly ws = inject(WorkspaceStore);
   protected readonly address = connectionAddress;
 
   protected readonly databaseCount = computed(() => {

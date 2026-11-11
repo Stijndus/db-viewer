@@ -26,7 +26,7 @@
         }}{{ active.database ? ' · ' + active.database : '' }}</span
       >
       <span class="push"></span>
-      <button type="button" class="btn btn-secondary btn-sm" (click)="store.disconnect(active.id)">
+      <button type="button" class="btn btn-secondary btn-sm" (click)="ws.disconnect(active.id)">
         Verbreken
       </button>
     } @else {

@@ -23,11 +23,11 @@
     type="button"
     role="tab"
     class="tab"
-    id="tab-data"
-    aria-controls="panel-data"
-    [class.active]="schema.objectTab() === 'data'"
-    [attr.aria-selected]="schema.objectTab() === 'data'"
-    (click)="schema.objectTab.set('data')"
+    [id]="uid + '-tab-data'"
+    [attr.aria-controls]="uid + '-panel-data'"
+    [class.active]="view() === 'data'"
+    [attr.aria-selected]="view() === 'data'"
+    (click)="setView('data')"
   >
     Data
   </button>
@@ -35,11 +35,11 @@
     type="button"
     role="tab"
     class="tab"
-    id="tab-structure"
-    aria-controls="panel-structure"
-    [class.active]="schema.objectTab() === 'structure'"
-    [attr.aria-selected]="schema.objectTab() === 'structure'"
-    (click)="schema.objectTab.set('structure')"
+    [id]="uid + '-tab-structure'"
+    [attr.aria-controls]="uid + '-panel-structure'"
+    [class.active]="view() === 'structure'"
+    [attr.aria-selected]="view() === 'structure'"
+    (click)="setView('structure')"
   >
     Structuur
   </button>
@@ -47,20 +47,21 @@
 
 <!-- Both panels stay alive; the inactive one is hidden, so unsaved edits survive a tab switch. -->
 <app-table-data
-  id="panel-data"
+  [id]="uid + '-panel-data'"
   role="tabpanel"
-  aria-labelledby="tab-data"
-  [hidden]="schema.objectTab() !== 'data'"
+  [attr.aria-labelledby]="uid + '-tab-data'"
+  [hidden]="view() !== 'data'"
   [object]="object()"
   [columns]="columns()"
   [estimate]="info()?.rowEstimate ?? null"
+  [tabId]="tabId()"
 />
 <div
-  id="panel-structure"
+  [id]="uid + '-panel-structure'"
   class="structure-panel"
   role="tabpanel"
-  aria-labelledby="tab-structure"
-  [hidden]="schema.objectTab() !== 'structure'"
+  [attr.aria-labelledby]="uid + '-tab-structure'"
+  [hidden]="view() !== 'structure'"
 >
   @if (columns(); as state) {
     @if (state.status === 'loaded') {

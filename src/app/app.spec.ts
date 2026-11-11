@@ -5,6 +5,11 @@ import { fakeDbApi } from './testing/fake-db-api';
 
 describe('App', () => {
   beforeEach(async () => {
+    try {
+      localStorage.clear();
+    } catch {
+      /* no storage */
+    }
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [{ provide: DB_API, useValue: fakeDbApi() }],

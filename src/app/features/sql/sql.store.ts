@@ -33,9 +33,6 @@ export interface WriteConfirmation {
   resolve: (answer: { run: boolean; dontAskAgain: boolean }) => void;
 }
 
-/** Which view the main area shows for a connection: the selected table, or a SQL tab. */
-export type WorkspaceView = { kind: 'object' } | { kind: 'sql'; tabId: string };
-
 export interface EditorSnapshot {
   text: string;
   selectionFrom: number;
@@ -44,7 +41,10 @@ export interface EditorSnapshot {
 
 const STORAGE_PREFIX = 'dbv.sql.v1.';
 
-/** SQL tabs per connection. Text, title and database survive restarts (per profile). */
+/**
+ * The contents of SQL tabs per connection. Text, title and database survive restarts (per profile).
+ * Which tab is shown, and in what order, is the WorkspaceStore's business.
+ */
 @Injectable({ providedIn: 'root' })
 export class SqlStore {
   private readonly api = inject(DB_API);
@@ -52,7 +52,6 @@ export class SqlStore {
   private readonly schema = inject(SchemaStore);
 
   private readonly tabsByConnection = signal<Record<string, SqlTab[]>>({});
-  private readonly viewByConnection = signal<Record<string, WorkspaceView>>({});
   private readonly columnsCache = signal<Record<string, Record<string, string[]>>>({});
   /** Connections where the user said "don't ask again" for writes; forgotten on restart. */
   private readonly trusted = new Set<string>();
@@ -65,29 +64,8 @@ export class SqlStore {
     return id ? (this.tabsByConnection()[id] ?? []) : [];
   });
 
-  readonly view = computed<WorkspaceView>(() => {
-    const id = this.connections.activeId();
-    const view = id ? this.viewByConnection()[id] : undefined;
-    if (view?.kind === 'sql' && this.tabs().some((t) => t.id === view.tabId)) return view;
-    return { kind: 'object' };
-  });
-
-  readonly activeTab = computed(() => {
-    const view = this.view();
-    return view.kind === 'sql' ? (this.tabs().find((t) => t.id === view.tabId) ?? null) : null;
-  });
-
   constructor() {
-    // Picking something in the tree brings the table view to the front.
-    effect(() => {
-      const selected = this.schema.selected();
-      if (selected) untracked(() => this.show(selected.connectionId, { kind: 'object' }));
-    });
-    // Load saved tabs when a connection opens.
-    effect(() => {
-      const id = this.connections.activeId();
-      if (id && !this.tabsByConnection()[id]) untracked(() => this.restore(id));
-    });
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', () => this.flush());
     // A closed connection closes the server sessions of its tabs; nothing is left running.
     effect(() => {
       const status = this.connections.status();
@@ -101,8 +79,18 @@ export class SqlStore {
     });
   }
 
-  show(connectionId: string, view: WorkspaceView): void {
-    this.viewByConnection.update((v) => ({ ...v, [connectionId]: view }));
+  /** The SQL tabs of a connection, loading the saved ones the first time. */
+  tabsOf(connectionId: string): SqlTab[] {
+    this.ensureRestored(connectionId);
+    return this.tabsByConnection()[connectionId] ?? [];
+  }
+
+  tab(connectionId: string, tabId: string): SqlTab | undefined {
+    return this.find(connectionId, tabId);
+  }
+
+  ensureRestored(connectionId: string): void {
+    if (!untracked(this.tabsByConnection)[connectionId]) this.restore(connectionId);
   }
 
   newTab(connectionId: string): SqlTab {
@@ -122,7 +110,6 @@ export class SqlStore {
       maxRows: 1000,
     };
     this.tabsByConnection.update((all) => ({ ...all, [connectionId]: [...existing, tab] }));
-    this.show(connectionId, { kind: 'sql', tabId: tab.id });
     this.persist(connectionId);
     return tab;
   }
@@ -132,11 +119,6 @@ export class SqlStore {
     if (tab?.running) await this.cancel(connectionId, tabId);
     const remaining = (this.tabsByConnection()[connectionId] ?? []).filter((t) => t.id !== tabId);
     this.tabsByConnection.update((all) => ({ ...all, [connectionId]: remaining }));
-    const view = this.viewByConnection()[connectionId];
-    if (view?.kind === 'sql' && view.tabId === tabId) {
-      const next = remaining.at(-1);
-      this.show(connectionId, next ? { kind: 'sql', tabId: next.id } : { kind: 'object' });
-    }
     this.persist(connectionId);
     // Ends the tab's server connection; an open transaction is rolled back.
     await this.api.closeEditor(connectionId, tabId);
@@ -318,23 +300,29 @@ export class SqlStore {
     clearTimeout(this.saveTimers.get(connectionId));
     this.saveTimers.set(
       connectionId,
-      setTimeout(() => {
-        const tabs = (this.tabsByConnection()[connectionId] ?? []).map(
-          ({ id, title, text, database, maxRows }) => ({
-            id,
-            title,
-            text,
-            database,
-            maxRows,
-          }),
-        );
-        try {
-          localStorage.setItem(STORAGE_PREFIX + connectionId, JSON.stringify(tabs));
-        } catch {
-          // Storage full or unavailable: the tabs just aren't remembered.
-        }
-      }, 400),
+      setTimeout(() => this.save(connectionId), 400),
     );
+  }
+
+  /** Writes pending saves now, e.g. when the window closes within the pause. */
+  flush(): void {
+    for (const [connectionId, timer] of this.saveTimers) {
+      clearTimeout(timer);
+      this.save(connectionId);
+    }
+    this.saveTimers.clear();
+  }
+
+  private save(connectionId: string): void {
+    this.saveTimers.delete(connectionId);
+    const tabs = (this.tabsByConnection()[connectionId] ?? []).map(
+      ({ id, title, text, database, maxRows }) => ({ id, title, text, database, maxRows }),
+    );
+    try {
+      localStorage.setItem(STORAGE_PREFIX + connectionId, JSON.stringify(tabs));
+    } catch {
+      // Storage full or unavailable: the tabs just aren't remembered.
+    }
   }
 }
 

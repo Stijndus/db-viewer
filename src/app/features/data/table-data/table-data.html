@@ -1,7 +1,7 @@
 <form class="dt-toolbar" (submit)="applyFilter($event)">
-  <label for="where" class="dt-where-label mono">WHERE</label>
+  <label [for]="uid + '-where'" class="dt-where-label mono">WHERE</label>
   <input
-    id="where"
+    [id]="uid + '-where'"
     class="input mono dt-where"
     autocomplete="off"
     spellcheck="false"
@@ -267,9 +267,9 @@
   </button>
 </div>
 
-<dialog #sqlDialog class="dialog dialog-wide" aria-labelledby="sql-preview-title">
+<dialog #sqlDialog class="dialog dialog-wide" [attr.aria-labelledby]="uid + '-sql-title'">
   <div class="dialog-head">
-    <h2 id="sql-preview-title">SQL die wordt uitgevoerd</h2>
+    <h2 [id]="uid + '-sql-title'">SQL die wordt uitgevoerd</h2>
     <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="closeSql()">
       <svg
         width="18"

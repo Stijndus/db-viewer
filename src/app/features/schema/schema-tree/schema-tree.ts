@@ -7,6 +7,7 @@ import type {
   SchemaObject,
 } from '../../../../../shared/models';
 import { ConnectionsStore } from '../../connections/connections.store';
+import { WorkspaceStore } from '../../workspace/workspace.store';
 import { dbKey, groupKey, type GroupId, objectKey, SchemaStore } from '../schema.store';
 
 type Row =
@@ -54,6 +55,7 @@ const GROUPS: { id: GroupId; label: string; kinds: ObjectKind[] }[] = [
 export class SchemaTree {
   protected readonly connections = inject(ConnectionsStore);
   protected readonly schema = inject(SchemaStore);
+  protected readonly ws = inject(WorkspaceStore);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly conn = computed(() => this.connections.active());

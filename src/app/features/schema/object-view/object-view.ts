@@ -1,9 +1,11 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import type { SchemaObject } from '../../../../../shared/models';
 import { TableData } from '../../data/table-data/table-data';
 import { SchemaStore, type SelectedObject } from '../schema.store';
 
 /** Main panel for a selected table or view: header, then its data or its structure. */
+let uidCounter = 0;
+
 @Component({
   selector: 'app-object-view',
   imports: [TableData],
@@ -11,7 +13,19 @@ import { SchemaStore, type SelectedObject } from '../schema.store';
 })
 export class ObjectView {
   readonly object = input.required<SelectedObject>();
+  /** The workspace tab this view lives in (for the unsaved-edits marker). */
+  readonly tabId = input<string | null>(null);
+  /** Unique per instance: several tabs are rendered at once. */
+  protected readonly uid = `u${++uidCounter}`;
   protected readonly schema = inject(SchemaStore);
+
+  /** Data or Structure, per tab; a new tab starts with the last choice. */
+  protected readonly view = signal(this.schema.lastObjectTab());
+
+  protected setView(view: 'data' | 'structure'): void {
+    this.view.set(view);
+    this.schema.lastObjectTab.set(view);
+  }
 
   protected readonly columns = computed(() => {
     const o = this.object();

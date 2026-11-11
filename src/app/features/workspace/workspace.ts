@@ -1,55 +1,134 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
 import type { ConnectionProfile } from '../../../../shared/models';
 import { ConnectionHome } from '../schema/connection-home/connection-home';
 import { ObjectView } from '../schema/object-view/object-view';
-import { SchemaStore } from '../schema/schema.store';
+import type { SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
-import { SqlStore, type SqlTab } from '../sql/sql.store';
+import { SqlStore } from '../sql/sql.store';
+import { WorkspaceStore, type WorkspaceTab } from './workspace.store';
 
-/** Main area of an open connection: the selected table, or one of the SQL tabs. */
+interface TabMenu {
+  tab: WorkspaceTab;
+  x: number;
+  y: number;
+}
+
+/** Main area of an open connection: one tab bar for tables and SQL, and the active tab below it. */
 @Component({
   selector: 'app-workspace',
   imports: [ObjectView, ConnectionHome, SqlPanel],
   templateUrl: './workspace.html',
+  host: {
+    '(window:keydown)': 'onKeydown($event)',
+    '(window:pointerdown)': 'closeMenu($event)',
+  },
 })
 export class Workspace {
   readonly connection = input.required<ConnectionProfile>();
 
+  protected readonly ws = inject(WorkspaceStore);
   protected readonly sql = inject(SqlStore);
-  private readonly schema = inject(SchemaStore);
+  private readonly bar = viewChild<ElementRef<HTMLElement>>('bar');
+  protected readonly menu = signal<TabMenu | null>(null);
 
-  /** The selected table or view, but only when it belongs to this connection. */
-  protected readonly selected = computed(() => {
-    const s = this.schema.selected();
-    return s && s.connectionId === this.connection().id ? s : null;
-  });
+  /** Rendered tab bodies: only tabs opened this session, so restored tabs load lazily. */
+  protected readonly bodies = computed(() => this.ws.tabs().filter((t) => this.ws.isVisited(t.id)));
 
-  /** Wrapped in an array so switching tabs gives a fresh editor per tab (see the template). */
-  protected readonly activeTabs = computed(() => {
-    const tab = this.sql.activeTab();
-    return tab ? [tab] : [];
-  });
-
-  protected showObject(): void {
-    this.sql.show(this.connection().id, { kind: 'object' });
+  protected objectOf(tab: WorkspaceTab & { kind: 'table' }): SelectedObject {
+    return {
+      connectionId: this.connection().id,
+      database: tab.database,
+      name: tab.name,
+      kind: tab.objectKind,
+    };
   }
 
-  protected showTab(tab: SqlTab): void {
-    this.sql.show(this.connection().id, { kind: 'sql', tabId: tab.id });
+  protected sqlTab(tab: WorkspaceTab) {
+    return this.sql.tab(this.connection().id, tab.id);
   }
 
-  protected newTab(): void {
-    this.sql.newTab(this.connection().id);
+  protected title(tab: WorkspaceTab): string {
+    return tab.kind === 'table' ? tab.name : (this.sqlTab(tab)?.title ?? 'SQL');
   }
 
-  protected close(tab: SqlTab, event: Event): void {
-    event.stopPropagation();
-    if (tab.text.trim() && !confirm(`${tab.title} sluiten? De tekst gaat verloren.`)) return;
-    void this.sql.closeTab(this.connection().id, tab.id);
+  /** Same table name in two databases: show the database too. */
+  protected showDatabase(tab: WorkspaceTab): boolean {
+    if (tab.kind !== 'table') return false;
+    return this.ws
+      .tabs()
+      .some((t) => t.kind === 'table' && t.name === tab.name && t.database !== tab.database);
+  }
+
+  protected activate(tab: WorkspaceTab): void {
+    this.ws.activate(this.connection().id, tab.id);
+    this.scrollIntoView(tab.id);
+  }
+
+  protected close(tab: WorkspaceTab, event?: Event): void {
+    event?.stopPropagation();
+    this.ws.close(this.connection().id, tab.id);
+  }
+
+  protected newSql(): void {
+    this.ws.newSql(this.connection().id);
+    const active = this.ws.activeId();
+    if (active) this.scrollIntoView(active);
   }
 
   /** Middle click closes a tab, like in a browser. */
-  protected onAuxClick(tab: SqlTab, event: MouseEvent): void {
-    if (event.button === 1) this.close(tab, event);
+  protected onAuxClick(tab: WorkspaceTab, event: MouseEvent): void {
+    if (event.button === 1) {
+      event.preventDefault();
+      this.close(tab, event);
+    }
+  }
+
+  protected openMenu(tab: WorkspaceTab, event: MouseEvent): void {
+    event.preventDefault();
+    this.menu.set({ tab, x: event.clientX, y: event.clientY });
+  }
+
+  protected closeMenu(event?: Event): void {
+    if (event && (event.target as HTMLElement | null)?.closest('.tab-menu')) return;
+    this.menu.set(null);
+  }
+
+  protected menuAction(action: 'close' | 'others' | 'right' | 'all'): void {
+    const m = this.menu();
+    this.menu.set(null);
+    if (!m) return;
+    const id = this.connection().id;
+    if (action === 'close') this.ws.close(id, m.tab.id);
+    if (action === 'others') this.ws.closeOthers(id, m.tab.id);
+    if (action === 'right') this.ws.closeToRight(id, m.tab.id);
+    if (action === 'all') this.ws.closeAll(id);
+  }
+
+  protected hasTabsRight(tab: WorkspaceTab): boolean {
+    const tabs = this.ws.tabs();
+    return tabs.findIndex((t) => t.id === tab.id) < tabs.length - 1;
+  }
+
+  /** Ctrl+Tab / Ctrl+Shift+Tab switch tabs; Escape closes the tab menu. */
+  protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.menu()) {
+      this.menu.set(null);
+      return;
+    }
+    if (event.ctrlKey && event.key === 'Tab') {
+      event.preventDefault();
+      this.ws.cycle(this.connection().id, event.shiftKey ? -1 : 1);
+      const active = this.ws.activeId();
+      if (active) this.scrollIntoView(active);
+    }
+  }
+
+  private scrollIntoView(tabId: string): void {
+    // After the bar has rendered the (possibly new) tab.
+    setTimeout(() => {
+      this.bar()
+        ?.nativeElement.querySelector<HTMLElement>(`[data-tab="${tabId}"]`)
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   }
 }

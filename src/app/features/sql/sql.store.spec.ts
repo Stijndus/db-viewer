@@ -68,7 +68,7 @@ describe('SqlStore', () => {
     const b = sql.newTab(ID);
     expect([a.title, b.title]).toEqual(['SQL 1', 'SQL 2']);
     expect(a.database).toBe('app_dev');
-    expect(sql.activeTab()?.id).toBe(b.id);
+    expect(sql.tabsOf(ID).map((t) => t.id)).toEqual([a.id, b.id]);
   });
 
   it('runs reads without asking and shows the last result', async () => {
@@ -80,15 +80,15 @@ describe('SqlStore', () => {
       database: 'app_dev',
       maxRows: 1000,
     });
-    expect(sql.activeTab()?.result?.results).toHaveLength(2);
-    expect(sql.activeTab()?.activeResult).toBe(1);
+    expect(sql.tab(ID, tab.id)?.result?.results).toHaveLength(2);
+    expect(sql.tab(ID, tab.id)?.activeResult).toBe(1);
   });
 
   it('jumps to the failing statement', async () => {
     const { sql } = await setup();
     const tab = sql.newTab(ID);
     await sql.run(ID, tab.id, 'all', snap('SELECT 1; SELEC 2; SELECT 3'));
-    const t = sql.activeTab()!;
+    const t = sql.tab(ID, tab.id)!;
     expect(t.result?.results.map((r) => r.kind)).toEqual(['rows', 'error']);
     expect(t.activeResult).toBe(1);
   });
@@ -134,18 +134,16 @@ describe('SqlStore', () => {
     const tab = sql.newTab(ID);
     await sql.run(ID, tab.id, 'current', snap('  -- only a comment\n'));
     expect(runs).toHaveLength(0);
-    expect(sql.activeTab()?.error?.code).toBe('EMPTY');
+    expect(sql.tab(ID, tab.id)?.error?.code).toBe('EMPTY');
   });
 
-  it('closes the server session with the tab and falls back to another tab', async () => {
+  it('closes the server session with the tab', async () => {
     const { sql, closed } = await setup();
     const a = sql.newTab(ID);
     const b = sql.newTab(ID);
     await sql.closeTab(ID, b.id);
     expect(closed).toEqual([b.id]);
-    expect(sql.activeTab()?.id).toBe(a.id);
-    await sql.closeTab(ID, a.id);
-    expect(sql.view()).toEqual({ kind: 'object' });
+    expect(sql.tabsOf(ID).map((t) => t.id)).toEqual([a.id]);
   });
 
   it('keeps tab text across restarts', async () => {

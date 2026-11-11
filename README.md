@@ -2,7 +2,8 @@
 
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
 Klaar: MySQL/MariaDB-verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken
-(stap 3), een SQL-editor met automatische updates (stap 4) en data wijzigen in de grid (stap 5).
+(stap 3), een SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5) en
+tabellen en SQL naast elkaar in tabbladen (stap 6).
 
 ## Downloaden
 
@@ -98,6 +99,9 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
   dezelfde die de gebruiker bij "SQL bekijken" ziet). De server controleert eerst dat het een tabel is
   en dat de primaire sleutel klopt; elke `UPDATE`/`DELETE` heeft `LIMIT 1` en moet precies één rij
   raken, anders volgt een rollback.
+- **Tabbladen:** `WorkspaceStore` beheert één rij tabbladen per verbinding (tabellen en SQL) en
+  bewaart volgorde en actief tabblad in `localStorage`. Geopende tabbladen blijven gerenderd (verborgen
+  als ze niet actief zijn), zodat pagina, filter, scrollpositie en niet-opgeslagen wijzigingen blijven.
 - **Exacte waarden:** `BIGINT`, `DECIMAL` en `DATETIME` komen als tekst binnen, zodat er geen precisie of
   tijdzone verloren gaat.
 - **Venster:** `contextIsolation`, `sandbox`, geen `nodeIntegration`, een Content-Security-Policy, en IPC
@@ -119,4 +123,5 @@ scripts/         build van de Electron-bundels, test-database
 3. ~~Tabeldata met paginering en virtual scroll~~
 4. ~~SQL-editor met resultaatgrid~~
 5. ~~Data wijzigen in de grid~~
-6. Meer drivers: PostgreSQL, SQL Server, SQLite
+6. ~~Tabellen als tabbladen, in één rij met de SQL-tabbladen~~
+7. Meer drivers: PostgreSQL, SQL Server, SQLite

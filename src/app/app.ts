@@ -9,6 +9,7 @@ import { SchemaTree } from './features/schema/schema-tree/schema-tree';
 import { ConfirmWrite } from './features/sql/confirm-write/confirm-write';
 import { SqlStore } from './features/sql/sql.store';
 import { Workspace } from './features/workspace/workspace';
+import { WorkspaceStore } from './features/workspace/workspace.store';
 
 @Component({
   selector: 'app-root',
@@ -27,6 +28,7 @@ export class App implements OnInit {
   protected readonly store = inject(ConnectionsStore);
   protected readonly sql = inject(SqlStore);
   protected readonly updates = inject(UpdateStore);
+  protected readonly ws = inject(WorkspaceStore);
 
   ngOnInit(): void {
     void this.store.init();
