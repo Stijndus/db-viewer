@@ -21,6 +21,13 @@
           >Alleen-lezen</span
         >
       }
+      @if (active.temporary) {
+        <span
+          class="tmp-badge"
+          title="Geopend vanaf de opdrachtregel; niet opgeslagen. Bewaar via Bewerken in de lijst."
+          >Tijdelijk</span
+        >
+      }
       <span class="pill-connected"
         ><span class="dot"></span>{{ active.name
         }}{{ active.database ? ' · ' + location(active) : '' }}</span

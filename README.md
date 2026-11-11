@@ -6,7 +6,23 @@ Werkt met **MySQL/MariaDB**, **PostgreSQL**, **SQL Server** en **SQLite**.
 Klaar: verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken (stap 3), een
 SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5), tabellen en SQL naast
 elkaar in tabbladen (stap 6), drivers voor PostgreSQL, SQL Server en SQLite (stap 7) en SSH-tunnels
-en release notes in de app (stap 8).
+en release notes in de app (stap 8) en openen vanaf de opdrachtregel (stap 9).
+
+## Opdrachtregel
+
+```
+db-viewer "Productie"                                  opgeslagen verbinding
+db-viewer mysql://stijn@db.example.com:3306/shop        URL (mysql, mariadb, postgres, mssql, sqlite)
+db-viewer C:\data\app.db                               SQLite-bestand
+db-viewer --type postgres --host db --user app --save   losse opties, en bewaren
+db-viewer mysql://app@localhost/shop?ssh=stijn@server   via SSH-tunnel
+db-viewer --help                                        alle opties
+```
+
+Wachtwoorden kunnen via `DBV_PASSWORD` en `DBV_SSH_PASSWORD`. Zonder `--save` is de verbinding
+tijdelijk. Draait de app al, dan opent de verbinding in hetzelfde venster. De parser staat in
+`electron/cli.ts`, het openen in `electron/launch.ts`; de installer zet `db-viewer.cmd` in het PATH
+(`build/installer.nsh`, gecontroleerd door de workflow Installer op Windows).
 
 ## Downloaden
 
@@ -159,6 +175,7 @@ scripts/         build van de Electron-bundels, testdatabases per type
 6. ~~Tabellen als tabbladen, in één rij met de SQL-tabbladen~~
 7. ~~Meer drivers: PostgreSQL, SQL Server, SQLite~~
 8. ~~SSH-tunnel en release notes in de app~~
-
-Mogelijke volgende stappen: zoomen met Ctrl+scrollwiel, exporteren (CSV, JSON, SQL), snel zoeken
-naar tabellen (Ctrl+P), query-geschiedenis, foreign keys volgen.
+9. ~~Openen vanaf de opdrachtregel~~ (0.9.0)
+10. Thema's en zoomen (0.10.0)
+11. Exporteren naar CSV, JSON en SQL (0.11.0)
+12. Query-geschiedenis (0.12.0), daarna testen en 1.0.0
