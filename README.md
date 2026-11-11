@@ -1,9 +1,11 @@
 # DB Viewer
 
 Lichtgewicht database viewer als desktop-app, gebouwd met **Angular**, **Electron** en **Node.js**.
-Klaar: MySQL/MariaDB-verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken
-(stap 3), een SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5) en
-tabellen en SQL naast elkaar in tabbladen (stap 6).
+Werkt met **MySQL/MariaDB**, **PostgreSQL**, **SQL Server** en **SQLite**.
+
+Klaar: verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken (stap 3), een
+SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5), tabellen en SQL naast
+elkaar in tabbladen (stap 6) en drivers voor PostgreSQL, SQL Server en SQLite (stap 7).
 
 ## Downloaden
 
@@ -21,13 +23,15 @@ npm install
 npm run dev        # Angular dev-server + Electron-venster
 ```
 
-Een lokale MySQL om tegen te testen:
+Een lokale database om tegen te testen:
 
 ```bash
 docker run -d --name dbv-mysql -e MYSQL_ROOT_PASSWORD=root -p 3306:3306 mysql:8.4
+docker run -d --name dbv-pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+docker run -d --name dbv-mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Str0ng!Passw0rd' -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-Maak in de app een verbinding met host `127.0.0.1`, poort `3306`, gebruiker `root`, wachtwoord `root`.
+Voor SQLite is niets nodig: kies in de app gewoon een `.db`-bestand.
 
 ## Scripts
 
@@ -37,18 +41,23 @@ Maak in de app een verbinding met host `127.0.0.1`, poort `3306`, gebruiker `roo
 | `npm run start:prod`       | Productiebuild draaien in Electron                       |
 | `npm run dist`             | Installer bouwen in `release/` (Windows, macOS of Linux) |
 | `npm test`                 | Unit-tests: main-proces (Vitest) en Angular              |
-| `npm run test:integration` | Driver-tests tegen een echte MySQL (zie hieronder)       |
+| `npm run test:integration` | Driver-tests tegen echte databases (zie hieronder)       |
 | `npm run typecheck`        | TypeScript-check van Electron- en Angular-code           |
 
 ### Integratietests
 
+Met de containers van hierboven:
+
 ```bash
-docker run -d --name dbv-mysql -e MYSQL_ROOT_PASSWORD=root -p 3306:3306 mysql:8.4
 mysql -h 127.0.0.1 -uroot -proot < scripts/setup-test-db.sql
+PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -f scripts/setup-test-db.postgres.sql
+node scripts/setup-test-db.mssql.mjs
 npm run test:integration
 ```
 
-De CI-workflow doet hetzelfde tegen een MySQL 8.4-container.
+Tests van een database die niet bereikbaar is worden overgeslagen (`MYSQL_TEST_HOST`, `PG_TEST_HOST`,
+`MSSQL_TEST_HOST`). De SQLite-tests draaien altijd mee, ook in `npm test`. De CI-workflow test tegen
+MySQL 8.4, PostgreSQL 16 en SQL Server 2022.
 
 ## Releases
 
@@ -77,7 +86,8 @@ werken alleen omdat de repository openbaar is.
 Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBridge)  ──IPC──▶  Electron main (Node.js)
                                                                                     ├─ IPC-handlers (zod-validatie)
                                                                                     ├─ ConnectionManager (pools per profiel)
-                                                                                    ├─ MySQL-driver (mysql2)
+                                                                                    ├─ drivers: MySQL (mysql2), PostgreSQL (pg),
+                                                                                    │  SQL Server (mssql), SQLite (node:sqlite, eigen proces)
                                                                                     └─ ConnectionStore (JSON + safeStorage)
 ```
 
@@ -86,7 +96,8 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 - **Wachtwoorden** worden versleuteld met Electron `safeStorage` (Keychain, DPAPI, libsecret) en opgeslagen in
   `connections.json` in de userData-map. Is er geen sleutelhanger (bijv. Linux zonder keyring), dan slaat de app
   geen wachtwoord op en vraagt het bij verbinden.
-- **Data alleen-lezen:** elke data-query draait in een `READ ONLY`-transactie met een limiet van
+- **Data alleen-lezen:** elke data-query draait in een `READ ONLY`-transactie (SQL Server: een
+  transactie die altijd wordt teruggedraaid; SQLite: `PRAGMA query_only`) met een limiet van
   30 seconden. Het WHERE-filter van de gebruiker staat op eigen regels tussen haakjes, zodat een
   `--`-commentaar de `LIMIT` niet kan wegnemen.
 - **SQL-editor:** elk tabblad heeft een eigen serververbinding (`USE`, variabelen en transacties
@@ -103,7 +114,22 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
   bewaart volgorde en actief tabblad in `localStorage`. Geopende tabbladen blijven gerenderd (verborgen
   als ze niet actief zijn), zodat pagina, filter, scrollpositie en niet-opgeslagen wijzigingen blijven.
 - **Exacte waarden:** `BIGINT`, `DECIMAL` en `DATETIME` komen als tekst binnen, zodat er geen precisie of
-  tijdzone verloren gaat.
+  tijdzone verloren gaat. PostgreSQL levert alles als tekst (alleen `bytea` als bytes); SQL Server zet
+  decimalen, geld en datums in de data-weergave server-side om naar tekst; SQLite leest gehele getallen
+  als `BigInt`.
+- **Per database:**
+
+  |               | Eerste niveau in de boom | Editor: sessie, limiet, Stop                         | Alleen-lezen                                   |
+  | ------------- | ------------------------ | ---------------------------------------------------- | ---------------------------------------------- |
+  | MySQL/MariaDB | databases                | eigen verbinding, `sql_select_limit`, `KILL QUERY`   | server (`READ ONLY`-sessie) + app              |
+  | PostgreSQL    | schema's van de database | eigen verbinding, cursor, `pg_cancel_backend`        | server (`default_transaction_read_only`) + app |
+  | SQL Server    | schema's van de database | eigen verbinding, batches op `GO`, attention-signaal | app: alleen lees-statements                    |
+  | SQLite        | `main` (en `ATTACH`)     | eigen proces per tabblad; Stop beëindigt dat proces  | bestand alleen-lezen geopend                   |
+
+  SQLite draait in een Electron utility-proces per verbinding: `node:sqlite` is synchroon en alleen
+  zo te onderbreken. Bij SQL Server splitst de editor alleen op `GO`, zoals SSMS: variabelen leven per
+  batch, en een batch met meerdere statements geeft meerdere resultaten.
+
 - **Venster:** `contextIsolation`, `sandbox`, geen `nodeIntegration`, een Content-Security-Policy, en IPC
   wordt alleen beantwoord voor ons eigen venster.
 
@@ -113,7 +139,7 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
 electron/        main-proces: main.ts, preload.ts, db/, ipc/, store/
 shared/          types en IPC-contract, gedeeld door Electron en Angular
 src/app/         Angular-UI: core/, features/connections/, schema/, data/, sql/, workspace/
-scripts/         build van de Electron-bundels, test-database
+scripts/         build van de Electron-bundels, testdatabases per type
 ```
 
 ## Volgende stappen
@@ -124,4 +150,7 @@ scripts/         build van de Electron-bundels, test-database
 4. ~~SQL-editor met resultaatgrid~~
 5. ~~Data wijzigen in de grid~~
 6. ~~Tabellen als tabbladen, in één rij met de SQL-tabbladen~~
-7. Meer drivers: PostgreSQL, SQL Server, SQLite
+7. ~~Meer drivers: PostgreSQL, SQL Server, SQLite~~
+
+Mogelijke volgende stappen: exporteren (CSV, JSON, SQL), snel zoeken naar tabellen (Ctrl+P),
+query-geschiedenis, foreign keys volgen, SSH-tunnel, zoomen met Ctrl+scrollwiel.

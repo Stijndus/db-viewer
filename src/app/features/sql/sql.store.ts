@@ -1,4 +1,4 @@
-import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { computed, DestroyRef, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import type { DbError, RunResult } from '../../../../shared/models';
 import { defaultContainer, DIALECTS } from '../../../../shared/dialect';
 import type { DbType } from '../../../../shared/models';
@@ -67,7 +67,15 @@ export class SqlStore {
   });
 
   constructor() {
-    if (typeof window !== 'undefined') window.addEventListener('pagehide', () => this.flush());
+    // Closing the window within the save pause must not lose the last keystrokes.
+    const onPageHide = () => this.flush();
+    window.addEventListener('pagehide', onPageHide);
+    // When the store itself goes away (tests), pending saves are dropped, not written later.
+    inject(DestroyRef).onDestroy(() => {
+      window.removeEventListener('pagehide', onPageHide);
+      for (const timer of this.saveTimers.values()) clearTimeout(timer);
+      this.saveTimers.clear();
+    });
     // A closed connection closes the server sessions of its tabs; nothing is left running.
     effect(() => {
       const status = this.connections.status();
