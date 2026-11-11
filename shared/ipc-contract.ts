@@ -53,6 +53,8 @@ export const IPC = {
   pickExportFile: 'dialog:export-file',
   startExport: 'transfer:export',
   showInFolder: 'shell:show-in-folder',
+  setAppearance: 'app:appearance',
+  zoom: 'app:zoom',
   pickDatabaseFile: 'dialog:database-file',
   pickKeyFile: 'dialog:key-file',
   trustHostKey: 'connections:trust-host-key',
@@ -60,6 +62,9 @@ export const IPC = {
 
 /** Pushed from main to the renderer whenever the update state changes. */
 export const UPDATE_STATE_EVENT = 'updates:state';
+
+/** Pushed when the zoom level changes (Ctrl+scroll, Ctrl+=, Ctrl+-, Ctrl+0). */
+export const ZOOM_EVENT = 'app:zoom-changed';
 
 /** Pushed while an import or export runs, and once when it ends. */
 export const TRANSFER_EVENT = 'transfer:progress';
@@ -162,6 +167,11 @@ export interface DbApi {
   takeLaunch(): Promise<Result<LaunchRequest | null>>;
   /** Later launches from the command line while the app runs. Returns an unsubscribe function. */
   onLaunch(listener: (launch: LaunchRequest) => void): () => void;
+  /** The window background for the next start (the theme's background colour). */
+  setAppearance(appearance: { background: string }): Promise<Result<void>>;
+  /** Zoom: 'in', 'out', 'reset', or 'get'; returns the factor (1 = 100%). */
+  zoom(action: 'in' | 'out' | 'reset' | 'get'): Promise<Result<number>>;
+  onZoom(listener: (factor: number) => void): () => void;
   /** Release notes bundled with the app, newest first. */
   releaseNotes(): Promise<Result<ReleaseNote[]>>;
   /** Restarts the app into the downloaded update. */

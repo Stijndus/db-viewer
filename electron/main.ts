@@ -1,8 +1,17 @@
-import { app, BrowserWindow, dialog, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  Menu,
+  safeStorage,
+  shell,
+  type IpcMainInvokeEvent,
+} from 'electron';
 import { statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { LAUNCH_EVENT } from '../shared/ipc-contract';
+import { LAUNCH_EVENT, ZOOM_EVENT } from '../shared/ipc-contract';
+import { nextZoom, SettingsFile } from './settings';
 import type { LaunchRequest, ReleaseNote } from '../shared/models';
 import { parseCli, USAGE, userArgs, type CliCommand } from './cli';
 import { launchEnv, resolveLaunch, type LaunchData } from './launch';
@@ -27,6 +36,23 @@ const cipher: SecretCipher = {
 
 let mainWindow: BrowserWindow | null = null;
 let manager: ConnectionManager | null = null;
+let settings: SettingsFile | null = null;
+
+/** Sets the zoom factor, remembers it and tells the page (for the indicator in the status bar). */
+function setZoom(factor: number): number {
+  const win = mainWindow;
+  if (!win) return factor;
+  win.webContents.setZoomFactor(factor);
+  settings?.update({ zoom: factor });
+  win.webContents.send(ZOOM_EVENT, factor);
+  return factor;
+}
+
+function zoom(action: 'in' | 'out' | 'reset' | 'get'): number {
+  const current = mainWindow?.webContents.getZoomFactor() ?? 1;
+  if (action === 'get') return current;
+  return setZoom(action === 'reset' ? 1 : nextZoom(current, action === 'in' ? 1 : -1));
+}
 
 // ── Command line ───────────────────────────────────────────────────
 // `db-viewer "Productie"`, `db-viewer mysql://…`, `db-viewer app.db`, `db-viewer --type …`.
@@ -76,7 +102,7 @@ function createWindow(): BrowserWindow {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#0E1014',
+    backgroundColor: settings?.get().background ?? '#0E1014',
     title: 'DB Viewer',
     show: false,
     webPreferences: {
@@ -89,6 +115,12 @@ function createWindow(): BrowserWindow {
   });
 
   win.once('ready-to-show', () => win.show());
+
+  // Zoom (Ctrl+scroll, Ctrl+= / Ctrl+-, Ctrl+0) is handled by the page and set through IPC, so
+  // it is remembered between starts.
+  win.webContents.on('did-finish-load', () =>
+    win.webContents.setZoomFactor(settings?.get().zoom ?? 1),
+  );
 
   // No popups, no navigating away from the app. External links open in the browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -118,6 +150,14 @@ function isTrustedSender(event: IpcMainInvokeEvent): boolean {
 
 function startApp(): void {
   app.whenReady().then(() => {
+    // No default menu (English File/Edit/View with reload, developer tools and its own zoom).
+    // macOS needs an Edit menu for the copy and paste shortcuts.
+    Menu.setApplicationMenu(
+      process.platform === 'darwin'
+        ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }])
+        : null,
+    );
+    settings = new SettingsFile(path.join(app.getPath('userData'), 'window.json'));
     const store = new ConnectionStore(
       path.join(app.getPath('userData'), 'connections.json'),
       cipher,
@@ -146,6 +186,11 @@ function startApp(): void {
         mainWindow ? dialog.showSaveDialog(mainWindow, options) : dialog.showSaveDialog(options),
       showInFolder: (file) => shell.showItemInFolder(file),
       documentsDir: app.getPath('documents'),
+      setAppearance: (background) => {
+        settings?.update({ background });
+        mainWindow?.setBackgroundColor(background);
+      },
+      zoom,
       send: (channel, payload) => mainWindow?.webContents.send(channel, payload),
       takeLaunch: () => {
         const launch = pendingLaunch;

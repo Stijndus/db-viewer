@@ -110,6 +110,24 @@
     @if (updates.statusText(); as status) {
       <span>{{ status }}</span>
     }
+    @if (zoom() !== 1) {
+      <button
+        type="button"
+        class="link-btn small zoom-indicator"
+        title="Zoom (Ctrl+scrollwiel, Ctrl+= en Ctrl+-). Klik voor 100%."
+        (click)="resetZoom()"
+      >
+        {{ zoomPercent() }}
+      </button>
+    }
+    <button
+      type="button"
+      class="link-btn small"
+      title="Thema kiezen (Ctrl+K Ctrl+T)"
+      (click)="theme.openPicker()"
+    >
+      Thema: {{ theme.label() }}
+    </button>
     @if (updates.notes().length) {
       <button type="button" class="link-btn small" (click)="updates.showAllNotes()">
         Release notes
@@ -148,6 +166,10 @@
 
 @if (store.passwordPrompt(); as prompt) {
   <app-password-prompt [prompt]="prompt" />
+}
+
+@if (theme.pickerOpen()) {
+  <app-theme-picker />
 }
 
 @if (transfer.exportFor(); as target) {

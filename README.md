@@ -6,7 +6,7 @@ Werkt met **MySQL/MariaDB**, **PostgreSQL**, **SQL Server** en **SQLite**.
 Klaar: verbindingen beheren (stap 1), het schema verkennen (stap 2), tabeldata bekijken (stap 3), een
 SQL-editor met automatische updates (stap 4), data wijzigen in de grid (stap 5), tabellen en SQL naast
 elkaar in tabbladen (stap 6), drivers voor PostgreSQL, SQL Server en SQLite (stap 7) en SSH-tunnels
-en release notes in de app (stap 8), openen vanaf de opdrachtregel (stap 9) en importeren en exporteren (stap 10).
+en release notes in de app (stap 8), openen vanaf de opdrachtregel (stap 9) importeren en exporteren (stap 10) en thema's en zoomen (stap 11).
 
 ## Opdrachtregel
 
@@ -127,6 +127,10 @@ Angular (renderer, geen Node)  ──window.dbApi──▶  preload (contextBrid
   dezelfde die de gebruiker bij "SQL bekijken" ziet). De server controleert eerst dat het een tabel is
   en dat de primaire sleutel klopt; elke `UPDATE`/`DELETE` heeft `LIMIT 1` en moet precies één rij
   raken, anders volgt een rollback.
+- **Thema's:** `src/app/core/themes.ts` definieert per thema elke kleurvariabele; `styles.scss` en de
+  SQL-editor gebruiken alleen die variabelen. `themes.spec.ts` controleert het contrast (WCAG) van elk
+  thema. Het thema staat in `localStorage` en wordt vóór het opstarten van Angular toegepast; de
+  achtergrond en de zoom staan ook in `window.json`, zodat het venster meteen in de goede kleur opent.
 - **Import en export:** `electron/transfer/`. Een SQL-import leest het bestand in stukken
   (`ScriptSplitter` in `shared/sql.ts` houdt quotes, `DELIMITER` en `GO` bij over de stukken heen) en
   voert het in batches uit op een eigen editor-sessie. Archieven gaan via de meegeleverde 7-Zip
@@ -183,6 +187,6 @@ scripts/         build van de Electron-bundels, testdatabases per type
 8. ~~SSH-tunnel en release notes in de app~~
 9. ~~Openen vanaf de opdrachtregel~~ (0.9.0)
 10. ~~SQL-import (ook uit versleutelde zip/7z) en export naar CSV, Excel, JSON en SQL~~ (0.10.0)
-11. CSV, JSON en Excel importeren in een tabel (0.11.0)
-12. Thema's en zoomen (0.12.0)
+11. ~~Thema's (zeven, met kiezer en voorbeeld) en zoomen~~ (0.11.0)
+12. CSV, JSON en Excel importeren in een tabel (0.12.0)
 13. Query-geschiedenis (0.13.0), daarna testen en 1.0.0

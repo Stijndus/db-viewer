@@ -3,6 +3,7 @@ import {
   IPC,
   LAUNCH_EVENT,
   TRANSFER_EVENT,
+  ZOOM_EVENT,
   UPDATE_STATE_EVENT,
   type DbApi,
 } from '../shared/ipc-contract';
@@ -45,6 +46,13 @@ const api: DbApi = {
   pickExportFile: (name) => ipcRenderer.invoke(IPC.pickExportFile, name),
   startExport: (id, request) => ipcRenderer.invoke(IPC.startExport, id, request),
   showInFolder: (file) => ipcRenderer.invoke(IPC.showInFolder, file),
+  setAppearance: (appearance) => ipcRenderer.invoke(IPC.setAppearance, appearance),
+  zoom: (action) => ipcRenderer.invoke(IPC.zoom, action),
+  onZoom: (listener) => {
+    const handler = (_event: unknown, factor: number) => listener(factor);
+    ipcRenderer.on(ZOOM_EVENT, handler);
+    return () => ipcRenderer.removeListener(ZOOM_EVENT, handler);
+  },
   onTransfer: (listener) => {
     const handler = (_event: unknown, progress: TransferProgress) => listener(progress);
     ipcRenderer.on(TRANSFER_EVENT, handler);

@@ -46,49 +46,58 @@ import {
   placeholder,
 } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
+import { ThemeStore } from '../../../core/theme.store';
 import type { EditorSnapshot } from '../sql.store';
 
 const highlight = HighlightStyle.define([
-  { tag: t.keyword, color: '#8cc4ff', fontWeight: '600' },
-  { tag: [t.string, t.special(t.string)], color: '#9fdba8' },
-  { tag: [t.number, t.bool, t.null], color: '#f0c674' },
-  { tag: t.comment, color: '#808894', fontStyle: 'italic' },
-  { tag: [t.operator, t.punctuation], color: '#a3abb6' },
-  { tag: t.typeName, color: '#c3a6ff' },
-  { tag: [t.special(t.name), t.quote], color: '#e7a6c8' },
+  { tag: t.keyword, color: 'var(--syn-keyword)', fontWeight: '600' },
+  { tag: [t.string, t.special(t.string)], color: 'var(--syn-string)' },
+  { tag: [t.number, t.bool, t.null], color: 'var(--syn-number)' },
+  { tag: t.comment, color: 'var(--syn-comment)', fontStyle: 'italic' },
+  { tag: [t.operator, t.punctuation], color: 'var(--syn-operator)' },
+  { tag: t.typeName, color: 'var(--syn-type)' },
+  { tag: [t.special(t.name), t.quote], color: 'var(--syn-special)' },
 ]);
 
 const theme = EditorView.theme(
   {
-    '&': { height: '100%', backgroundColor: '#0e1014', color: '#e7e9ec', fontSize: '13px' },
+    '&': { height: '100%', backgroundColor: 'var(--bg)', color: 'var(--text)', fontSize: '13px' },
     '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.6' },
-    '.cm-content': { caretColor: '#5aa9ff', padding: '8px 0' },
+    '.cm-content': { caretColor: 'var(--accent)', padding: '8px 0' },
     '.cm-gutters': {
-      backgroundColor: '#121419',
-      color: '#5c6470',
+      backgroundColor: 'var(--editor-gutter)',
+      color: 'var(--editor-gutter-text)',
       border: 'none',
-      borderRight: '1px solid #2a2f38',
+      borderRight: '1px solid var(--border)',
     },
-    '.cm-activeLine': { backgroundColor: '#151a22' },
-    '.cm-activeLineGutter': { backgroundColor: '#151a22', color: '#a3abb6' },
+    '.cm-activeLine': { backgroundColor: 'var(--editor-active-line)' },
+    '.cm-activeLineGutter': {
+      backgroundColor: 'var(--editor-active-line)',
+      color: 'var(--text-2)',
+    },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {
-      backgroundColor: '#264a75 !important',
+      backgroundColor: 'var(--editor-selection) !important',
     },
-    '.cm-cursor': { borderLeftColor: '#5aa9ff' },
-    '.cm-matchingBracket': { backgroundColor: '#2a3a52', outline: 'none' },
-    '.cm-selectionMatch': { backgroundColor: '#22303f' },
-    '.cm-placeholder': { color: '#5c6470' },
-    '.cm-tooltip': { backgroundColor: '#1b1f26', border: '1px solid #2a2f38', borderRadius: '6px' },
+    '.cm-cursor': { borderLeftColor: 'var(--accent)' },
+    '.cm-matchingBracket': { backgroundColor: 'var(--editor-match)', outline: 'none' },
+    '.cm-selectionMatch': { backgroundColor: 'var(--editor-selection-match)' },
+    '.cm-placeholder': { color: 'var(--editor-gutter-text)' },
+    '.cm-tooltip': {
+      backgroundColor: 'var(--panel-2)',
+      border: '1px solid var(--border)',
+      color: 'var(--text)',
+      borderRadius: '6px',
+    },
     '.cm-tooltip-autocomplete > ul > li': { fontFamily: 'var(--mono)', padding: '2px 8px' },
     '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-      backgroundColor: '#1f2e44',
-      color: '#e7e9ec',
+      backgroundColor: 'var(--accent-soft)',
+      color: 'var(--text)',
     },
-    '.cm-completionDetail': { color: '#808894', fontStyle: 'normal', marginLeft: '8px' },
-    '.cm-panels': { backgroundColor: '#15181e', color: '#e7e9ec' },
+    '.cm-completionDetail': { color: 'var(--text-3)', fontStyle: 'normal', marginLeft: '8px' },
+    '.cm-panels': { backgroundColor: 'var(--panel)', color: 'var(--text)' },
     '.cm-panels input, .cm-panels button': { fontSize: '12px' },
   },
-  { dark: true },
+  // Colours come from the active theme (CSS variables).
 );
 
 /** CodeMirror 6 with dialect highlighting, schema-aware autocompletion and run shortcuts. */
@@ -111,6 +120,9 @@ export class CodeEditor {
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
   private readonly destroyRef = inject(DestroyRef);
   private readonly language = new Compartment();
+  /** Light or dark CodeMirror defaults (tooltips, search panel), following the theme. */
+  private readonly darkness = new Compartment();
+  private readonly themeStore = inject(ThemeStore);
   private view: EditorView | null = null;
 
   constructor() {
@@ -151,10 +163,18 @@ export class CodeEditor {
               if (u.docChanged) this.textChange.emit(u.state.doc.toString());
             }),
             theme,
+            this.darkness.of(EditorView.darkTheme.of(untracked(this.themeStore.shown).dark)),
           ],
         }),
       });
       this.destroyRef.onDestroy(() => this.view?.destroy());
+    });
+
+    effect(() => {
+      const dark = this.themeStore.shown().dark;
+      untracked(() =>
+        this.view?.dispatch({ effects: this.darkness.reconfigure(EditorView.darkTheme.of(dark)) }),
+      );
     });
 
     // Schema or dialect changed: swap the language config without touching the text.

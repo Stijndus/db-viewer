@@ -20,6 +20,34 @@
   --err-text: #f59a96;
   --err-bg: #2a1616;
   --err-border: #5a2a2a;
+  --err-ink: #2a0b0a;
+  --accent-text: #8cc4ff;
+  --accent-border: #35537a;
+  --select-bg: #1f2632;
+  --hover: #1a1f27;
+  --border-soft: #1e232b;
+  --grid-line: #1a1e25;
+  --tabbar: #121419;
+  --warn-text: #f0c674;
+  --warn-bg: #3a2e14;
+  --warn-border: #5a4520;
+  --warn-soft: #2a2110;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --backdrop: rgba(5, 7, 10, 0.72);
+  /* SQL editor */
+  --syn-keyword: #8cc4ff;
+  --syn-string: #9fdba8;
+  --syn-number: #f0c674;
+  --syn-comment: #808894;
+  --syn-operator: #a3abb6;
+  --syn-type: #c3a6ff;
+  --syn-special: #e7a6c8;
+  --editor-gutter: #121419;
+  --editor-gutter-text: #5c6470;
+  --editor-active-line: #151a22;
+  --editor-selection: #264a75;
+  --editor-match: #2a3a52;
+  --editor-selection-match: #22303f;
   --radius: 8px;
   --font: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'SF Mono', monospace;
@@ -28,6 +56,12 @@
 
 * {
   box-sizing: border-box;
+}
+/* Checkboxes, radio buttons and range sliders in the theme's accent, everywhere. */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  accent-color: var(--accent);
 }
 html,
 body {
@@ -257,7 +291,7 @@ app-connection-list {
   background: var(--panel-2);
 }
 .conn-item.active {
-  background: #1f2632;
+  background: var(--select-bg);
 }
 .conn-text {
   display: flex;
@@ -293,7 +327,7 @@ app-connection-list {
   background: var(--err);
 }
 .color-blue {
-  background: var(--accent);
+  background: var(--label-blue);
 }
 
 /* Status */
@@ -484,8 +518,8 @@ app-connection-list {
   font-weight: 500;
   padding: 4px 8px;
   border-radius: 6px;
-  background: #1b2a3d;
-  color: #8cc4ff;
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 .error-text {
   font-size: 13px;
@@ -528,7 +562,7 @@ app-connection-list {
   border-radius: 14px;
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 64px var(--shadow);
 }
 .dialog-sm {
   width: 420px;
@@ -545,7 +579,7 @@ app-connection-list {
   min-height: 0;
 }
 .dialog::backdrop {
-  background: rgba(5, 7, 10, 0.72);
+  background: var(--backdrop);
 }
 .dialog-head {
   display: flex;
@@ -908,7 +942,7 @@ app-connection-home {
 }
 .grid td {
   padding: 9px 12px;
-  border-bottom: 1px solid #1e232b;
+  border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
 }
 .grid tbody tr:nth-child(even) {
@@ -925,7 +959,7 @@ app-connection-home {
   font-weight: 500;
 }
 .grid .type {
-  color: #8cc4ff;
+  color: var(--accent-text);
   word-break: break-word;
 }
 .grid .comment {
@@ -942,8 +976,8 @@ app-connection-home {
   letter-spacing: 0.02em;
 }
 .key-tag.pk {
-  background: #3a2e14;
-  color: #f0c674;
+  background: var(--warn-bg);
+  color: var(--warn-text);
 }
 
 /* ── Step 3: table data ────────────────────────────────────────── */
@@ -1020,7 +1054,7 @@ app-table-data {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(14, 16, 20, 0.45);
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
   pointer-events: none;
 }
 .dt-empty {
@@ -1110,7 +1144,7 @@ app-data-grid {
   gap: 1px;
   padding: 0 10px;
   border: none;
-  border-right: 1px solid #1e232b;
+  border-right: 1px solid var(--border-soft);
   background: transparent;
   color: var(--text);
   text-align: left;
@@ -1144,7 +1178,7 @@ app-data-grid {
 }
 .dg-key {
   flex-shrink: 0;
-  color: #f0c674;
+  color: var(--warn-text);
 }
 .dg-sort {
   color: var(--accent);
@@ -1168,7 +1202,7 @@ app-data-grid {
   background: var(--row-alt);
 }
 .dg-row:hover {
-  background: #1a1f27;
+  background: var(--hover);
 }
 .dg-num {
   position: sticky;
@@ -1196,8 +1230,8 @@ app-data-grid {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-right: 1px solid #1a1e25;
-  border-bottom: 1px solid #1a1e25;
+  border-right: 1px solid var(--grid-line);
+  border-bottom: 1px solid var(--grid-line);
   cursor: default;
 }
 .dg-cell.num {
@@ -1215,7 +1249,7 @@ app-data-grid {
   color: var(--text-3);
 }
 .dg-cell.is-binary {
-  color: #c3a6ff;
+  color: var(--syn-type);
 }
 .dg-cell.is-truncated::after {
   content: ' …';
@@ -1225,18 +1259,18 @@ app-data-grid {
 /* ── Step 4: workspace, SQL editor, updates ────────────────────── */
 .btn-danger {
   background: var(--err);
-  color: #2a0b0a;
+  color: var(--err-ink);
   font-weight: 600;
 }
 .banner-warn {
-  border-color: #5a4520;
-  background: #2a2110;
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
 }
 .banner-warn strong {
-  color: #f0c674;
+  color: var(--warn-text);
 }
 .warn-text {
-  color: #f0c674;
+  color: var(--warn-text);
 }
 .ok-text {
   color: var(--ok-text);
@@ -1252,8 +1286,8 @@ app-data-grid {
   height: 20px;
   padding: 0 7px;
   border-radius: 5px;
-  background: #3a2e14;
-  color: #f0c674;
+  background: var(--warn-bg);
+  color: var(--warn-text);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1293,7 +1327,7 @@ app-workspace {
   gap: 2px;
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
-  background: #121419;
+  background: var(--tabbar);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -1322,7 +1356,7 @@ app-workspace {
 }
 .ws-tab:hover:not(.active) {
   color: var(--text);
-  background: #171b22;
+  background: var(--hover);
 }
 .ws-tab .mono {
   font-family: var(--mono);
@@ -1405,7 +1439,7 @@ app-workspace {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 30px var(--shadow);
 }
 .tab-menu button {
   height: 30px;
@@ -1523,7 +1557,7 @@ app-code-editor,
   outline: none;
 }
 .sql-editor:focus-within {
-  border-color: #35537a;
+  border-color: var(--accent-border);
 }
 .sql-divider {
   flex-shrink: 0;
@@ -1577,7 +1611,7 @@ app-code-editor,
 }
 .result-tab.active {
   background: var(--accent-soft);
-  border-color: #35537a;
+  border-color: var(--accent-border);
   color: var(--text);
 }
 .result-tab.is-error {
@@ -1618,7 +1652,7 @@ app-code-editor,
   gap: 8px 12px;
   padding: 8px 16px;
   background: var(--accent-soft);
-  border-bottom: 1px solid #35537a;
+  border-bottom: 1px solid var(--accent-border);
   font-size: 13px;
 }
 .update-banner .push {
@@ -1662,7 +1696,7 @@ app-code-editor,
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #f0c674;
+  color: var(--warn-text);
 }
 .confirm-list code {
   font-size: 12px;
@@ -1690,33 +1724,33 @@ app-code-editor,
 .change-count {
   padding: 3px 9px;
   border-radius: 999px;
-  background: #3a2e14;
-  color: #f0c674;
+  background: var(--warn-bg);
+  color: var(--warn-text);
   font-size: 12px;
   font-weight: 600;
 }
 .dg-cell.edited {
-  background: rgba(240, 198, 116, 0.12);
-  box-shadow: inset 3px 0 0 #f0c674;
+  background: color-mix(in srgb, var(--warn-text) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--warn-text);
 }
 .dg-cell.edited.selected {
   box-shadow:
     inset 0 0 0 2px var(--accent),
-    inset 3px 0 0 #f0c674;
+    inset 3px 0 0 var(--warn-text);
 }
 .dg-cell.is-default {
   color: var(--text-3);
   font-style: italic;
 }
 .dg-row.is-new {
-  background: rgba(63, 185, 122, 0.08);
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
 }
 .dg-row.is-new .dg-num {
   color: var(--ok-text);
   font-weight: 700;
 }
 .dg-row.is-deleted {
-  background: rgba(242, 112, 107, 0.1);
+  background: color-mix(in srgb, var(--err) 10%, transparent);
 }
 .dg-row.is-deleted .dg-cell {
   text-decoration: line-through;
@@ -2035,4 +2069,65 @@ app-object-view [hidden] {
 }
 input.input-sm[type='number'] {
   width: 90px;
+}
+
+/* Theme picker: at the top like a quick pick, with the app visible behind it */
+.theme-picker {
+  width: min(520px, calc(100vw - 32px));
+  margin-top: 64px;
+}
+.theme-picker::backdrop {
+  background: transparent;
+}
+.theme-picker .dialog-head {
+  padding: 14px 18px 12px;
+}
+.theme-picker .dialog-head h2 {
+  font-size: 15px;
+}
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.theme-option.active {
+  background: var(--select-bg);
+}
+.theme-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.theme-text strong {
+  font-weight: 600;
+  color: var(--text);
+}
+.theme-swatches {
+  display: inline-flex;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.theme-swatches span {
+  width: 14px;
+  height: 26px;
+}
+.theme-current {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.zoom-indicator {
+  font-variant-numeric: tabular-nums;
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import {
   ipcMain,
   type IpcMainInvokeEvent,
@@ -51,6 +52,8 @@ export interface HandlerDeps {
   pickSaveFile(options: SaveDialogOptions): Promise<{ canceled: boolean; filePath?: string }>;
   showInFolder(file: string): void;
   documentsDir?: string;
+  setAppearance(background: string): void;
+  zoom(action: 'in' | 'out' | 'reset' | 'get'): number;
   /** Sends an event to the window (import and export progress). */
   send(channel: string, payload: unknown): void;
   /** The command line's launch, once; null afterwards. */
@@ -124,6 +127,12 @@ export function registerHandlers(deps: HandlerDeps): void {
 
   handle(IPC.releaseNotes, () => deps.releaseNotes());
   handle(IPC.takeLaunch, () => deps.takeLaunch());
+
+  handle(IPC.setAppearance, (raw) => {
+    const { background } = z.object({ background: z.string().regex(/^#[0-9a-f]{6}$/i) }).parse(raw);
+    deps.setAppearance(background);
+  });
+  handle(IPC.zoom, (raw) => deps.zoom(z.enum(['in', 'out', 'reset', 'get']).parse(raw)));
 
   // Import and export: long jobs that report progress as events and can be cancelled.
   const jobs = new Map<string, AbortController>();
