@@ -100,7 +100,7 @@ async function openOutput(request: ExportRequest, innerName: string): Promise<Ou
       finish: () => endAndWait(count, file),
       abort: async () => {
         count.destroy();
-        file.destroy();
+        await destroyAndWait(file);
         await fs.rm(target, { force: true });
       },
     };
@@ -115,7 +115,7 @@ async function openOutput(request: ExportRequest, innerName: string): Promise<Ou
       finish: () => endAndWait(count, file),
       abort: async () => {
         count.destroy();
-        file.destroy();
+        await destroyAndWait(file);
         await fs.rm(target, { force: true });
       },
     };
@@ -194,11 +194,23 @@ async function openOutput(request: ExportRequest, innerName: string): Promise<Ou
     },
     abort: async () => {
       count.destroy();
-      file.destroy();
+      await destroyAndWait(file);
       await cleanup();
       await fs.rm(target, { force: true });
     },
   };
+}
+
+/**
+ * Destroys a file stream and waits until its handle is closed. A stream that is still opening
+ * would otherwise create the file after we removed it.
+ */
+function destroyAndWait(file: Writable): Promise<void> {
+  return new Promise((resolve) => {
+    if (file.closed) return resolve();
+    file.once('close', () => resolve());
+    file.destroy();
+  });
 }
 
 function endAndWait(stream: Writable, file: Writable): Promise<void> {

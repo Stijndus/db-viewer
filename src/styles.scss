@@ -596,10 +596,23 @@ app-connection-list {
 }
 .dialog-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 16px 24px 20px;
   border-top: 1px solid var(--border);
+}
+/* Buttons never break their label or get squeezed; the row wraps instead. */
+.dialog-foot .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.foot-end {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
 }
 .field {
   display: flex;

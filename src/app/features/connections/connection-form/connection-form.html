@@ -355,13 +355,15 @@
         Verwijderen
       </button>
     }
-    <span class="grow"></span>
-    <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
-    <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="save(false)">
-      Opslaan
-    </button>
-    <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="save(true)">
-      Opslaan en verbinden
-    </button>
+    <!-- One group, so on a narrow window it moves to its own line as a whole. -->
+    <div class="foot-end">
+      <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
+      <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="save(false)">
+        Opslaan
+      </button>
+      <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="save(true)">
+        Opslaan en verbinden
+      </button>
+    </div>
   </div>
 </dialog>
