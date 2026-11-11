@@ -21,6 +21,7 @@ import {
 } from './common';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
 import { SqliteConnection } from './sqlite.connection';
+import * as exporter from './sqlite.export';
 import * as meta from './sqlite.metadata';
 
 export function buildSelect(database: string, table: string, req: RowsRequest): string {
@@ -82,6 +83,9 @@ export const sqliteDriver: DbDriver = {
       listObjects: (database) => meta.listObjects(reader, database),
       listColumns: (database, table) => meta.listColumns(reader, database, table),
       listAllColumns: (database) => meta.listAllColumns(reader, database),
+
+      streamRows: (source, onBatch, signal) => exporter.streamRows(file, source, onBatch, signal),
+      tableDdl: (database, table) => exporter.tableDdl(reader, database, table),
 
       async readRows(database, table, req): Promise<RowsPage> {
         const started = performance.now();

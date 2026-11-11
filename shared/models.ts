@@ -299,3 +299,32 @@ export interface TransferProgress {
   /** Export: the file written. */
   file?: string;
 }
+
+export type ExportFormat = 'csv' | 'json' | 'sql' | 'xlsx';
+
+/** What to export: a table (with the grid's filter and sort), a query's result, or a database. */
+export type ExportSource =
+  | { kind: 'table'; database: string; table: string; where?: string; orderBy: SortKey[] }
+  | { kind: 'query'; sql: string; database?: string }
+  /** Several tables as one SQL script: structure, data, or both. */
+  | { kind: 'database'; database: string; tables: string[]; structure: boolean; data: boolean };
+
+export interface ExportRequest {
+  source: ExportSource;
+  format: ExportFormat;
+  /** The file to write (chosen in the save dialog). */
+  file: string;
+  csv?: { delimiter: ',' | ';' | '\t'; header: boolean; bom: boolean };
+  json?: { style: 'array' | 'lines' };
+  sql?: {
+    /** Rows per INSERT statement. */
+    rowsPerInsert: number;
+    /** Table name in the INSERTs of a query export. */
+    tableName?: string;
+    /** Single tables: also write CREATE TABLE (and DROP TABLE IF EXISTS). */
+    createTable?: boolean;
+    dropTable?: boolean;
+  };
+  /** Pack the file: gzip, zip or 7z; zip and 7z can have a password (AES-256). */
+  archive?: { kind: 'gzip' | 'zip' | '7z'; password?: string };
+}

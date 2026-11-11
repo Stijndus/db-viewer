@@ -20,6 +20,9 @@ export type WorkerRequest =
       guard?: boolean;
     }
   | { op: 'exec'; sql: string }
+  /** Export: starts reading a SELECT; `next` returns the following rows, done when fewer come. */
+  | { op: 'cursor'; sql: string }
+  | { op: 'next'; count: number }
   | { op: 'close' };
 
 export interface QueryResponse {
@@ -33,6 +36,7 @@ export interface QueryResponse {
 }
 
 let db: DatabaseSync | null = null;
+let cursor: { columns: string[]; rows: Iterator<unknown> } | null = null;
 
 function handle(req: WorkerRequest): unknown {
   switch (req.op) {
@@ -46,6 +50,26 @@ function handle(req: WorkerRequest): unknown {
     case 'exec':
       connection().exec(req.sql);
       return null;
+    case 'cursor': {
+      const stmt = connection().prepare(req.sql);
+      stmt.setReadBigInts(true);
+      stmt.setReturnArrays(true);
+      cursor = { columns: stmt.columns().map((c) => c.name), rows: stmt.iterate() };
+      return cursor.columns;
+    }
+    case 'next': {
+      if (!cursor) return { rows: [], done: true };
+      const rows: unknown[] = [];
+      while (rows.length < req.count) {
+        const next = cursor.rows.next();
+        if (next.done) {
+          cursor = null;
+          return { rows, done: true };
+        }
+        rows.push(next.value);
+      }
+      return { rows, done: false };
+    }
     case 'close':
       db?.close();
       db = null;

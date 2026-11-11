@@ -166,6 +166,16 @@ export class SqliteConnection {
     }
   }
 
+  /** Export: starts a cursor over a SELECT and returns its column names. */
+  async openCursor(sql: string): Promise<string[]> {
+    await this.open();
+    return this.send<string[]>({ op: 'cursor', sql });
+  }
+
+  nextRows(count: number): Promise<{ rows: unknown[][]; done: boolean }> {
+    return this.send({ op: 'next', count });
+  }
+
   async exec(sql: string): Promise<void> {
     await this.open();
     await this.send({ op: 'exec', sql });

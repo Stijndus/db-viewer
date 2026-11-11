@@ -3,6 +3,7 @@ import { refuseReadOnly } from './common';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
 import { mssqlError, poolConfig } from './mssql.common';
 import * as data from './mssql.data';
+import * as exporter from './mssql.export';
 import { MssqlEditorSessions } from './mssql.editor';
 import * as meta from './mssql.metadata';
 
@@ -39,6 +40,8 @@ export const mssqlDriver: DbDriver = {
       listColumns: (schema, table) => guard(meta.listColumns(pool, schema, table)),
       listAllColumns: (schema) => guard(meta.listAllColumns(pool, schema)),
       readRows: (schema, table, request) => data.readRows(pool, schema, table, request),
+      streamRows: (source, onBatch, signal) => exporter.streamRows(pool, source, onBatch, signal),
+      tableDdl: (schema, table) => exporter.tableDdl(pool, schema, table),
       countRows: (schema, table, where) => data.countRows(pool, schema, table, where),
       async applyChanges(schema, table, changes) {
         refuseReadOnly(cfg.readOnly);

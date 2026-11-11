@@ -141,7 +141,10 @@ export interface DbApi {
   /** What is in the file: a script, or the files in an archive (password needed for hidden names). */
   inspectImportFile(file: string, password?: string): Promise<Result<ImportFileInfo>>;
   /** Starts running a SQL script on a connection; progress arrives through onTransfer. */
-  startSqlImport(connectionId: string, request: SqlImportRequest): Promise<Result<{ jobId: string }>>;
+  startSqlImport(
+    connectionId: string,
+    request: SqlImportRequest,
+  ): Promise<Result<{ jobId: string }>>;
   cancelTransfer(jobId: string): Promise<Result<void>>;
   onTransfer(listener: (progress: TransferProgress) => void): () => void;
 

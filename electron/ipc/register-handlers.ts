@@ -137,7 +137,15 @@ export function registerHandlers(deps: HandlerDeps): void {
     const controller = new AbortController();
     jobs.set(jobId, controller);
     const report = (p: TransferProgress) => deps.send(TRANSFER_EVENT, p);
-    void importSql(session, profile.type, profile.readOnly, request, jobId, report, controller.signal)
+    void importSql(
+      session,
+      profile.type,
+      profile.readOnly,
+      request,
+      jobId,
+      report,
+      controller.signal,
+    )
       .then(report, (err: unknown) =>
         report({
           jobId,

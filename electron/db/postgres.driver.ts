@@ -2,6 +2,7 @@ import pg from 'pg';
 import { refuseReadOnly } from './common';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
 import * as data from './postgres.data';
+import * as exporter from './postgres.export';
 import { clientConfig, pgError } from './postgres.common';
 import { PgEditorSessions } from './postgres.editor';
 import * as meta from './postgres.metadata';
@@ -32,6 +33,8 @@ export const postgresDriver: DbDriver = {
       listColumns: (schema, table) => guard(meta.listColumns(pool, schema, table)),
       listAllColumns: (schema) => guard(meta.listAllColumns(pool, schema)),
       readRows: (schema, table, request) => guard(data.readRows(pool, schema, table, request)),
+      streamRows: (source, onBatch, signal) => exporter.streamRows(pool, source, onBatch, signal),
+      tableDdl: (schema, table) => guard(exporter.tableDdl(pool, schema, table)),
       countRows: (schema, table, where) => guard(data.countRows(pool, schema, table, where)),
       async applyChanges(schema, table, changes) {
         refuseReadOnly(cfg.readOnly);

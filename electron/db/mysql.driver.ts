@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import { refuseReadOnly } from './common';
 import type { ConnectionConfig, DbDriver, DbSession } from './driver';
 import * as data from './mysql.data';
+import * as exporter from './mysql.export';
 import { EditorSessions } from './mysql.editor';
 import * as meta from './mysql.metadata';
 
@@ -59,6 +60,8 @@ export const mysqlDriver: DbDriver = {
         refuseReadOnly(cfg.readOnly);
         return data.applyChanges(pool, database, table, changes);
       },
+      streamRows: (source, onBatch, signal) => exporter.streamRows(pool, source, onBatch, signal),
+      tableDdl: (database, table) => exporter.tableDdl(pool, database, table),
       runScript: (tabId, request) => editors.run(tabId, request),
       cancelScript: (tabId) => editors.cancel(tabId),
       closeEditor: (tabId) => editors.close(tabId),

@@ -30,6 +30,8 @@ function fakeDriver() {
         runScript: async () => ({ results: [], database: null }),
         cancelScript: async () => undefined,
         closeEditor: async () => undefined,
+        streamRows: async () => undefined,
+        tableDdl: async () => '',
         close: async () => closed(),
       };
       return session;
