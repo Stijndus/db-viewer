@@ -11,7 +11,10 @@ import { AppError } from '../ipc/errors';
 import { refuseReadOnly } from './common';
 import type { DbSession } from './driver';
 
-/** A row's values in column order, whether the driver returns arrays or objects. */
+/**
+ * A row's values in column order, whether the driver returns arrays or objects. Every query here
+ * names its columns: SQL Server puts unnamed columns together under one empty key.
+ */
 function values(row: unknown): unknown[] {
   if (Array.isArray(row)) return row;
   return row && typeof row === 'object' ? Object.values(row) : [];
@@ -61,10 +64,10 @@ export async function objectDefinition(
         kind === 'view'
           ? `SELECT 'CREATE OR REPLACE ' || CASE c.relkind WHEN 'm' THEN 'MATERIALIZED ' ELSE '' END
                     || 'VIEW ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname)
-                    || E' AS\\n' || pg_get_viewdef(c.oid, true)
+                    || E' AS\\n' || pg_get_viewdef(c.oid, true) AS definition
                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
               WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind IN ('v', 'm')`
-          : `SELECT pg_get_functiondef(p.oid)
+          : `SELECT pg_get_functiondef(p.oid) AS definition
                FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
               WHERE n.nspname = $1 AND p.proname = $2 AND p.prokind = $3
               ORDER BY p.oid LIMIT 1`;
@@ -72,7 +75,7 @@ export async function objectDefinition(
         kind === 'view' ? [database, name] : [database, name, kind === 'procedure' ? 'p' : 'f'];
       break;
     case 'mssql':
-      sql = 'SELECT OBJECT_DEFINITION(OBJECT_ID(@p1))';
+      sql = 'SELECT OBJECT_DEFINITION(OBJECT_ID(@p1)) AS definition';
       params = [target];
       break;
     case 'sqlite':
@@ -96,7 +99,7 @@ export async function routineParams(
   let params: unknown[];
   switch (type) {
     case 'mysql':
-      sql = `SELECT PARAMETER_NAME, PARAMETER_MODE, DTD_IDENTIFIER
+      sql = `SELECT PARAMETER_NAME AS name, PARAMETER_MODE AS mode, DTD_IDENTIFIER AS type
                FROM information_schema.PARAMETERS
               WHERE SPECIFIC_SCHEMA = ? AND SPECIFIC_NAME = ? AND ROUTINE_TYPE = ?
                 AND ORDINAL_POSITION > 0
@@ -105,8 +108,9 @@ export async function routineParams(
       break;
     case 'postgres':
       // Overloaded routines: the parameters of the first one, like the definition.
-      sql = `SELECT COALESCE(a.name, ''), CASE a.mode WHEN 'o' THEN 'OUT' WHEN 'b' THEN 'INOUT' ELSE 'IN' END,
-                    format_type(a.type, NULL)
+      sql = `SELECT COALESCE(a.name, '') AS name,
+                    CASE a.mode WHEN 'o' THEN 'OUT' WHEN 'b' THEN 'INOUT' ELSE 'IN' END AS mode,
+                    format_type(a.type, NULL) AS type
                FROM (SELECT p.* FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                       WHERE n.nspname = $1 AND p.proname = $2 AND p.prokind = $3
                       ORDER BY p.oid LIMIT 1) p,
@@ -119,8 +123,9 @@ export async function routineParams(
       params = [database, name, kind === 'procedure' ? 'p' : 'f'];
       break;
     case 'mssql':
-      sql = `SELECT SUBSTRING(name, 2, 128), CASE WHEN is_output = 1 THEN 'INOUT' ELSE 'IN' END,
-                    TYPE_NAME(user_type_id)
+      sql = `SELECT SUBSTRING(name, 2, 128) AS name,
+                    CASE WHEN is_output = 1 THEN 'INOUT' ELSE 'IN' END AS mode,
+                    TYPE_NAME(user_type_id) AS type
                FROM sys.parameters
               WHERE object_id = OBJECT_ID(@p1) AND parameter_id > 0
               ORDER BY parameter_id`;
