@@ -1,5 +1,5 @@
 import { quoteIdent, stringLiteral } from '../../../../../shared/dialect';
-import type { DbType } from '../../../../../shared/models';
+import type { DbType, ExportSource } from '../../../../../shared/models';
 import type { GridCell } from './data-grid';
 
 /** How a block of cells can be copied. */
@@ -124,4 +124,24 @@ export function formatBlock(block: CopyBlock, format: CopyFormat, options: CopyO
       return `INSERT INTO ${quoteIdent(options.table, options.dialect)} (${names}) VALUES\n${values};`;
     }
   }
+}
+
+/** Rows as the grid shows them, for an export: binary as 0x… hex, cut-off text as far as loaded. */
+export function gridValues(
+  columns: { name: string; numeric: boolean }[],
+  rows: GridCell[][],
+): Extract<ExportSource, { kind: 'values' }> {
+  return {
+    kind: 'values',
+    columns: columns.map((c) => c.name),
+    numeric: columns.map((c) => c.numeric),
+    rows: rows.map((row) =>
+      row.map((cell) => {
+        if (cell === null || typeof cell === 'string') return cell;
+        if (cell.kind === 'default') return null;
+        if (cell.kind === 'binary') return `0x${cell.hex.toUpperCase()}`;
+        return cell.text;
+      }),
+    ),
+  };
 }

@@ -27,6 +27,7 @@ import { ConnectionsStore } from '../../connections/connections.store';
 import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { TransferStore } from '../../transfer/transfer.store';
+import { gridValues } from '../data-grid/copy-formats';
 import {
   DataGrid,
   DEFAULT_CELL,
@@ -284,6 +285,54 @@ export class TableData {
     const keys = order.map((k) => `${k.column} ${k.direction === 'asc' ? '↑' : '↓'}`).join(', ');
     return this.sort() ? `Gesorteerd op ${keys}` : `Op primaire sleutel (${keys})`;
   });
+
+  /**
+   * Export dialog for selected rows. With a primary key and no unsaved changes in them, the rows
+   * are fetched again by key (complete values); otherwise exactly as the grid shows them.
+   */
+  protected exportRows(indexes: number[]): void {
+    const o = this.object();
+    const page = this.page();
+    if (!page || indexes.length === 0) return;
+    const { edits, deleted } = this.pending();
+    const pk = this.primaryKey();
+    const pkIndex = pk.map((name) => page.columns.indexOf(name));
+    const saved = indexes.every((r) => r < page.rows.length && !edits[r] && !deleted.includes(r));
+    const keys =
+      saved && pk.length > 0 && pkIndex.every((i) => i >= 0)
+        ? indexes.map((r) => pkIndex.map((i) => page.rows[r]?.[i!] ?? null))
+        : null;
+    const n = indexes.length;
+    const rows = `${n} ${n === 1 ? 'rij' : 'rijen'}`;
+    if (keys && keys.every((k) => k.every((v) => v === null || typeof v === 'string'))) {
+      this.transfer.openExport({
+        connectionId: o.connectionId,
+        title: `${rows} uit ${o.name}`,
+        baseName: o.name,
+        note: `De geselecteerde ${rows} worden opnieuw opgehaald op primaire sleutel, met alle waarden volledig.`,
+        source: {
+          kind: 'keys',
+          database: o.database,
+          table: o.name,
+          keyColumns: pk,
+          keys: keys as (string | null)[][],
+        },
+      });
+      return;
+    }
+    const shown = this.displayRows();
+    const cols = this.gridColumns();
+    this.transfer.openExport({
+      connectionId: o.connectionId,
+      title: `${rows} uit ${o.name}`,
+      baseName: o.name,
+      note: `De ${rows} zoals het grid ze toont${pk.length ? ', met je niet-opgeslagen wijzigingen' : ' (de tabel heeft geen primaire sleutel)'}; lange teksten kunnen ingekort zijn.`,
+      source: gridValues(
+        cols,
+        indexes.map((r) => shown[r] ?? []),
+      ),
+    });
+  }
 
   /** Export dialog with this table, the applied filter and the order shown. */
   protected exportTable(): void {

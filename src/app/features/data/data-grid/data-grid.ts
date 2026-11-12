@@ -85,6 +85,8 @@ export class DataGrid {
   readonly tableName = input('export');
   /** After copying: the value (shortened) or a summary such as "3 rijen × 2 kolommen als CSV". */
   readonly copied = output<string>();
+  /** "Export selected rows…" from the menu: the row indexes, top to bottom. */
+  readonly exportRows = output<number[]>();
   readonly cellEdited = output<CellEdit>();
   readonly selectionChange = output<{ row: number; col: number } | null>();
 
@@ -359,6 +361,11 @@ export class DataGrid {
         })),
       },
       'separator',
+      {
+        label: r.top === r.bottom ? 'Rij exporteren…' : `${r.bottom - r.top + 1} rijen exporteren…`,
+        run: () =>
+          this.exportRows.emit(Array.from({ length: r.bottom - r.top + 1 }, (_, i) => r.top + i)),
+      },
       { label: 'Alles selecteren', shortcut: 'Ctrl+A', run: () => this.selectAll() },
     ];
     this.contextMenu.open(event, 'Kopiëren', items);

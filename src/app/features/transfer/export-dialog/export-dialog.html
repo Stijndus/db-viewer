@@ -27,6 +27,37 @@
 
   <div class="dialog-body">
     @if (jobId() === null) {
+      @if (target().note; as note) {
+        <span class="muted small">{{ note }}</span>
+      }
+      <fieldset class="field">
+        <legend class="field-label">Uitvoer</legend>
+        <div class="segmented">
+          <button
+            type="button"
+            class="seg"
+            [class.active]="output() === 'file'"
+            [attr.aria-pressed]="output() === 'file'"
+            (click)="setOutput('file')"
+          >
+            Bestand
+          </button>
+          <button
+            type="button"
+            class="seg"
+            [class.active]="output() === 'clipboard'"
+            [attr.aria-pressed]="output() === 'clipboard'"
+            (click)="setOutput('clipboard')"
+          >
+            Klembord
+          </button>
+        </div>
+        @if (output() === 'clipboard') {
+          <span class="muted small"
+            >Tot 100.000 rijen of 50 MB. Excel en inpakken kunnen alleen als bestand.</span
+          >
+        }
+      </fieldset>
       @if (kind() === 'database') {
         <div class="grid-2">
           <div class="field">
@@ -101,6 +132,12 @@
                 class="seg"
                 [class.active]="format() === f.value"
                 [attr.aria-pressed]="format() === f.value"
+                [disabled]="f.value === 'xlsx' && output() === 'clipboard'"
+                [title]="
+                  f.value === 'xlsx' && output() === 'clipboard'
+                    ? 'Excel kan alleen als bestand'
+                    : ''
+                "
                 (click)="format.set(f.value)"
               >
                 {{ f.label }}
@@ -188,7 +225,7 @@
           }
           @case ('sql') {
             <div class="row wrap">
-              @if (kind() === 'query') {
+              @if (needsName()) {
                 <label class="field-label" for="exp-tname">Tabelnaam</label>
                 <input
                   #tn
@@ -209,7 +246,7 @@
                 [value]="rowsPerInsert()"
                 (input)="rowsPerInsert.set(+rpi.value)"
               />
-              @if (kind() === 'table') {
+              @if (fromTable()) {
                 <label class="check"
                   ><input
                     type="checkbox"
@@ -230,81 +267,83 @@
         }
       }
 
-      <fieldset class="field">
-        <legend class="field-label">Inpakken</legend>
-        <div class="segmented">
-          <button
-            type="button"
-            class="seg"
-            [class.active]="packing() === 'none'"
-            (click)="packing.set('none')"
-          >
-            Niet
-          </button>
-          <button
-            type="button"
-            class="seg"
-            [class.active]="packing() === 'gzip'"
-            (click)="packing.set('gzip')"
-          >
-            .gz
-          </button>
-          <button
-            type="button"
-            class="seg"
-            [class.active]="packing() === 'zip'"
-            (click)="packing.set('zip')"
-          >
-            .zip
-          </button>
-          <button
-            type="button"
-            class="seg"
-            [class.active]="packing() === '7z'"
-            (click)="packing.set('7z')"
-          >
-            .7z
-          </button>
-        </div>
-      </fieldset>
-      @if (packing() === 'zip' || packing() === '7z') {
-        <div class="grid-2">
-          <div class="field">
-            <label for="exp-pw" class="field-label"
-              >Wachtwoord <span class="muted">(optioneel)</span></label
+      @if (output() === 'file') {
+        <fieldset class="field">
+          <legend class="field-label">Inpakken</legend>
+          <div class="segmented">
+            <button
+              type="button"
+              class="seg"
+              [class.active]="packing() === 'none'"
+              (click)="packing.set('none')"
             >
-            <input
-              #pw
-              id="exp-pw"
-              class="input"
-              type="password"
-              autocomplete="new-password"
-              [value]="password()"
-              (input)="password.set(pw.value)"
-            />
+              Niet
+            </button>
+            <button
+              type="button"
+              class="seg"
+              [class.active]="packing() === 'gzip'"
+              (click)="packing.set('gzip')"
+            >
+              .gz
+            </button>
+            <button
+              type="button"
+              class="seg"
+              [class.active]="packing() === 'zip'"
+              (click)="packing.set('zip')"
+            >
+              .zip
+            </button>
+            <button
+              type="button"
+              class="seg"
+              [class.active]="packing() === '7z'"
+              (click)="packing.set('7z')"
+            >
+              .7z
+            </button>
           </div>
-          <div class="field">
-            <label for="exp-pw2" class="field-label">Herhaal wachtwoord</label>
-            <input
-              #pw2
-              id="exp-pw2"
-              class="input"
-              type="password"
-              autocomplete="new-password"
-              [class.invalid]="passwordMismatch()"
-              [value]="password2()"
-              (input)="password2.set(pw2.value)"
-            />
+        </fieldset>
+        @if (packing() === 'zip' || packing() === '7z') {
+          <div class="grid-2">
+            <div class="field">
+              <label for="exp-pw" class="field-label"
+                >Wachtwoord <span class="muted">(optioneel)</span></label
+              >
+              <input
+                #pw
+                id="exp-pw"
+                class="input"
+                type="password"
+                autocomplete="new-password"
+                [value]="password()"
+                (input)="password.set(pw.value)"
+              />
+            </div>
+            <div class="field">
+              <label for="exp-pw2" class="field-label">Herhaal wachtwoord</label>
+              <input
+                #pw2
+                id="exp-pw2"
+                class="input"
+                type="password"
+                autocomplete="new-password"
+                [class.invalid]="passwordMismatch()"
+                [value]="password2()"
+                (input)="password2.set(pw2.value)"
+              />
+            </div>
           </div>
-        </div>
-        <span class="muted small">
-          @if (packing() === '7z') {
-            AES-256; ook de bestandsnamen zijn versleuteld. Openen met 7-Zip of deze app.
-          } @else {
-            AES-256. Openen met 7-Zip of WinRAR; Windows Verkenner kan AES-zips niet openen. De
-            export staat even onversleuteld in je tijdelijke map.
-          }
-        </span>
+          <span class="muted small">
+            @if (packing() === '7z') {
+              AES-256; ook de bestandsnamen zijn versleuteld. Openen met 7-Zip of deze app.
+            } @else {
+              AES-256. Openen met 7-Zip of WinRAR; Windows Verkenner kan AES-zips niet openen. De
+              export staat even onversleuteld in je tijdelijke map.
+            }
+          </span>
+        }
       }
 
       @if (error(); as e) {
@@ -358,22 +397,11 @@
     @if (progress()?.phase === 'done' && !progress()?.clipboard) {
       <button type="button" class="btn btn-ghost" (click)="showFile()">Toon in map</button>
     }
-    @if (jobId() === null) {
-      <button
-        type="button"
-        class="btn btn-secondary"
-        [disabled]="!canExport() || noClipboard() !== null"
-        [title]="noClipboard() ?? 'Kopiëren in plaats van opslaan (tot 100.000 rijen)'"
-        (click)="copy()"
-      >
-        Kopiëren naar klembord
-      </button>
-    }
     <span class="grow"></span>
     @if (jobId() === null) {
       <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
       <button type="button" class="btn btn-primary" [disabled]="!canExport()" (click)="start()">
-        Opslaan als bestand…
+        {{ output() === 'clipboard' ? 'Kopiëren naar klembord' : 'Opslaan als bestand…' }}
       </button>
     } @else if (running()) {
       <button type="button" class="btn btn-danger-ghost" (click)="stop()">Stoppen</button>

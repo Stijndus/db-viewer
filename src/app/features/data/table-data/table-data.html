@@ -157,6 +157,7 @@
         [dialect]="dialect()"
         [tableName]="object().name"
         (copied)="onCopied($event)"
+        (exportRows)="exportRows($event)"
         (cellEdited)="onCellEdited($event)"
         (selectionChange)="selectedCell.set($event)"
       />

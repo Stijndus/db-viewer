@@ -66,6 +66,13 @@ export class ExportDialog {
   );
   protected readonly dialect = computed(() => DIALECTS[this.profile()?.type ?? 'mysql']);
   protected readonly kind = computed(() => this.target().source.kind);
+  /** Rows that come from one table (CREATE TABLE possible) or need a table name for INSERTs. */
+  protected readonly fromTable = computed(() => this.kind() === 'table' || this.kind() === 'keys');
+  protected readonly needsName = computed(
+    () => this.kind() === 'query' || this.kind() === 'values',
+  );
+  /** Where it goes: a file (save dialog) or the clipboard. */
+  protected readonly output = signal<'file' | 'clipboard'>('file');
 
   protected readonly format = signal<Format>('csv');
   // CSV
@@ -122,20 +129,11 @@ export class ExportDialog {
     if (this.kind() === 'database') {
       if (this.selected().size === 0 || (!this.structure() && !this.data())) return false;
     }
-    if (this.format() === 'sql' && this.kind() === 'query' && !this.tableName().trim())
-      return false;
+    if (this.format() === 'sql' && this.needsName() && !this.tableName().trim()) return false;
     if (this.packing() === 'zip' || this.packing() === '7z') {
       if (this.password() && this.password() !== this.password2()) return false;
     }
     return true;
-  });
-
-  /** Why copying to the clipboard is not possible with these choices, or null when it is. */
-  protected readonly noClipboard = computed(() => {
-    if (this.format() === 'xlsx')
-      return 'Excel kan niet naar het klembord; kies Tab om in Excel te plakken.';
-    if (this.packing() !== 'none') return 'Ingepakt kan alleen als bestand.';
-    return null;
   });
 
   protected readonly progress = computed(() => {
@@ -157,7 +155,7 @@ export class ExportDialog {
           this.format.set('sql');
           this.database.set(t.source.database);
         }
-        if (t.source.kind === 'table') this.createTable.set(false);
+        if (t.source.kind === 'table' || t.source.kind === 'keys') this.createTable.set(false);
       });
     });
     effect(() => {
@@ -237,8 +235,8 @@ export class ExportDialog {
       ...(format === 'sql' && {
         sql: {
           rowsPerInsert: Math.max(1, Math.min(10_000, Math.round(this.rowsPerInsert()) || 100)),
-          ...(this.kind() === 'query' && { tableName: this.tableName().trim() }),
-          ...(this.kind() === 'table' && {
+          ...(this.needsName() && { tableName: this.tableName().trim() }),
+          ...(this.fromTable() && {
             createTable: this.createTable(),
             dropTable: this.createTable(),
           }),
@@ -254,19 +252,25 @@ export class ExportDialog {
     };
   }
 
+  /** Excel and archives are files; switching to the clipboard picks something that can go there. */
+  protected setOutput(output: 'file' | 'clipboard'): void {
+    this.output.set(output);
+    if (output === 'clipboard') {
+      if (this.format() === 'xlsx') this.format.set('tsv');
+      this.packing.set('none');
+    }
+  }
+
   protected async start(): Promise<void> {
     if (!this.canExport()) return;
     this.error.set(null);
+    if (this.output() === 'clipboard') {
+      await this.run({ ...this.request(''), destination: 'clipboard' });
+      return;
+    }
     const picked = await this.api.pickExportFile(this.fileName());
     if (!picked.ok || !picked.data) return;
     await this.run(this.request(picked.data));
-  }
-
-  /** Same export, onto the clipboard instead of into a file. */
-  protected async copy(): Promise<void> {
-    if (!this.canExport() || this.noClipboard()) return;
-    this.error.set(null);
-    await this.run({ ...this.request(''), destination: 'clipboard' });
   }
 
   private async run(request: ExportRequest): Promise<void> {

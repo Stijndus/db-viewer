@@ -10,6 +10,8 @@ export interface ExportTarget {
   title: string;
   /** File name without extension for the save dialog. */
   baseName: string;
+  /** Shown at the top of the dialog, e.g. where selected rows come from. */
+  note?: string;
 }
 
 /** Which import or export dialog is open, and the progress of running jobs. */

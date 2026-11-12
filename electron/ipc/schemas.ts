@@ -159,6 +159,22 @@ export const exportRequestSchema = z
         structure: z.boolean(),
         data: z.boolean(),
       }),
+      z.object({
+        kind: z.literal('keys'),
+        database: identifierSchema,
+        table: identifierSchema,
+        keyColumns: z.array(identifierSchema).min(1).max(16),
+        keys: z
+          .array(z.array(z.string().max(10_000).nullable()).max(16))
+          .min(1)
+          .max(10_000),
+      }),
+      z.object({
+        kind: z.literal('values'),
+        columns: z.array(z.string().max(1024)).min(1).max(4096),
+        numeric: z.array(z.boolean()).max(4096),
+        rows: z.array(z.array(z.string().max(10_000_000).nullable())).max(100_000),
+      }),
     ]),
     format: z.enum(['csv', 'json', 'sql', 'xlsx', 'markdown']),
     file: z.string().max(4096),

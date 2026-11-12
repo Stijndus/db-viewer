@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { ExportRequest, TransferProgress } from '../../shared/models';
 import type { DbSession, RowBatch, RowSource } from '../db/driver';
 import { extractEntry, listArchive } from './archive';
-import { csvField, exportData, markdownCell, sqlLiteral } from './export';
+import { csvField, exportData, keyWhere, markdownCell, sqlLiteral } from './export';
 
 const COLUMNS = ['id', 'naam', 'bedrag', 'leeg', 'bin'];
 const ROWS: unknown[][] = [
@@ -291,6 +291,104 @@ describe('export', () => {
       await expect(
         copy({ source: table, format: 'csv', archive: { kind: 'zip' } }),
       ).rejects.toMatchObject({ code: 'EXPORT_FORMAT' });
+    });
+  });
+
+  describe('selected rows', () => {
+    it('fetches rows again by key, with a WHERE per dialect', async () => {
+      expect(keyWhere(['id'], [['1'], ['2']], 'mysql')).toBe("`id` IN ('1', '2')");
+      expect(
+        keyWhere(
+          ['a', 'b'],
+          [
+            ['1', "it's"],
+            ['2', null],
+          ],
+          'postgres',
+        ),
+      ).toBe(`("a" = '1' AND "b" = 'it''s') OR ("a" = '2' AND "b" IS NULL)`);
+      expect(keyWhere(['id'], [['x']], 'mssql')).toBe("[id] IN (N'x')");
+
+      const { session, sources } = fakeSession();
+      await exportData(
+        session,
+        'mysql',
+        {
+          source: {
+            kind: 'keys',
+            database: 'app',
+            table: 'klanten',
+            keyColumns: ['id'],
+            keys: [['1'], ['3']],
+          },
+          format: 'csv',
+          file: path.join(dir, 'keys.csv'),
+        },
+        'job',
+        () => {},
+        new AbortController().signal,
+      );
+      expect(sources[0]).toEqual({
+        kind: 'table',
+        database: 'app',
+        table: 'klanten',
+        where: "`id` IN ('1', '3')",
+        orderBy: [{ column: 'id', direction: 'asc' }],
+      });
+    });
+
+    it('exports the rows as shown without asking the server, numbers as numbers', async () => {
+      const { session, sources } = fakeSession();
+      let clipboard = '';
+      const result = await exportData(
+        session,
+        'mysql',
+        {
+          source: {
+            kind: 'values',
+            columns: ['id', 'naam', 'bedrag'],
+            numeric: [true, false, true],
+            rows: [
+              ['1', 'een', '12.50'],
+              ['2', null, '99999999999999999.99'],
+            ],
+          },
+          format: 'json',
+          file: '',
+          destination: 'clipboard',
+        },
+        'job',
+        () => {},
+        new AbortController().signal,
+        (t) => (clipboard = t),
+      );
+      expect(sources).toEqual([]);
+      expect(result.statements).toBe(2);
+      expect(JSON.parse(clipboard)).toEqual([
+        { id: 1, naam: 'een', bedrag: 12.5 },
+        { id: 2, naam: null, bedrag: '99999999999999999.99' },
+      ]);
+    });
+
+    it('writes INSERTs for shown rows with the chosen table name', async () => {
+      const { session } = fakeSession();
+      let clipboard = '';
+      await exportData(
+        session,
+        'postgres',
+        {
+          source: { kind: 'values', columns: ['id'], numeric: [true], rows: [['7']] },
+          format: 'sql',
+          file: '',
+          destination: 'clipboard',
+          sql: { rowsPerInsert: 100, tableName: 'doel' },
+        },
+        'job',
+        () => {},
+        new AbortController().signal,
+        (t) => (clipboard = t),
+      );
+      expect(clipboard).toContain('INSERT INTO "doel" ("id") VALUES\n(7);');
     });
   });
 });

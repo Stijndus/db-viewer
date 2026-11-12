@@ -327,7 +327,24 @@ export type ExportSource =
   | { kind: 'table'; database: string; table: string; where?: string; orderBy: SortKey[] }
   | { kind: 'query'; sql: string; database?: string }
   /** Several tables as one SQL script: structure, data, or both. */
-  | { kind: 'database'; database: string; tables: string[]; structure: boolean; data: boolean };
+  | { kind: 'database'; database: string; tables: string[]; structure: boolean; data: boolean }
+  /** Selected rows of a table, fetched again by primary key: complete values, in key order. */
+  | {
+      kind: 'keys';
+      database: string;
+      table: string;
+      keyColumns: string[];
+      /** One entry per row: its key values in `keyColumns` order. */
+      keys: (string | null)[][];
+    }
+  /** Rows exactly as the grid shows them (query results, tables without a key, unsaved edits). */
+  | {
+      kind: 'values';
+      columns: string[];
+      /** Per column: numeric, so JSON and Excel can make numbers of it. */
+      numeric: boolean[];
+      rows: (string | null)[][];
+    };
 
 export interface ExportRequest {
   source: ExportSource;

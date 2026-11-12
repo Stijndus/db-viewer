@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import type { StatementResult } from '../../../../../shared/models';
 import { ConnectionsStore } from '../../connections/connections.store';
+import { gridValues } from '../../data/data-grid/copy-formats';
 import { DataGrid, type GridColumn } from '../../data/data-grid/data-grid';
 import { columnWidth, isNumericType } from '../../data/table-data/table-data';
 import { SchemaStore } from '../../schema/schema.store';
@@ -139,6 +140,24 @@ export class SqlPanel {
       title: 'queryresultaat',
       baseName: 'resultaat',
       source: { kind: 'query', sql: r.sql, ...(db && { database: db }) },
+    });
+  }
+
+  /** Selected rows of the result, as shown (a query result has no key to fetch them again). */
+  protected exportRows(indexes: number[]): void {
+    const r = this.active();
+    if (r?.kind !== 'rows' || indexes.length === 0) return;
+    const n = indexes.length;
+    const rows = `${n} ${n === 1 ? 'rij' : 'rijen'}`;
+    this.transfer.openExport({
+      connectionId: this.connectionId(),
+      title: `${rows} uit het queryresultaat`,
+      baseName: 'resultaat',
+      note: `De ${rows} zoals het grid ze toont; lange teksten kunnen ingekort zijn.`,
+      source: gridValues(
+        this.gridColumns(),
+        indexes.map((i) => r.rows[i] ?? []),
+      ),
     });
   }
 

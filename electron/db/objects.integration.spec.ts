@@ -10,6 +10,7 @@ import type { DbType, ObjectKind } from '../../shared/models';
 import { callTemplate, insertTemplate, selectSql } from '../../shared/object-sql';
 import type { ConnectionConfig, DbSession } from './driver';
 import { getDriver } from './driver-registry';
+import { exportData } from '../transfer/export';
 import { objectDefinition, routineParams, runObjectAction } from './objects';
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
@@ -208,6 +209,33 @@ for (const server of servers) {
         const value = last?.kind === 'rows' ? last.rows[0]?.[0] : undefined;
         expect(value, sql).toBe(kind === 'procedure' ? '1' : '0');
       }
+    });
+
+    it('exports selected rows by key (text keys against an integer column)', async () => {
+      let clipboard = '';
+      const result = await exportData(
+        session,
+        server.type,
+        {
+          source: {
+            kind: 'keys',
+            database: server.schema,
+            table: 'ctx_t',
+            keyColumns: ['id'],
+            keys: [['2'], ['1']],
+          },
+          format: 'csv',
+          file: '',
+          destination: 'clipboard',
+          csv: { delimiter: ',', header: false, bom: false },
+        },
+        'keys',
+        () => {},
+        new AbortController().signal,
+        (t) => (clipboard = t),
+      );
+      expect(result.phase).toBe('done');
+      expect(clipboard).toBe('1,a\r\n2,b\r\n');
     });
 
     it('empties a table', async () => {

@@ -13,6 +13,7 @@ import {
   type TransferProgress,
 } from '../../shared/models';
 import type { DbSession, RowBatch, RowSource } from '../db/driver';
+import { EXPORT_BATCH } from '../db/common';
 import { AppError } from '../ipc/errors';
 import { archiveError, sevenZip } from './archive';
 import { XlsxWriter, type XlsxValue } from './xlsx';
@@ -318,6 +319,13 @@ export async function exportData(
       'Excel en ingepakte bestanden kunnen niet naar het klembord.',
     );
   }
+  // Selected rows: by key they are an ordinary filtered table; as shown, they need no server.
+  if (request.source.kind === 'keys') {
+    request = { ...request, source: keysAsTable(request.source, dialect) };
+  } else if (request.source.kind === 'values') {
+    session = valuesSession(session, request.source);
+    request = { ...request, source: { kind: 'query', sql: '-- rijen uit het grid' } };
+  }
   const { source, format } = request;
   if (source.kind === 'database' && format !== 'sql') {
     throw new AppError('EXPORT_FORMAT', 'Een hele database wordt als SQL-script geëxporteerd.');
@@ -375,6 +383,54 @@ export async function exportData(
 }
 
 type Tick = () => void;
+
+type KeysSource = Extract<ExportRequest['source'], { kind: 'keys' }>;
+type ValuesSource = Extract<ExportRequest['source'], { kind: 'values' }>;
+
+/** `id IN ('1', '2')`, or for a composite key `(a = '1' AND b = 'x') OR …`; NULL as IS NULL. */
+export function keyWhere(columns: string[], keys: (string | null)[][], dialect: DbType): string {
+  const eq = (column: string, value: string | null) =>
+    value === null
+      ? `${quoteIdent(column, dialect)} IS NULL`
+      : `${quoteIdent(column, dialect)} = ${stringLiteral(value, dialect)}`;
+  if (columns.length === 1 && keys.every((k) => k[0] !== null && k[0] !== undefined)) {
+    const list = keys.map((k) => stringLiteral(k[0]!, dialect)).join(', ');
+    return `${quoteIdent(columns[0]!, dialect)} IN (${list})`;
+  }
+  return keys
+    .map((k) => `(${columns.map((c, i) => eq(c, k[i] ?? null)).join(' AND ')})`)
+    .join(' OR ');
+}
+
+function keysAsTable(source: KeysSource, dialect: DbType): ExportRequest['source'] {
+  return {
+    kind: 'table',
+    database: source.database,
+    table: source.table,
+    where: keyWhere(source.keyColumns, source.keys, dialect),
+    orderBy: source.keyColumns.map((column) => ({ column, direction: 'asc' as const })),
+  };
+}
+
+/** A session whose rows are the grid's values; numbers in numeric columns become numbers. */
+function valuesSession(session: DbSession, source: ValuesSource): DbSession {
+  const toValue = (v: string | null, i: number): unknown =>
+    v !== null &&
+    source.numeric[i] &&
+    /^-?(0|[1-9]\d*)(\.\d+)?$/.test(v) &&
+    v.replace(/[-.]/g, '').length <= 15
+      ? Number(v)
+      : v;
+  return {
+    ...session,
+    async streamRows(_source, onBatch, signal) {
+      for (let i = 0; i < source.rows.length && !signal.aborted; i += EXPORT_BATCH) {
+        const rows = source.rows.slice(i, i + EXPORT_BATCH).map((r) => r.map(toValue));
+        await onBatch({ columns: source.columns, rows });
+      }
+    },
+  } as DbSession;
+}
 
 async function writeCsv(
   session: DbSession,
@@ -531,7 +587,8 @@ async function writeSql(
   } else if (source.kind === 'table') {
     tables.push({ source, name: source.table, ddl: Boolean(opts.createTable) });
   } else {
-    tables.push({ source, name: opts.tableName || 'export', ddl: false });
+    // A query; selected rows were turned into a table or a query in exportData.
+    tables.push({ source: source as RowSource, name: opts.tableName || 'export', ddl: false });
   }
   const withData = source.kind !== 'database' || source.data;
   const dropFirst = source.kind === 'database' ? source.structure : Boolean(opts.dropTable);
