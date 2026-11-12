@@ -4,6 +4,7 @@ import {
   dialog,
   Menu,
   safeStorage,
+  screen,
   shell,
   type IpcMainInvokeEvent,
 } from 'electron';
@@ -11,7 +12,7 @@ import { statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { LAUNCH_EVENT, ZOOM_EVENT } from '../shared/ipc-contract';
-import { nextZoom, SettingsFile } from './settings';
+import { nextZoom, restoreBounds, SettingsFile } from './settings';
 import type { LaunchRequest, ReleaseNote } from '../shared/models';
 import { parseCli, USAGE, userArgs, type CliCommand } from './cli';
 import { launchEnv, resolveLaunch, type LaunchData } from './launch';
@@ -96,12 +97,20 @@ if (firstCommand.kind === 'help' || firstCommand.kind === 'version') {
   startApp();
 }
 
+const MIN_SIZE = { width: 900, height: 600 };
+
 function createWindow(): BrowserWindow {
+  // Open where it was closed, if that place is still on a screen; else centred at 1280×800.
+  const saved = settings?.get();
+  const bounds = restoreBounds(
+    saved?.bounds ?? null,
+    screen.getAllDisplays().map((d) => d.workArea),
+    MIN_SIZE,
+  );
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    ...(bounds ?? { width: 1280, height: 800 }),
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
     backgroundColor: settings?.get().background ?? '#0E1014',
     title: 'DB Viewer',
     show: false,
@@ -114,7 +123,11 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    if (saved?.maximized) win.maximize();
+    win.show();
+  });
+  rememberBounds(win);
 
   // Zoom (Ctrl+scroll, Ctrl+= / Ctrl+-, Ctrl+0) is handled by the page and set through IPC, so
   // it is remembered between starts.
@@ -137,6 +150,33 @@ function createWindow(): BrowserWindow {
     void win.loadFile(path.join(__dirname, '..', 'dist', 'db-viewer', 'browser', 'index.html'));
   }
   return win;
+}
+
+/**
+ * Saves the window's normal size and position and whether it is maximized: shortly after moving
+ * or resizing, and when it closes. A full-screen window counts as maximized.
+ */
+function rememberBounds(win: BrowserWindow): void {
+  let timer: NodeJS.Timeout | undefined;
+  const save = () => {
+    clearTimeout(timer);
+    if (win.isDestroyed() || win.isMinimized()) return;
+    settings?.update({
+      bounds: win.getNormalBounds(),
+      maximized: win.isMaximized() || win.isFullScreen(),
+    });
+  };
+  const later = () => {
+    clearTimeout(timer);
+    timer = setTimeout(save, 400);
+  };
+  win.on('resize', later);
+  win.on('move', later);
+  win.on('maximize', save);
+  win.on('unmaximize', save);
+  win.on('enter-full-screen', save);
+  win.on('leave-full-screen', save);
+  win.on('close', save);
 }
 
 function isAppUrl(url: string): boolean {
