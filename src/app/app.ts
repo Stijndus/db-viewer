@@ -2,6 +2,9 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import type { ConnectionProfile } from '../../shared/models';
 import { ConfirmDanger } from './core/confirm-danger/confirm-danger';
 import { ContextMenu } from './core/context-menu/context-menu';
+import { CommandPalette } from './core/keybindings/command-palette';
+import { KeybindingsEditor } from './core/keybindings/keybindings-editor';
+import { KeybindingsStore } from './core/keybindings/keybindings.store';
 import { ThemePicker } from './core/theme-picker/theme-picker';
 import { ThemeStore } from './core/theme.store';
 import { UpdateStore } from './core/update.store';
@@ -39,9 +42,10 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     ThemePicker,
     ContextMenu,
     ConfirmDanger,
+    KeybindingsEditor,
+    CommandPalette,
   ],
   templateUrl: './app.html',
-  host: { '(window:keydown)': 'onKeydown($event)' },
 })
 export class App implements OnInit {
   protected readonly store = inject(ConnectionsStore);
@@ -53,11 +57,16 @@ export class App implements OnInit {
   private readonly api = inject(DB_API);
   /** Zoom factor; shown in the status bar when it is not 100%. */
   protected readonly zoom = signal(1);
-  /** Ctrl+K was pressed: the next key may complete a chord (Ctrl+K Ctrl+T = theme). */
-  private chordUntil = 0;
+  protected readonly keys = inject(KeybindingsStore);
   /** Database name, or the file name for SQLite. */
   protected location(c: ConnectionProfile): string {
     return c.type === 'sqlite' ? connectionLocation(c) : c.database;
+  }
+
+  constructor() {
+    // Before the editor, the grid and the browser: the keyboard shortcuts decide first.
+    document.addEventListener('keydown', (e) => this.keys.onKeydown(e), true);
+    this.registerCommands();
   }
 
   ngOnInit(): void {
@@ -89,34 +98,22 @@ export class App implements OnInit {
     void this.api.zoom(event.deltaY < 0 ? 'in' : 'out');
   }
 
-  /** Ctrl+= / Ctrl+- / Ctrl+0 zoom; Ctrl+K Ctrl+T opens the theme picker, like in VS Code. */
-  protected onKeydown(event: KeyboardEvent): void {
-    const mod = event.ctrlKey || event.metaKey;
-    if (mod && !event.altKey) {
-      const zoom =
-        event.key === '=' || event.key === '+'
-          ? 'in'
-          : event.key === '-' || event.key === '_'
-            ? 'out'
-            : event.key === '0'
-              ? 'reset'
-              : null;
-      if (zoom) {
-        event.preventDefault();
-        void this.api.zoom(zoom);
-        return;
-      }
-    }
-    if (mod && event.key.toLowerCase() === 'k' && !event.shiftKey && !event.altKey) {
-      this.chordUntil = Date.now() + 1500;
-      return;
-    }
-    if (mod && event.key.toLowerCase() === 't' && Date.now() < this.chordUntil) {
-      event.preventDefault();
-      this.chordUntil = 0;
-      this.theme.openPicker();
-      return;
-    }
-    if (!['Control', 'Meta', 'Shift', 'Alt'].includes(event.key)) this.chordUntil = 0;
+  /** App-wide commands: zoom, theme, keyboard shortcuts, the palette. */
+  private registerCommands(): void {
+    const keys = this.keys;
+    keys.handle('workbench.zoomIn', () => void this.api.zoom('in'));
+    keys.handle('workbench.zoomOut', () => void this.api.zoom('out'));
+    keys.handle('workbench.zoomReset', () => void this.api.zoom('reset'));
+    keys.handle('workbench.theme', () => this.theme.openPicker());
+    keys.handle('workbench.keybindings', () => keys.editorOpen.set(true));
+    keys.handle('workbench.commandPalette', () => keys.paletteOpen.set(true));
+    keys.provideContext(() => {
+      const tab = this.ws.active();
+      return {
+        connected: this.store.activeId() !== null,
+        tableTab: tab?.kind === 'table',
+        sqlTab: tab?.kind === 'sql',
+      };
+    });
   }
 }

@@ -1,4 +1,12 @@
-import { Component, computed, effect, ElementRef, inject, untracked } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  untracked,
+} from '@angular/core';
 import type {
   ColumnInfo,
   DatabaseInfo,
@@ -8,6 +16,7 @@ import type {
 } from '../../../../../shared/models';
 import { defaultContainer } from '../../../../../shared/dialect';
 import { ContextMenuStore } from '../../../core/context-menu/context-menu.store';
+import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import type { ConnectionProfile } from '../../../../../shared/models';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
@@ -67,6 +76,7 @@ export class SchemaTree {
   protected readonly conn = computed(() => this.connections.active());
 
   constructor() {
+    this.registerCommands();
     // Load the database list whenever another connection becomes active.
     effect(() => {
       const conn = this.conn();
@@ -209,6 +219,59 @@ export class SchemaTree {
   protected toggleColumns(row: Row & { type: 'object' }): void {
     const conn = this.conn();
     if (conn) void this.schema.toggleObject(conn.id, row.db, row.obj.name);
+  }
+
+  /** Tree commands: focus (Ctrl+D), filter (Ctrl+E), refresh (F5), empty a table (Del). */
+  private registerCommands(): void {
+    const keys = inject(KeybindingsStore);
+    const destroy = inject(DestroyRef);
+    const buttons = () =>
+      Array.from(this.host.nativeElement.querySelectorAll<HTMLButtonElement>('.tree-main'));
+    keys.handle(
+      'tree.focus',
+      () => {
+        const all = buttons();
+        const selected = this.host.nativeElement.querySelector<HTMLElement>(
+          '[aria-selected="true"] .tree-main',
+        );
+        (selected ?? all[0])?.focus();
+        return all.length > 0;
+      },
+      destroy,
+    );
+    keys.handle(
+      'tree.focusFilter',
+      () => {
+        const input = this.host.nativeElement.querySelector<HTMLInputElement>('#tree-filter');
+        input?.focus();
+        input?.select();
+        return !!input;
+      },
+      destroy,
+    );
+    keys.handle(
+      'tree.refresh',
+      () => {
+        const conn = this.conn();
+        if (!conn) return false;
+        void this.schema.refresh(conn.id);
+        return true;
+      },
+      destroy,
+    );
+    keys.handle(
+      'tree.emptyTable',
+      () => {
+        const conn = this.conn();
+        const index = buttons().indexOf(document.activeElement as HTMLButtonElement);
+        const row = this.rows().filter((r) => r.type !== 'column')[index];
+        if (!conn || conn.readOnly || row?.type !== 'object' || row.obj.kind !== 'table')
+          return false;
+        void this.menus.emptyTable(conn, row.db, row.obj.name);
+        return true;
+      },
+      destroy,
+    );
   }
 
   /** Right click, Shift+F10 or the menu key: the actions for this row. */

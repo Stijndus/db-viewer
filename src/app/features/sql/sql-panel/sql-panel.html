@@ -11,7 +11,7 @@
     <button
       type="button"
       class="btn btn-primary btn-sm"
-      title="Ctrl+Enter"
+      [title]="keys.keyLabel('sql.runCurrent')"
       (click)="run('current')"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -22,7 +22,7 @@
     <button
       type="button"
       class="btn btn-secondary btn-sm"
-      title="Ctrl+Shift+Enter"
+      [title]="keys.keyLabel('sql.runAll')"
       (click)="run('all')"
     >
       Alles uitvoeren

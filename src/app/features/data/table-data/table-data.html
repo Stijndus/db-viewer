@@ -97,7 +97,7 @@
       <button
         type="button"
         class="btn btn-primary btn-sm"
-        title="Ctrl+S"
+        [title]="keys.keyLabel('data.save')"
         [disabled]="saving()"
         (click)="save()"
       >

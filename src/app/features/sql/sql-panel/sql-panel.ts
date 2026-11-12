@@ -1,5 +1,6 @@
 import { DIALECTS } from '../../../../../shared/dialect';
 import {
+  DestroyRef,
   Component,
   computed,
   effect,
@@ -16,7 +17,9 @@ import { gridValues } from '../../data/data-grid/copy-formats';
 import { DataGrid, type GridColumn } from '../../data/data-grid/data-grid';
 import { columnWidth, isNumericType } from '../../data/table-data/table-data';
 import { SchemaStore } from '../../schema/schema.store';
-import { CodeEditor } from '../code-editor/code-editor';
+import { CodeEditor, type EditorCommand } from '../code-editor/code-editor';
+import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
+import { WorkspaceStore } from '../../workspace/workspace.store';
 import { TransferStore } from '../../transfer/transfer.store';
 import { ROW_LIMITS, SqlStore, type RowLimit, type SqlTab } from '../sql.store';
 
@@ -33,6 +36,7 @@ export class SqlPanel {
   readonly connectionId = input.required<string>();
 
   protected readonly sql = inject(SqlStore);
+  protected readonly keys = inject(KeybindingsStore);
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
   private readonly transfer = inject(TransferStore);
@@ -76,6 +80,7 @@ export class SqlPanel {
   );
 
   constructor() {
+    this.registerCommands();
     // A new tab: put the cursor in the editor, so typing or Ctrl+Enter works at once.
     effect(() => {
       const id = this.sql.focusRequest();
@@ -144,7 +149,7 @@ export class SqlPanel {
   }
 
   /** Selected rows of the result, as shown (a query result has no key to fetch them again). */
-  protected exportRows(indexes: number[]): void {
+  protected exportRows({ rows: indexes, clipboard }: { rows: number[]; clipboard: boolean }): void {
     const r = this.active();
     if (r?.kind !== 'rows' || indexes.length === 0) return;
     const n = indexes.length;
@@ -154,6 +159,7 @@ export class SqlPanel {
       title: `${rows} uit het queryresultaat`,
       baseName: 'resultaat',
       note: `De ${rows} zoals het grid ze toont; lange teksten kunnen ingekort zijn.`,
+      ...(clipboard && { output: 'clipboard' as const }),
       source: gridValues(
         this.gridColumns(),
         indexes.map((i) => r.rows[i] ?? []),
@@ -194,6 +200,43 @@ export class SqlPanel {
 
   protected limitLabel(limit: RowLimit): string {
     return limit === null ? 'Geen limiet' : `${fmt(limit)} rijen`;
+  }
+
+  /** SQL and editor commands, for this tab while it is the active one. */
+  private registerCommands(): void {
+    const keys = this.keys;
+    const ws = inject(WorkspaceStore);
+    const destroy = inject(DestroyRef);
+    const mine = () => ws.activeId() === this.tab().id;
+    const on = (command: string, run: () => boolean | void) =>
+      keys.handle(command, () => (mine() ? run() : false), destroy);
+    on('sql.runCurrent', () => this.run('current'));
+    on('sql.runAll', () => this.run('all'));
+    // Esc only stops a running query; otherwise it goes on (closing the search panel, …).
+    on('sql.stop', () => (this.tab().running ? this.stop() : false));
+    on('sql.clear', () => this.editor()?.command('clear'));
+    const step = (by: 1 | -1) => {
+      const n = this.results().length;
+      if (n < 2) return false;
+      const next = (this.tab().activeResult + by + n) % n;
+      this.sql.setActiveResult(this.connectionId(), this.tab().id, next);
+      return true;
+    };
+    on('sql.previousResult', () => step(-1));
+    on('sql.nextResult', () => step(1));
+    const editorCommands: EditorCommand[] = [
+      'find',
+      'replace',
+      'findNext',
+      'findPrevious',
+      'deleteLine',
+      'matchBracket',
+      'upperCase',
+      'lowerCase',
+      'toggleComment',
+    ];
+    for (const name of editorCommands)
+      on(`editor.${name}`, () => this.editor()?.command(name) ?? false);
   }
 
   protected run(mode: 'current' | 'all'): void {

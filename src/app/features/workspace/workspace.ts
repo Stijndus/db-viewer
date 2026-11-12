@@ -1,4 +1,13 @@
-import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import type { ConnectionProfile } from '../../../../shared/models';
 import { ConnectionHome } from '../schema/connection-home/connection-home';
 import { ObjectView } from '../schema/object-view/object-view';
@@ -6,6 +15,7 @@ import { SchemaStore, type SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
 import { SqlStore } from '../sql/sql.store';
 import { TransferStore } from '../transfer/transfer.store';
+import { KeybindingsStore } from '../../core/keybindings/keybindings.store';
 import { WorkspaceStore, type WorkspaceTab } from './workspace.store';
 
 interface TabMenu {
@@ -31,6 +41,10 @@ export class Workspace {
   protected readonly sql = inject(SqlStore);
   protected readonly transfer = inject(TransferStore);
   private readonly schema = inject(SchemaStore);
+
+  constructor() {
+    this.registerCommands();
+  }
   private readonly bar = viewChild<ElementRef<HTMLElement>>('bar');
   protected readonly menu = signal<TabMenu | null>(null);
 
@@ -133,17 +147,44 @@ export class Workspace {
     });
   }
 
-  /** Ctrl+Tab / Ctrl+Shift+Tab switch tabs; Escape closes the tab menu. */
+  /** Escape closes the tab menu; the tab keys (Ctrl+Tab, Ctrl+T, …) are commands. */
   protected onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && this.menu()) {
-      this.menu.set(null);
-      return;
-    }
-    if (event.ctrlKey && event.key === 'Tab') {
-      event.preventDefault();
-      this.ws.cycle(this.connection().id, event.shiftKey ? -1 : 1);
+    if (event.key === 'Escape' && this.menu()) this.menu.set(null);
+  }
+
+  /** Tab commands: new, close, next, previous, go to 1…9. */
+  private registerCommands(): void {
+    const keys = inject(KeybindingsStore);
+    const destroy = inject(DestroyRef);
+    const cycle = (step: 1 | -1) => {
+      this.ws.cycle(this.connection().id, step);
       const active = this.ws.activeId();
       if (active) this.scrollIntoView(active);
+    };
+    keys.handle('tabs.newSql', () => this.newSql(), destroy);
+    keys.handle(
+      'tabs.close',
+      () => {
+        const tab = this.ws.active();
+        if (!tab) return false;
+        this.close(tab);
+        return true;
+      },
+      destroy,
+    );
+    keys.handle('tabs.next', () => cycle(1), destroy);
+    keys.handle('tabs.previous', () => cycle(-1), destroy);
+    for (let i = 1; i <= 9; i++) {
+      keys.handle(
+        `tabs.goTo${i}`,
+        () => {
+          const tab = this.ws.tabs()[i - 1];
+          if (!tab) return false;
+          this.activate(tab);
+          return true;
+        },
+        destroy,
+      );
     }
   }
 

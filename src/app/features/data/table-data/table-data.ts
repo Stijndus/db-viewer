@@ -1,6 +1,7 @@
 import {
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -23,6 +24,7 @@ import type {
   SortKey,
 } from '../../../../../shared/models';
 import { DB_API } from '../../../core/db-api';
+import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
@@ -65,7 +67,6 @@ let uidCounter = 0;
   selector: 'app-table-data',
   imports: [DataGrid],
   templateUrl: './table-data.html',
-  host: { '(keydown)': 'onKeydown($event)' },
 })
 export class TableData {
   readonly object = input.required<SelectedObject>();
@@ -83,6 +84,7 @@ export class TableData {
   private readonly workspace = inject(WorkspaceStore);
   private readonly transfer = inject(TransferStore);
   private readonly schema = inject(SchemaStore);
+  protected readonly keys = inject(KeybindingsStore);
   private readonly grid = viewChild(DataGrid);
   private readonly sqlDialog = viewChild<ElementRef<HTMLDialogElement>>('sqlDialog');
 
@@ -290,7 +292,7 @@ export class TableData {
    * Export dialog for selected rows. With a primary key and no unsaved changes in them, the rows
    * are fetched again by key (complete values); otherwise exactly as the grid shows them.
    */
-  protected exportRows(indexes: number[]): void {
+  protected exportRows({ rows: indexes, clipboard }: { rows: number[]; clipboard: boolean }): void {
     const o = this.object();
     const page = this.page();
     if (!page || indexes.length === 0) return;
@@ -310,6 +312,7 @@ export class TableData {
         title: `${rows} uit ${o.name}`,
         baseName: o.name,
         note: `De geselecteerde ${rows} worden opnieuw opgehaald op primaire sleutel, met alle waarden volledig.`,
+        ...(clipboard && { output: 'clipboard' as const }),
         source: {
           kind: 'keys',
           database: o.database,
@@ -327,6 +330,7 @@ export class TableData {
       title: `${rows} uit ${o.name}`,
       baseName: o.name,
       note: `De ${rows} zoals het grid ze toont${pk.length ? ', met je niet-opgeslagen wijzigingen' : ' (de tabel heeft geen primaire sleutel)'}; lange teksten kunnen ingekort zijn.`,
+      ...(clipboard && { output: 'clipboard' as const }),
       source: gridValues(
         cols,
         indexes.map((r) => shown[r] ?? []),
@@ -354,6 +358,7 @@ export class TableData {
   private readonly createdAt = performance.now();
 
   constructor() {
+    this.registerCommands();
     // Emptied from the tree's menu: show the (now empty) table again, edits are gone with the rows.
     effect(() => {
       const changed = this.schema.dataChanged();
@@ -588,11 +593,55 @@ export class TableData {
     this.sqlDialog()?.nativeElement.close();
   }
 
-  protected onKeydown(event: KeyboardEvent): void {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
+  /** Data commands (F5, Ctrl+S, Ins, …) for this table while its tab is shown. */
+  private registerCommands(): void {
+    const keys = this.keys;
+    const ws = inject(WorkspaceStore);
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const destroy = inject(DestroyRef);
+    const shown = () =>
+      (this.tabId() === null || ws.activeId() === this.tabId()) &&
+      host.isConnected &&
+      host.getClientRects().length > 0;
+    const on = (command: string, run: () => boolean | void) =>
+      keys.handle(command, () => (shown() ? run() : false), destroy);
+    on('data.refresh', () => this.refresh());
+    on('data.save', () => {
+      if (!this.hasChanges()) return false;
       void this.save();
-    }
+      return true;
+    });
+    on('data.addRow', () => (this.editState().editable ? this.addRow() : false));
+    on('data.deleteRows', () =>
+      this.editState().editable && this.selectedCell() ? this.toggleDelete() : false,
+    );
+    on('data.setNull', () =>
+      this.editState().editable && this.selectedCell() ? this.setNull() : false,
+    );
+    on('data.focusFilter', () => {
+      const input = host.querySelector<HTMLInputElement>('.dt-where');
+      input?.focus();
+      input?.select();
+    });
+    on('data.clearFilter', () => {
+      if (!this.whereDraft() && !this.whereApplied()) return false;
+      this.clearFilter();
+      return true;
+    });
+    on('data.resetSort', () => {
+      if (!this.sort() || !this.confirmDiscard()) return;
+      this.sort.set(null);
+      this.offset.set(0);
+      void this.load();
+    });
+    on('data.nextPage', () => {
+      if (!this.page()?.hasMore || this.loading()) return;
+      this.goTo(this.offset() + this.pageSize());
+    });
+    on('data.previousPage', () => {
+      if (this.offset() === 0 || this.loading()) return;
+      this.goTo(this.offset() - this.pageSize());
+    });
   }
 
   private confirmDiscard(): boolean {

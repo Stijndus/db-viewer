@@ -15,6 +15,7 @@ import {
   selectSql,
 } from '../../../../../shared/object-sql';
 import { ConfirmDangerStore } from '../../../core/confirm-danger/confirm-danger';
+import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import type { MenuAction, MenuEntry } from '../../../core/context-menu/context-menu.store';
 import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
@@ -43,6 +44,7 @@ export class TreeMenu {
   private readonly sql = inject(SqlStore);
   private readonly transfer = inject(TransferStore);
   private readonly danger = inject(ConfirmDangerStore);
+  private readonly keys = inject(KeybindingsStore);
 
   /** The connection itself (the tree's header). */
   forConnection(conn: ConnectionProfile): MenuEntry[] {
@@ -227,21 +229,8 @@ export class TreeMenu {
                   {
                     label: 'Leegmaken…',
                     danger: true,
-                    run: () =>
-                      void this.confirm(
-                        conn,
-                        { action: 'truncate', database, name: obj.name },
-                        {
-                          title: `Tabel ${obj.name} leegmaken`,
-                          message: `Alle rijen van ${obj.name} worden verwijderd; de tabel zelf blijft.`,
-                          confirm: 'Leegmaken',
-                          after: () =>
-                            this.schema.dataChanged.set({
-                              object: { connectionId: conn.id, database, name: obj.name },
-                              at: performance.now(),
-                            }),
-                        },
-                      ),
+                    shortcut: this.keys.keyLabel('tree.emptyTable'),
+                    run: () => void this.emptyTable(conn, database, obj.name),
                   },
                 ]
               : []),
@@ -264,6 +253,24 @@ export class TreeMenu {
           ]
         : []),
     ];
+  }
+
+  /** Asks (name typed over) and empties the table; its open tab shows the empty table. */
+  emptyTable(conn: ConnectionProfile, database: string, name: string): Promise<void> {
+    return this.confirm(
+      conn,
+      { action: 'truncate', database, name },
+      {
+        title: `Tabel ${name} leegmaken`,
+        message: `Alle rijen van ${name} worden verwijderd; de tabel zelf blijft.`,
+        confirm: 'Leegmaken',
+        after: () =>
+          this.schema.dataChanged.set({
+            object: { connectionId: conn.id, database, name },
+            at: performance.now(),
+          }),
+      },
+    );
   }
 
   /** Asks with the name typed over, runs the action, then refreshes the tree. */

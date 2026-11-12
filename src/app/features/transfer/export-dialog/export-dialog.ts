@@ -156,6 +156,11 @@ export class ExportDialog {
           this.database.set(t.source.database);
         }
         if (t.source.kind === 'table' || t.source.kind === 'keys') this.createTable.set(false);
+        // Ctrl+Shift+C: straight to the clipboard, tab-separated like HeidiSQL's copy.
+        if (t.output === 'clipboard') {
+          this.setOutput('clipboard');
+          if (t.source.kind !== 'database') this.format.set('tsv');
+        }
       });
     });
     effect(() => {

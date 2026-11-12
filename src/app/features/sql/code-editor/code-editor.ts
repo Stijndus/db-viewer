@@ -16,7 +16,15 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from '@codemirror/autocomplete';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import {
+  cursorMatchingBracket,
+  defaultKeymap,
+  deleteLine,
+  history,
+  historyKeymap,
+  indentWithTab,
+  toggleComment,
+} from '@codemirror/commands';
 import {
   MariaSQL,
   MSSQL,
@@ -34,7 +42,13 @@ import {
   indentOnInput,
   syntaxHighlighting,
 } from '@codemirror/language';
-import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
+import {
+  findNext,
+  findPrevious,
+  highlightSelectionMatches,
+  openSearchPanel,
+  searchKeymap,
+} from '@codemirror/search';
 import { Compartment, EditorSelection, EditorState, Prec } from '@codemirror/state';
 import {
   drawSelection,
@@ -48,6 +62,18 @@ import {
 import { tags as t } from '@lezer/highlight';
 import { ThemeStore } from '../../../core/theme.store';
 import type { EditorSnapshot } from '../sql.store';
+
+export type EditorCommand =
+  | 'find'
+  | 'replace'
+  | 'findNext'
+  | 'findPrevious'
+  | 'deleteLine'
+  | 'matchBracket'
+  | 'toggleComment'
+  | 'upperCase'
+  | 'lowerCase'
+  | 'clear';
 
 const highlight = HighlightStyle.define([
   { tag: t.keyword, color: 'var(--syn-keyword)', fontWeight: '600' },
@@ -145,12 +171,6 @@ export class CodeEditor {
             syntaxHighlighting(highlight),
             placeholder('SELECT * FROM …   Ctrl+Enter voert het statement onder de cursor uit'),
             this.language.of(this.sqlLanguage()),
-            Prec.highest(
-              keymap.of([
-                { key: 'Mod-Enter', run: () => (this.run.emit('current'), true) },
-                { key: 'Shift-Mod-Enter', run: () => (this.run.emit('all'), true) },
-              ]),
-            ),
             keymap.of([
               ...closeBracketsKeymap,
               ...defaultKeymap,
@@ -202,6 +222,53 @@ export class CodeEditor {
       scrollIntoView: true,
     });
     view.focus();
+  }
+
+  /** An editing command from the keyboard shortcuts (find, delete line, upper case, …). */
+  command(name: EditorCommand): boolean {
+    const view = this.view;
+    if (!view) return false;
+    switch (name) {
+      case 'find':
+        return openSearchPanel(view);
+      case 'replace': {
+        openSearchPanel(view);
+        // The panel has a replace field; put the cursor there.
+        setTimeout(() =>
+          view.dom.querySelector<HTMLInputElement>('.cm-search input[name="replace"]')?.focus(),
+        );
+        return true;
+      }
+      case 'findNext':
+        return findNext(view);
+      case 'findPrevious':
+        return findPrevious(view);
+      case 'deleteLine':
+        return deleteLine(view);
+      case 'matchBracket':
+        return cursorMatchingBracket(view);
+      case 'toggleComment':
+        return toggleComment(view);
+      case 'upperCase':
+      case 'lowerCase':
+        return this.changeCase(view, name === 'upperCase');
+      case 'clear':
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '' } });
+        view.focus();
+        return true;
+    }
+  }
+
+  /** The selection, or the word at the cursor, in upper or lower case. */
+  private changeCase(view: EditorView, upper: boolean): boolean {
+    const state = view.state;
+    const changes = state.selection.ranges.map((range) => {
+      const r = range.empty ? (state.wordAt(range.head) ?? range) : range;
+      const text = state.sliceDoc(r.from, r.to);
+      return { from: r.from, to: r.to, insert: upper ? text.toUpperCase() : text.toLowerCase() };
+    });
+    view.dispatch({ changes });
+    return true;
   }
 
   /** Replaces the selection (or inserts at the cursor) and puts the focus in the editor. */

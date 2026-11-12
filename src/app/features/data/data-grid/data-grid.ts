@@ -15,6 +15,7 @@ import {
 } from '@angular/core';
 import type { Cell, DbType, SortDirection } from '../../../../../shared/models';
 import { ContextMenuStore, type MenuEntry } from '../../../core/context-menu/context-menu.store';
+import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
 
 export interface GridColumn {
@@ -85,8 +86,8 @@ export class DataGrid {
   readonly tableName = input('export');
   /** After copying: the value (shortened) or a summary such as "3 rijen × 2 kolommen als CSV". */
   readonly copied = output<string>();
-  /** "Export selected rows…" from the menu: the row indexes, top to bottom. */
-  readonly exportRows = output<number[]>();
+  /** "Export selected rows…": the row indexes, top to bottom; to the clipboard for Ctrl+Shift+C. */
+  readonly exportRows = output<{ rows: number[]; clipboard: boolean }>();
   readonly cellEdited = output<CellEdit>();
   readonly selectionChange = output<{ row: number; col: number } | null>();
 
@@ -111,6 +112,7 @@ export class DataGrid {
     };
   });
   private readonly contextMenu = inject(ContextMenuStore);
+  private readonly keys = inject(KeybindingsStore);
   protected readonly editing = signal<Editing | null>(null);
   private readonly editor = viewChild<ElementRef<HTMLInputElement>>('editor');
   private readonly injector = inject(Injector);
@@ -155,6 +157,7 @@ export class DataGrid {
   });
 
   constructor() {
+    this.registerCommands();
     // A new page starts at the top with nothing selected. Without a page key, new rows do.
     effect(() => {
       const key = this.pageKey();
@@ -348,18 +351,41 @@ export class DataGrid {
     const items: MenuEntry[] = [
       {
         label: cells === 1 ? 'Waarde kopiëren' : 'Kopiëren',
-        shortcut: 'Ctrl+C',
+        shortcut: this.keys.keyLabel('data.copy'),
         run: () => this.copySelection(),
       },
       'separator',
       {
         label: r.top === r.bottom ? 'Rij exporteren…' : `${r.bottom - r.top + 1} rijen exporteren…`,
-        run: () =>
-          this.exportRows.emit(Array.from({ length: r.bottom - r.top + 1 }, (_, i) => r.top + i)),
+        shortcut: this.keys.keyLabel('data.exportRows'),
+        run: () => this.emitExport(false),
       },
-      { label: 'Alles selecteren', shortcut: 'Ctrl+A', run: () => this.selectAll() },
+      {
+        label: 'Alles selecteren',
+        shortcut: this.keys.keyLabel('data.selectAll'),
+        run: () => this.selectAll(),
+      },
     ];
     this.contextMenu.open(event, 'Kopiëren', items);
+  }
+
+  private emitExport(clipboard: boolean): void {
+    const r = this.range();
+    if (!r) return;
+    const rows = Array.from({ length: r.bottom - r.top + 1 }, (_, i) => r.top + i);
+    this.exportRows.emit({ rows, clipboard });
+  }
+
+  /** Copy, select all and export rows: only for the grid that has the focus. */
+  private registerCommands(): void {
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const destroy = inject(DestroyRef);
+    const focused = () => host.contains(document.activeElement) && !this.editing();
+    const on = (command: string, run: () => boolean | void) =>
+      this.keys.handle(command, () => (focused() ? run() : false), destroy);
+    on('data.copy', () => (this.selected() ? this.copySelection() : false));
+    on('data.selectAll', () => this.selectAll());
+    on('data.exportRows', () => (this.selected() ? this.emitExport(true) : false));
   }
 
   private copySelection(): void {
@@ -416,19 +442,6 @@ export class DataGrid {
       return;
     }
     const s = this.selected();
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
-      if (s) {
-        event.preventDefault();
-        if (this.isSingle()) void this.copy(copyText(this.rows()[s.row]?.[s.col] ?? null));
-        else this.copyBlock('tsv', false);
-      }
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
-      event.preventDefault();
-      this.selectAll();
-      return;
-    }
     if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
       if (s) this.openMenu(event);
       return;

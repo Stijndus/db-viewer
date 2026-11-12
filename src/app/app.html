@@ -123,10 +123,18 @@
     <button
       type="button"
       class="link-btn small"
-      title="Thema kiezen (Ctrl+K Ctrl+T)"
+      [title]="'Thema kiezen (' + keys.keyLabel('workbench.theme') + ')'"
       (click)="theme.openPicker()"
     >
       Thema: {{ theme.label() }}
+    </button>
+    <button
+      type="button"
+      class="link-btn small"
+      [title]="'Sneltoetsen bekijken en aanpassen (' + keys.keyLabel('workbench.keybindings') + ')'"
+      (click)="keys.editorOpen.set(true)"
+    >
+      Sneltoetsen
     </button>
     @if (updates.notes().length) {
       <button type="button" class="link-btn small" (click)="updates.showAllNotes()">
@@ -194,3 +202,5 @@
 
 <app-context-menu />
 <app-confirm-danger />
+<app-keybindings-editor />
+<app-command-palette />

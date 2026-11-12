@@ -12,6 +12,8 @@ export interface ExportTarget {
   baseName: string;
   /** Shown at the top of the dialog, e.g. where selected rows come from. */
   note?: string;
+  /** Start with this output (Ctrl+Shift+C: the clipboard). */
+  output?: 'file' | 'clipboard';
 }
 
 /** Which import or export dialog is open, and the progress of running jobs. */
