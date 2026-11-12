@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import type { Cell, DbType, SortDirection } from '../../../../../shared/models';
 import { ContextMenuStore, type MenuEntry } from '../../../core/context-menu/context-menu.store';
-import { COPY_FORMAT_LABELS, formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
+import { formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
 
 export interface GridColumn {
   name: string;
@@ -337,7 +337,7 @@ export class DataGrid {
     this.selectionChange.emit({ row: rows - 1, col: cols - 1 });
   }
 
-  /** Right click or the menu key: copy the selected block in a format of choice. */
+  /** Right click or the menu key: copy the selected block, or export its rows (with all formats). */
   protected openMenu(event: MouseEvent | KeyboardEvent, row?: number, col?: number): void {
     if (this.editing()) return;
     if (row !== undefined && col !== undefined && !this.inRange(row, col))
@@ -345,20 +345,11 @@ export class DataGrid {
     const r = this.range();
     if (!r) return;
     const cells = (r.bottom - r.top + 1) * (r.right - r.left + 1);
-    const formats = Object.keys(COPY_FORMAT_LABELS) as CopyFormat[];
     const items: MenuEntry[] = [
       {
         label: cells === 1 ? 'Waarde kopiëren' : 'Kopiëren',
         shortcut: 'Ctrl+C',
         run: () => this.copySelection(),
-      },
-      { label: 'Kopiëren met kolomnamen', run: () => this.copyBlock('tsv', true) },
-      {
-        label: 'Kopiëren als',
-        items: formats.map((f) => ({
-          label: COPY_FORMAT_LABELS[f],
-          run: () => this.copyBlock(f, true),
-        })),
       },
       'separator',
       {
@@ -395,9 +386,9 @@ export class DataGrid {
     });
     const n = rows.length;
     const incomplete = incompleteCount(rows);
-    const what = `${n} ${n === 1 ? 'rij' : 'rijen'} × ${columns.length} ${columns.length === 1 ? 'kolom' : 'kolommen'} als ${COPY_FORMAT_LABELS[format]}`;
+    const what = `${n} ${n === 1 ? 'rij' : 'rijen'} × ${columns.length} ${columns.length === 1 ? 'kolom' : 'kolommen'}`;
     const warning = incomplete
-      ? ` (let op: ${incomplete} ${incomplete === 1 ? 'waarde is' : 'waarden zijn'} ingekort; Exporteren geeft alles)`
+      ? ` (let op: ${incomplete} ${incomplete === 1 ? 'waarde is' : 'waarden zijn'} ingekort; Rijen exporteren geeft alles)`
       : '';
     void this.copy(text, what + warning);
   }
