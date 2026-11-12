@@ -25,6 +25,8 @@ export interface SqlTab {
   error: DbError | null;
   activeResult: number;
   totalMs: number | null;
+  /** Statements in the editor that the last run left out (it ran only the one under the cursor). */
+  skipped?: number;
 }
 
 /** What the user is about to run and has to confirm, because it changes data. */
@@ -235,7 +237,17 @@ export class SqlStore {
       }
     }
 
-    this.patch(connectionId, tabId, { ...emptyRunState(), running: true, ran: statements });
+    // Only the statement under the cursor of a longer script: say so, the rest did not run.
+    const skipped =
+      mode === 'current' && editor.selectionTo === editor.selectionFrom
+        ? splitStatements(editor.text, dialect).length - statements.length
+        : 0;
+    this.patch(connectionId, tabId, {
+      ...emptyRunState(),
+      running: true,
+      ran: statements,
+      skipped,
+    });
     const started = performance.now();
     const result = await this.api.runScript(connectionId, tabId, {
       statements: statements.map((s) => s.sql),
@@ -359,7 +371,15 @@ export class SqlStore {
 }
 
 function emptyRunState(): Omit<SqlTab, 'id' | 'title' | 'text' | 'database' | 'maxRows'> {
-  return { running: false, ran: [], result: null, error: null, activeResult: 0, totalMs: null };
+  return {
+    running: false,
+    ran: [],
+    result: null,
+    error: null,
+    activeResult: 0,
+    totalMs: null,
+    skipped: 0,
+  };
 }
 
 /** Selection wins; else the statement under the cursor; `all` runs the whole text. */

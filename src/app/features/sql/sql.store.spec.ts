@@ -84,6 +84,21 @@ describe('SqlStore', () => {
     expect(sql.tab(ID, tab.id)?.activeResult).toBe(1);
   });
 
+  it('says how many statements a run under the cursor left out', async () => {
+    const { sql, runs } = await setup();
+    const tab = sql.newTab(ID);
+    const text = 'SELECT 1;\nSELECT 2;\nSELECT 3;';
+    await sql.run(ID, tab.id, 'current', { text, selectionFrom: 0, selectionTo: 0 });
+    expect(runs[0]?.statements).toEqual(['SELECT 1']);
+    expect(sql.tab(ID, tab.id)?.skipped).toBe(2);
+    await sql.run(ID, tab.id, 'all', { text, selectionFrom: 0, selectionTo: 0 });
+    expect(runs[1]?.statements).toHaveLength(3);
+    expect(sql.tab(ID, tab.id)?.skipped).toBe(0);
+    // A selection is what the user asked for: nothing is "left out".
+    await sql.run(ID, tab.id, 'current', { text, selectionFrom: 0, selectionTo: 9 });
+    expect(sql.tab(ID, tab.id)?.skipped).toBe(0);
+  });
+
   it('jumps to the failing statement', async () => {
     const { sql } = await setup();
     const tab = sql.newTab(ID);

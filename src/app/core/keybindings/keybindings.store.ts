@@ -113,6 +113,14 @@ export class KeybindingsStore {
     return binding ? label(binding.key) : '';
   }
 
+  /** Every key of a command, for tooltips: "Ctrl+Shift+Enter of F9". */
+  keyLabels(command: string): string {
+    return this.bindings()
+      .filter((b) => b.command === command)
+      .map((b) => label(b.key))
+      .join(' of ');
+  }
+
   title(command: string): string {
     return this.commands.find((c) => c.id === command)?.title ?? command;
   }
