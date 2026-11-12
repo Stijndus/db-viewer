@@ -123,6 +123,24 @@
         }
 
         @switch (format()) {
+          @case ('tsv') {
+            <div class="row wrap">
+              <label class="check"
+                ><input type="checkbox" [checked]="header()" (change)="header.set(!header())" />
+                Kolomnamen als eerste regel</label
+              >
+            </div>
+            <span class="muted small"
+              >Tab-gescheiden: plak het in Excel of Google Sheets en elke kolom komt in een eigen
+              kolom.</span
+            >
+          }
+          @case ('markdown') {
+            <span class="muted small"
+              >Een tabel voor tickets, README's en chat. NULL staat er schuin als
+              <em>NULL</em>.</span
+            >
+          }
           @case ('csv') {
             <div class="row wrap">
               <label class="field-label" for="exp-delim">Scheidingsteken</label>
@@ -305,11 +323,19 @@
             <strong>Bezig met exporteren…</strong>
           }
           @case ('done') {
-            <strong class="ok-text">Klaar.</strong>
-            <span class="mono small">{{ p?.file }}</span>
+            @if (p?.clipboard) {
+              <strong class="ok-text">Gekopieerd naar het klembord.</strong>
+            } @else {
+              <strong class="ok-text">Klaar.</strong>
+              <span class="mono small">{{ p?.file }}</span>
+            }
           }
           @case ('cancelled') {
-            <strong>Gestopt; het halve bestand is verwijderd.</strong>
+            <strong>{{
+              p?.clipboard
+                ? 'Gestopt; er is niets gekopieerd.'
+                : 'Gestopt; het halve bestand is verwijderd.'
+            }}</strong>
           }
           @default {
             <strong class="err-text">{{ p?.error?.message ?? 'Export mislukt.' }}</strong>
@@ -329,14 +355,25 @@
   </div>
 
   <div class="dialog-foot">
-    @if (progress()?.phase === 'done') {
+    @if (progress()?.phase === 'done' && !progress()?.clipboard) {
       <button type="button" class="btn btn-ghost" (click)="showFile()">Toon in map</button>
+    }
+    @if (jobId() === null) {
+      <button
+        type="button"
+        class="btn btn-secondary"
+        [disabled]="!canExport() || noClipboard() !== null"
+        [title]="noClipboard() ?? 'Kopiëren in plaats van opslaan (tot 100.000 rijen)'"
+        (click)="copy()"
+      >
+        Kopiëren naar klembord
+      </button>
     }
     <span class="grow"></span>
     @if (jobId() === null) {
       <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
       <button type="button" class="btn btn-primary" [disabled]="!canExport()" (click)="start()">
-        Exporteren…
+        Opslaan als bestand…
       </button>
     } @else if (running()) {
       <button type="button" class="btn btn-danger-ghost" (click)="stop()">Stoppen</button>

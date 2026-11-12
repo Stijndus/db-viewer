@@ -206,9 +206,9 @@ export class SqlPanel {
   }
 
   protected onCopied(text: string): void {
-    this.note.set(`Gekopieerd: ${text.length > 40 ? text.slice(0, 40) + '…' : text}`);
+    this.note.set(`Gekopieerd: ${text}`);
     clearTimeout(this.noteTimer);
-    this.noteTimer = setTimeout(() => this.note.set(null), 2500);
+    this.noteTimer = setTimeout(() => this.note.set(null), text.includes('let op') ? 6000 : 2500);
   }
 
   /** Drag the divider between editor and results. */

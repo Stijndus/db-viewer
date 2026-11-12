@@ -251,7 +251,7 @@ export class TableData {
   });
 
   /** The database type of this table's connection: decides quoting in the SQL preview. */
-  private readonly dialect = computed(
+  protected readonly dialect = computed(
     () =>
       this.connections.connections().find((c) => c.id === this.object().connectionId)?.type ??
       'mysql',
@@ -439,7 +439,7 @@ export class TableData {
   }
 
   protected onCopied(text: string): void {
-    this.showNote(`Gekopieerd: ${text.length > 40 ? text.slice(0, 40) + '…' : text}`);
+    this.showNote(`Gekopieerd: ${text}`);
   }
 
   // ── Editing ────────────────────────────────────────────────────
@@ -556,7 +556,7 @@ export class TableData {
   private showNote(text: string): void {
     this.note.set(text);
     clearTimeout(this.noteTimer);
-    this.noteTimer = setTimeout(() => this.note.set(null), 3000);
+    this.noteTimer = setTimeout(() => this.note.set(null), text.includes('let op') ? 6000 : 3000);
   }
 
   private reset(): void {

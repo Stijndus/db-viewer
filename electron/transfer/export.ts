@@ -2,10 +2,16 @@ import { spawn } from 'node:child_process';
 import { createWriteStream, promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { PassThrough, type Writable } from 'node:stream';
+import { PassThrough, Writable } from 'node:stream';
 import { createGzip } from 'node:zlib';
 import { qualifiedName, quoteIdent, stringLiteral } from '../../shared/dialect';
-import type { DbType, ExportRequest, TransferProgress } from '../../shared/models';
+import {
+  CLIPBOARD_MAX_BYTES,
+  CLIPBOARD_MAX_ROWS,
+  type DbType,
+  type ExportRequest,
+  type TransferProgress,
+} from '../../shared/models';
 import type { DbSession, RowBatch, RowSource } from '../db/driver';
 import { AppError } from '../ipc/errors';
 import { archiveError, sevenZip } from './archive';
@@ -69,6 +75,16 @@ function xlsxValue(value: unknown): XlsxValue {
   if (/^-?(0|[1-9]\d{0,14})(\.\d{1,15})?$/.test(text) && text.replace(/[-.]/g, '').length <= 15)
     return Number(text);
   return text.length > 32767 ? text.slice(0, 32767) : text; // Excel's cell limit
+}
+
+/**
+ * A Markdown table cell: pipes and backslashes escaped, line breaks as <br>, NULL in italics so it
+ * differs from the text "NULL".
+ */
+export function markdownCell(value: unknown): string {
+  const text = asText(value);
+  if (text === null) return '*NULL*';
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
 }
 
 interface Output {
@@ -205,6 +221,39 @@ async function openOutput(request: ExportRequest, innerName: string): Promise<Ou
  * Destroys a file stream and waits until its handle is closed. A stream that is still opening
  * would otherwise create the file after we removed it.
  */
+/** Collects the export in memory for the clipboard; stops counting past the size limit. */
+function memoryOutput(): Output & { text(): string } {
+  const chunks: string[] = [];
+  let bytes = 0;
+  const stream = new Writable({
+    decodeStrings: false,
+    write(chunk: string | Buffer, _encoding, done) {
+      const text = String(chunk);
+      bytes += Buffer.byteLength(text);
+      if (bytes <= CLIPBOARD_MAX_BYTES) chunks.push(text);
+      done();
+    },
+  });
+  return {
+    stream,
+    written: () => bytes,
+    finish: () => new Promise((resolve) => stream.end(resolve)),
+    abort: async () => {
+      stream.destroy();
+      chunks.length = 0;
+    },
+    text: () => chunks.join(''),
+  };
+}
+
+function tooLargeForClipboard(): AppError {
+  return new AppError(
+    'CLIPBOARD_TOO_LARGE',
+    `Te groot voor het klembord (meer dan ${CLIPBOARD_MAX_ROWS.toLocaleString('nl-NL')} rijen of ${CLIPBOARD_MAX_BYTES / 1024 / 1024} MB).`,
+    'Exporteer naar een bestand, of beperk de rijen met een filter.',
+  );
+}
+
 function destroyAndWait(file: Writable): Promise<void> {
   return new Promise((resolve) => {
     if (file.closed) return resolve();
@@ -234,7 +283,7 @@ function write(stream: Writable, text: string): Promise<void> {
 /** The file name inside an archive: the export's name without the archive extension. */
 function innerFileName(request: ExportRequest): string {
   const base = path.basename(request.file).replace(/\.(gz|zip|7z)$/i, '');
-  const ext = request.format === 'xlsx' ? '.xlsx' : `.${request.format}`;
+  const ext = request.format === 'markdown' ? '.md' : `.${request.format}`;
   return base.toLowerCase().endsWith(ext) ? base : base + ext;
 }
 
@@ -249,7 +298,9 @@ export async function exportData(
   jobId: string,
   report: (progress: TransferProgress) => void,
   signal: AbortSignal,
+  writeClipboard: (text: string) => void = () => undefined,
 ): Promise<TransferProgress> {
+  const toClipboard = request.destination === 'clipboard';
   const progress: TransferProgress = {
     jobId,
     kind: 'export',
@@ -259,8 +310,14 @@ export async function exportData(
     statements: 0,
     failed: 0,
     errors: [],
-    file: request.file,
+    ...(toClipboard ? { clipboard: true } : { file: request.file }),
   };
+  if (toClipboard && (request.format === 'xlsx' || request.archive)) {
+    throw new AppError(
+      'EXPORT_FORMAT',
+      'Excel en ingepakte bestanden kunnen niet naar het klembord.',
+    );
+  }
   const { source, format } = request;
   if (source.kind === 'database' && format !== 'sql') {
     throw new AppError('EXPORT_FORMAT', 'Een hele database wordt als SQL-script geëxporteerd.');
@@ -269,10 +326,16 @@ export async function exportData(
     throw new AppError('EXPORT_GZIP_PASSWORD', 'Gzip kan geen wachtwoord hebben; kies 7z of zip.');
   }
 
-  const out = await openOutput(request, innerFileName(request));
+  const memory = toClipboard ? memoryOutput() : null;
+  const out = memory ?? (await openOutput(request, innerFileName(request)));
   let last = 0;
   const tick = (force = false) => {
     progress.bytes = out.written();
+    if (
+      memory &&
+      (progress.bytes > CLIPBOARD_MAX_BYTES || progress.statements > CLIPBOARD_MAX_ROWS)
+    )
+      throw tooLargeForClipboard();
     const now = Date.now();
     if (force || now - last >= PROGRESS_MS) {
       last = now;
@@ -287,9 +350,16 @@ export async function exportData(
       await writeCsv(session, source as RowSource, out.stream, request, progress, tick, signal);
     else if (format === 'json')
       await writeJson(session, source as RowSource, out.stream, request, progress, tick, signal);
+    else if (format === 'markdown')
+      await writeMarkdown(session, source as RowSource, out.stream, progress, tick, signal);
     else await writeSql(session, dialect, out.stream, request, progress, tick, signal);
     if (signal.aborted) throw new AppError('CANCELLED', 'Export gestopt.');
     await out.finish();
+    if (memory) {
+      // Statements written outside a batch (SQL header, DDL) can still pass the limit at the end.
+      if (out.written() > CLIPBOARD_MAX_BYTES) throw tooLargeForClipboard();
+      writeClipboard(memory.text());
+    }
     progress.phase = 'done';
   } catch (err) {
     await out.abort();
@@ -327,6 +397,33 @@ async function writeCsv(
       first = false;
       for (const row of rows)
         text += row.map((v) => csvField(v, delimiter)).join(delimiter) + '\r\n';
+      await write(out, text);
+      progress.statements += rows.length;
+      tick();
+    },
+    signal,
+  );
+}
+
+async function writeMarkdown(
+  session: DbSession,
+  source: RowSource,
+  out: Writable,
+  progress: TransferProgress,
+  tick: Tick,
+  signal: AbortSignal,
+) {
+  let first = true;
+  await session.streamRows(
+    source,
+    async ({ columns, rows }) => {
+      let text = '';
+      if (first) {
+        text += `| ${columns.map(markdownCell).join(' | ')} |\n`;
+        text += `| ${columns.map(() => '---').join(' | ')} |\n`;
+      }
+      first = false;
+      for (const row of rows) text += `| ${row.map(markdownCell).join(' | ')} |\n`;
       await write(out, text);
       progress.statements += rows.length;
       tick();

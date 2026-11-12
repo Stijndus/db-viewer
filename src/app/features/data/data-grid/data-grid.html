@@ -15,7 +15,14 @@
     [style.grid-template-columns]="template()"
     [style.width.px]="totalWidth()"
   >
-    <div class="dg-num dg-corner" role="columnheader">#</div>
+    <div
+      class="dg-num dg-corner"
+      role="columnheader"
+      title="Alles selecteren (Ctrl+A)"
+      (mousedown)="$event.preventDefault(); selectAll()"
+    >
+      #
+    </div>
     @for (col of columns(); track $index) {
       <button
         type="button"
@@ -78,6 +85,8 @@
           <div
             class="dg-num"
             role="rowheader"
+            (mousedown)="selectRow(row.index, $event)"
+            (contextmenu)="openMenu($event)"
             [title]="
               row.mark === 'new' ? 'Nieuwe rij' : row.mark === 'deleted' ? 'Wordt verwijderd' : ''
             "
@@ -91,12 +100,14 @@
               [class]="'dg-cell ' + cell.cls"
               [class.num]="columns()[c]?.numeric"
               [class.selected]="isSelected(row.index, c)"
+              [class.in-range]="inRange(row.index, c)"
               [class.edited]="cell.edited"
               [class.editing]="isEditing(row.index, c)"
-              [attr.aria-selected]="isSelected(row.index, c)"
+              [attr.aria-selected]="inRange(row.index, c)"
               [attr.title]="cell.title"
-              (mousedown)="select(row.index, c)"
+              (mousedown)="select(row.index, c, $event)"
               (dblclick)="startEdit(row.index, c)"
+              (contextmenu)="openMenu($event, row.index, c)"
             >
               @if (isEditing(row.index, c)) {
                 <input

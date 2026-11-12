@@ -310,11 +310,17 @@ export interface TransferProgress {
   errors: { statement: number; sql: string; message: string }[];
   /** Set when the whole job failed (phase 'failed'). */
   error?: DbError;
+  /** Export: copied to the clipboard instead of written to a file. */
+  clipboard?: boolean;
   /** Export: the file written. */
   file?: string;
 }
 
-export type ExportFormat = 'csv' | 'json' | 'sql' | 'xlsx';
+export type ExportFormat = 'csv' | 'json' | 'sql' | 'xlsx' | 'markdown';
+
+/** The clipboard is for small things: larger exports go to a file. */
+export const CLIPBOARD_MAX_ROWS = 100_000;
+export const CLIPBOARD_MAX_BYTES = 50 * 1024 * 1024;
 
 /** What to export: a table (with the grid's filter and sort), a query's result, or a database. */
 export type ExportSource =
@@ -326,8 +332,10 @@ export type ExportSource =
 export interface ExportRequest {
   source: ExportSource;
   format: ExportFormat;
-  /** The file to write (chosen in the save dialog). */
+  /** The file to write (chosen in the save dialog); empty when copying to the clipboard. */
   file: string;
+  /** Write to the clipboard instead of a file (not Excel, no archive, within the limits above). */
+  destination?: 'file' | 'clipboard';
   csv?: { delimiter: ',' | ';' | '\t'; header: boolean; bom: boolean };
   json?: { style: 'array' | 'lines' };
   sql?: {

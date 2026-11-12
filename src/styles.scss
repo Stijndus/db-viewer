@@ -1254,6 +1254,22 @@ app-data-grid {
   box-shadow: inset 0 0 0 2px var(--accent);
   background: var(--accent-soft);
 }
+/* A block of cells (Shift+click, Shift+arrows, row numbers, Ctrl+A). */
+.dg-cell.in-range:not(.selected) {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+/* Shift+click selects cells, not the text in them. */
+.dg-body,
+.dg-num {
+  user-select: none;
+}
+.dg-input {
+  user-select: text;
+}
+.dg-num {
+  cursor: pointer;
+}
 .dg-cell.is-null {
   color: var(--text-3);
   font-style: italic;

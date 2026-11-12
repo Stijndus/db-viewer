@@ -173,7 +173,10 @@ export class ContextMenu {
   /** Opens a submenu (hover, click, Right); with `focus` its first item gets the focus. */
   protected showSub(index: number, focus: boolean): void {
     if (this.openSub() === index) {
-      if (focus) this.items(this.sub()!.nativeElement).at(0)?.focus();
+      // Opened by hovering a moment ago: it may not be rendered yet; focus it once it is.
+      const sub = this.sub()?.nativeElement;
+      if (focus && sub) this.items(sub).at(0)?.focus();
+      else if (focus) this.focusSub = true;
       return;
     }
     this.focusSub = focus;

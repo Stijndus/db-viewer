@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { ExportRequest, TransferProgress } from '../../shared/models';
 import type { DbSession, RowBatch, RowSource } from '../db/driver';
 import { extractEntry, listArchive } from './archive';
-import { csvField, exportData, sqlLiteral } from './export';
+import { csvField, exportData, markdownCell, sqlLiteral } from './export';
 
 const COLUMNS = ['id', 'naam', 'bedrag', 'leeg', 'bin'];
 const ROWS: unknown[][] = [
@@ -224,5 +224,73 @@ describe('export', () => {
     );
     expect(result.phase).toBe('cancelled');
     await expect(fs.stat(file)).rejects.toThrow();
+  });
+
+  it('writes a Markdown table, escaping pipes and line breaks', async () => {
+    const { file } = await run({ source: table, format: 'markdown' });
+    const md = await fs.readFile(file, 'utf8');
+    expect(md.split('\n').slice(0, 3)).toEqual([
+      '| id | naam | bedrag | leeg | bin |',
+      '| --- | --- | --- | --- | --- |',
+      '| 1 | gewoon | 12.50 | *NULL* | 0xdead |',
+    ]);
+    expect(md).toContain('| 3 | regel<br>een |');
+    expect(markdownCell('a|b\\c')).toBe('a\\|b\\\\c');
+  });
+
+  describe('to the clipboard', () => {
+    async function copy(request: Omit<ExportRequest, 'file'>, batches?: unknown[][][]) {
+      let clipboard: string | null = null;
+      const result = await exportData(
+        fakeSession(batches).session,
+        'mysql',
+        { ...request, file: '', destination: 'clipboard' },
+        'job',
+        () => {},
+        new AbortController().signal,
+        (text) => (clipboard = text),
+      );
+      return { result, clipboard: clipboard as string | null };
+    }
+
+    it('puts tab-separated rows on the clipboard, no file', async () => {
+      const { result, clipboard } = await copy({
+        source: table,
+        format: 'csv',
+        csv: { delimiter: '\t', header: true, bom: false },
+      });
+      expect(result).toMatchObject({ phase: 'done', clipboard: true, statements: 3 });
+      expect(result.file).toBeUndefined();
+      expect(clipboard!.split('\r\n')[0]).toBe('id\tnaam\tbedrag\tleeg\tbin');
+      expect(clipboard!.split('\r\n')[1]).toBe('1\tgewoon\t12.50\t\t0xdead');
+    });
+
+    it('copies JSON, SQL and Markdown too', async () => {
+      expect((await copy({ source: table, format: 'json' })).clipboard).toMatch(
+        /^\[\n {2}\{"id":1/,
+      );
+      expect((await copy({ source: table, format: 'sql' })).clipboard).toContain(
+        'INSERT INTO `klanten`',
+      );
+      expect((await copy({ source: table, format: 'markdown' })).clipboard).toMatch(/^\| id \|/);
+    });
+
+    it('refuses more rows than the clipboard is for, and leaves it alone', async () => {
+      const many = Array.from({ length: 101 }, () =>
+        Array.from({ length: 1000 }, (_, i) => [i, 'x', '1', null, null]),
+      );
+      await expect(copy({ source: table, format: 'csv' }, many)).rejects.toMatchObject({
+        code: 'CLIPBOARD_TOO_LARGE',
+      });
+    });
+
+    it('does not put Excel or an archive on the clipboard', async () => {
+      await expect(copy({ source: table, format: 'xlsx' })).rejects.toMatchObject({
+        code: 'EXPORT_FORMAT',
+      });
+      await expect(
+        copy({ source: table, format: 'csv', archive: { kind: 'zip' } }),
+      ).rejects.toMatchObject({ code: 'EXPORT_FORMAT' });
+    });
   });
 });

@@ -13,7 +13,9 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import type { Cell, SortDirection } from '../../../../../shared/models';
+import type { Cell, DbType, SortDirection } from '../../../../../shared/models';
+import { ContextMenuStore, type MenuEntry } from '../../../core/context-menu/context-menu.store';
+import { COPY_FORMAT_LABELS, formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
 
 export interface GridColumn {
   name: string;
@@ -78,6 +80,10 @@ export class DataGrid {
   /** Query results are shown as returned; only table data can be re-sorted by the server. */
   readonly sortable = input(true);
   readonly sortRequested = output<string>();
+  /** For copying as SQL: the dialect and the table the rows come from (query results: `export`). */
+  readonly dialect = input<DbType>('mysql');
+  readonly tableName = input('export');
+  /** After copying: the value (shortened) or a summary such as "3 rijen × 2 kolommen als CSV". */
   readonly copied = output<string>();
   readonly cellEdited = output<CellEdit>();
   readonly selectionChange = output<{ row: number; col: number } | null>();
@@ -88,6 +94,21 @@ export class DataGrid {
   private readonly scrollTop = signal(0);
   private readonly viewportHeight = signal(0);
   protected readonly selected = signal<{ row: number; col: number } | null>(null);
+  /** The other corner of a block selection (Shift+click, Shift+arrows); the active cell is `selected`. */
+  private readonly anchor = signal<{ row: number; col: number } | null>(null);
+  /** The selected block, inclusive; a single cell when nothing was extended. */
+  protected readonly range = computed(() => {
+    const s = this.selected();
+    if (!s) return null;
+    const a = this.anchor() ?? s;
+    return {
+      top: Math.min(a.row, s.row),
+      bottom: Math.max(a.row, s.row),
+      left: Math.min(a.col, s.col),
+      right: Math.max(a.col, s.col),
+    };
+  });
+  private readonly contextMenu = inject(ContextMenuStore);
   protected readonly editing = signal<Editing | null>(null);
   private readonly editor = viewChild<ElementRef<HTMLInputElement>>('editor');
   private readonly injector = inject(Injector);
@@ -139,6 +160,7 @@ export class DataGrid {
       untracked(() => {
         this.editing.set(null);
         this.selected.set(null);
+        this.anchor.set(null);
         this.selectionChange.emit(null);
         this.scrollTop.set(0);
         const el = this.scroller()?.nativeElement;
@@ -170,10 +192,12 @@ export class DataGrid {
     });
   }
 
-  protected select(row: number, col: number): void {
+  protected select(row: number, col: number, event?: MouseEvent): void {
+    // The right button keeps a block that already holds the cell (its menu copies the block).
+    if (event?.button === 2 && this.inRange(row, col)) return;
     const editing = this.editing();
     if (editing && (editing.row !== row || editing.col !== col)) this.commit();
-    this.setSelected(row, col);
+    this.setSelected(row, col, Boolean(event?.shiftKey) && event?.button !== 2);
     if (!this.editing()) this.scroller().nativeElement.focus({ preventScroll: true });
   }
 
@@ -268,11 +292,110 @@ export class DataGrid {
     }
   }
 
-  private setSelected(row: number, col: number): void {
+  private setSelected(row: number, col: number, extend = false): void {
+    const current = this.selected();
+    if (!extend || !current) this.anchor.set({ row, col });
+    else if (!this.anchor()) this.anchor.set(current);
     this.selected.set({ row, col });
     this.selectionChange.emit({ row, col });
   }
 
+  protected inRange(row: number, col: number): boolean {
+    const r = this.range();
+    return !!r && row >= r.top && row <= r.bottom && col >= r.left && col <= r.right;
+  }
+
+  private isSingle(): boolean {
+    const r = this.range();
+    return !r || (r.top === r.bottom && r.left === r.right);
+  }
+
+  /** Click on a row number: the whole row; with Shift, every row up to it. */
+  protected selectRow(row: number, event: MouseEvent): void {
+    if (event.button === 2 && this.inRange(row, 0) && this.inRange(row, this.columns().length - 1))
+      return;
+    const last = this.columns().length - 1;
+    if (last < 0) return;
+    if (this.editing()) this.commit();
+    const a = this.anchor();
+    if (event.shiftKey && a) this.anchor.set({ row: a.row, col: 0 });
+    else this.anchor.set({ row, col: 0 });
+    this.selected.set({ row, col: last });
+    this.selectionChange.emit({ row, col: last });
+    this.scroller().nativeElement.focus({ preventScroll: true });
+  }
+
+  /** Ctrl+A: every cell on this page. */
+  protected selectAll(): void {
+    const rows = this.rows().length;
+    const cols = this.columns().length;
+    if (!rows || !cols) return;
+    this.anchor.set({ row: 0, col: 0 });
+    this.selected.set({ row: rows - 1, col: cols - 1 });
+    this.selectionChange.emit({ row: rows - 1, col: cols - 1 });
+  }
+
+  /** Right click or the menu key: copy the selected block in a format of choice. */
+  protected openMenu(event: MouseEvent | KeyboardEvent, row?: number, col?: number): void {
+    if (this.editing()) return;
+    if (row !== undefined && col !== undefined && !this.inRange(row, col))
+      this.setSelected(row, col);
+    const r = this.range();
+    if (!r) return;
+    const cells = (r.bottom - r.top + 1) * (r.right - r.left + 1);
+    const formats = Object.keys(COPY_FORMAT_LABELS) as CopyFormat[];
+    const items: MenuEntry[] = [
+      {
+        label: cells === 1 ? 'Waarde kopiëren' : 'Kopiëren',
+        shortcut: 'Ctrl+C',
+        run: () => this.copySelection(),
+      },
+      { label: 'Kopiëren met kolomnamen', run: () => this.copyBlock('tsv', true) },
+      {
+        label: 'Kopiëren als',
+        items: formats.map((f) => ({
+          label: COPY_FORMAT_LABELS[f],
+          run: () => this.copyBlock(f, true),
+        })),
+      },
+      'separator',
+      { label: 'Alles selecteren', shortcut: 'Ctrl+A', run: () => this.selectAll() },
+    ];
+    this.contextMenu.open(event, 'Kopiëren', items);
+  }
+
+  private copySelection(): void {
+    const s = this.selected();
+    if (!s) return;
+    if (this.isSingle()) void this.copy(copyText(this.rows()[s.row]?.[s.col] ?? null));
+    else this.copyBlock('tsv', false);
+  }
+
+  /** The selected block in a format, with a summary for the note under the grid. */
+  private copyBlock(format: CopyFormat, header: boolean): void {
+    const r = this.range();
+    if (!r) return;
+    const columns = this.columns()
+      .slice(r.left, r.right + 1)
+      .map((c) => ({ name: c.name, numeric: c.numeric }));
+    const rows = this.rows()
+      .slice(r.top, r.bottom + 1)
+      .map((row) => row.slice(r.left, r.right + 1));
+    const text = formatBlock({ columns, rows }, format, {
+      header,
+      dialect: this.dialect(),
+      table: this.tableName(),
+    });
+    const n = rows.length;
+    const incomplete = incompleteCount(rows);
+    const what = `${n} ${n === 1 ? 'rij' : 'rijen'} × ${columns.length} ${columns.length === 1 ? 'kolom' : 'kolommen'} als ${COPY_FORMAT_LABELS[format]}`;
+    const warning = incomplete
+      ? ` (let op: ${incomplete} ${incomplete === 1 ? 'waarde is' : 'waarden zijn'} ingekort; Exporteren geeft alles)`
+      : '';
+    void this.copy(text, what + warning);
+  }
+
+  /** The active cell; the block around it is `inRange`. */
   protected isSelected(row: number, col: number): boolean {
     const s = this.selected();
     return s !== null && s.row === row && s.col === col;
@@ -297,9 +420,19 @@ export class DataGrid {
     const s = this.selected();
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
       if (s) {
-        void this.copy(copyText(this.rows()[s.row]?.[s.col] ?? null));
         event.preventDefault();
+        if (this.isSingle()) void this.copy(copyText(this.rows()[s.row]?.[s.col] ?? null));
+        else this.copyBlock('tsv', false);
       }
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      this.selectAll();
+      return;
+    }
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+      if (s) this.openMenu(event);
       return;
     }
     if (!s) return;
@@ -333,7 +466,7 @@ export class DataGrid {
     event.preventDefault();
     const row = clamp(s.row + move[0], 0, this.rows().length - 1);
     const col = clamp(s.col + move[1], 0, this.columns().length - 1);
-    this.setSelected(row, col);
+    this.setSelected(row, col, event.shiftKey);
     this.scrollIntoView(row, col);
   }
 
@@ -356,7 +489,8 @@ export class DataGrid {
       el.scrollLeft = left + width - el.clientWidth;
   }
 
-  private async copy(text: string): Promise<void> {
+  /** Copies and reports what was copied: the value itself, or a summary for a block. */
+  private async copy(text: string, summary?: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -371,7 +505,7 @@ export class DataGrid {
       area.remove();
       this.scroller().nativeElement.focus({ preventScroll: true });
     }
-    this.copied.emit(text);
+    this.copied.emit(summary ?? (text.length > 40 ? text.slice(0, 40) + '…' : text));
   }
 }
 

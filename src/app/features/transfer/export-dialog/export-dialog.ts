@@ -23,12 +23,16 @@ import { SchemaStore } from '../../schema/schema.store';
 import { TransferStore, type ExportTarget } from '../transfer.store';
 
 type Packing = 'none' | 'gzip' | 'zip' | '7z';
+/** What the dialog offers: the export formats, plus tab-separated (CSV with tabs) for Excel. */
+type Format = ExportFormat | 'tsv';
 
-const EXTENSIONS: Record<ExportFormat, string> = {
+const EXTENSIONS: Record<Format, string> = {
   csv: 'csv',
+  tsv: 'tsv',
   json: 'json',
   sql: 'sql',
   xlsx: 'xlsx',
+  markdown: 'md',
 };
 
 /**
@@ -48,11 +52,13 @@ export class ExportDialog {
   protected readonly transfer = inject(TransferStore);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
-  protected readonly formats: { value: ExportFormat; label: string }[] = [
+  protected readonly formats: { value: Format; label: string }[] = [
     { value: 'csv', label: 'CSV' },
+    { value: 'tsv', label: 'Tab' },
     { value: 'xlsx', label: 'Excel' },
     { value: 'json', label: 'JSON' },
     { value: 'sql', label: 'SQL' },
+    { value: 'markdown', label: 'Markdown' },
   ];
 
   protected readonly profile = computed(
@@ -61,7 +67,7 @@ export class ExportDialog {
   protected readonly dialect = computed(() => DIALECTS[this.profile()?.type ?? 'mysql']);
   protected readonly kind = computed(() => this.target().source.kind);
 
-  protected readonly format = signal<ExportFormat>('csv');
+  protected readonly format = signal<Format>('csv');
   // CSV
   protected readonly delimiter = signal<',' | ';' | '\t'>(',');
   protected readonly header = signal(true);
@@ -122,6 +128,14 @@ export class ExportDialog {
       if (this.password() && this.password() !== this.password2()) return false;
     }
     return true;
+  });
+
+  /** Why copying to the clipboard is not possible with these choices, or null when it is. */
+  protected readonly noClipboard = computed(() => {
+    if (this.format() === 'xlsx')
+      return 'Excel kan niet naar het klembord; kies Tab om in Excel te plakken.';
+    if (this.packing() !== 'none') return 'Ingepakt kan alleen als bestand.';
+    return null;
   });
 
   protected readonly progress = computed(() => {
@@ -207,21 +221,20 @@ export class ExportDialog {
     return s;
   }
 
-  protected async start(): Promise<void> {
-    if (!this.canExport()) return;
-    this.error.set(null);
-    const picked = await this.api.pickExportFile(this.fileName());
-    if (!picked.ok || !picked.data) return;
+  /** The export as asked in the dialog, without the destination. */
+  private request(file: string): ExportRequest {
     const packing = this.packing();
-    const request: ExportRequest = {
+    const format = this.format();
+    const delimiter = format === 'tsv' ? '\t' : this.delimiter();
+    return {
       source: this.source(),
-      format: this.format(),
-      file: picked.data,
-      ...(this.format() === 'csv' && {
-        csv: { delimiter: this.delimiter(), header: this.header(), bom: this.bom() },
+      format: format === 'tsv' ? 'csv' : format,
+      file,
+      ...((format === 'csv' || format === 'tsv') && {
+        csv: { delimiter, header: this.header(), bom: format === 'csv' && this.bom() },
       }),
-      ...(this.format() === 'json' && { json: { style: this.jsonStyle() } }),
-      ...(this.format() === 'sql' && {
+      ...(format === 'json' && { json: { style: this.jsonStyle() } }),
+      ...(format === 'sql' && {
         sql: {
           rowsPerInsert: Math.max(1, Math.min(10_000, Math.round(this.rowsPerInsert()) || 100)),
           ...(this.kind() === 'query' && { tableName: this.tableName().trim() }),
@@ -239,6 +252,24 @@ export class ExportDialog {
         },
       }),
     };
+  }
+
+  protected async start(): Promise<void> {
+    if (!this.canExport()) return;
+    this.error.set(null);
+    const picked = await this.api.pickExportFile(this.fileName());
+    if (!picked.ok || !picked.data) return;
+    await this.run(this.request(picked.data));
+  }
+
+  /** Same export, onto the clipboard instead of into a file. */
+  protected async copy(): Promise<void> {
+    if (!this.canExport() || this.noClipboard()) return;
+    this.error.set(null);
+    await this.run({ ...this.request(''), destination: 'clipboard' });
+  }
+
+  private async run(request: ExportRequest): Promise<void> {
     this.busy.set(true);
     const result = await this.api.startExport(this.target().connectionId, request);
     this.busy.set(false);

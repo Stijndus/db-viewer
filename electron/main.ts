@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   Menu,
   safeStorage,
@@ -225,6 +226,7 @@ function startApp(): void {
       pickSaveFile: (options) =>
         mainWindow ? dialog.showSaveDialog(mainWindow, options) : dialog.showSaveDialog(options),
       showInFolder: (file) => shell.showItemInFolder(file),
+      writeClipboard: (text) => clipboard.writeText(text),
       documentsDir: app.getPath('documents'),
       setAppearance: (background) => {
         settings?.update({ background });

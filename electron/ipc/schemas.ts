@@ -137,49 +137,60 @@ export const jobIdSchema = z.string().regex(/^[a-z0-9-]{8,64}$/i, 'Ongeldige taa
 
 const sortKeySchema = z.object({ column: identifierSchema, direction: z.enum(['asc', 'desc']) });
 
-export const exportRequestSchema = z.object({
-  source: z.discriminatedUnion('kind', [
-    z.object({
-      kind: z.literal('table'),
-      database: identifierSchema,
-      table: identifierSchema,
-      where: whereSchema,
-      orderBy: z.array(sortKeySchema).max(16),
-    }),
-    z.object({
-      kind: z.literal('query'),
-      sql: z.string().min(1).max(1_000_000),
-      database: identifierSchema.optional(),
-    }),
-    z.object({
-      kind: z.literal('database'),
-      database: identifierSchema,
-      tables: z.array(identifierSchema).min(1).max(10_000),
-      structure: z.boolean(),
-      data: z.boolean(),
-    }),
-  ]),
-  format: z.enum(['csv', 'json', 'sql', 'xlsx']),
-  file: filePathSchema,
-  csv: z
-    .object({ delimiter: z.enum([',', ';', '\t']), header: z.boolean(), bom: z.boolean() })
-    .optional(),
-  json: z.object({ style: z.enum(['array', 'lines']) }).optional(),
-  sql: z
-    .object({
-      rowsPerInsert: z.number().int().min(1).max(10_000),
-      tableName: identifierSchema.optional(),
-      createTable: z.boolean().optional(),
-      dropTable: z.boolean().optional(),
-    })
-    .optional(),
-  archive: z
-    .object({
-      kind: z.enum(['gzip', 'zip', '7z']),
-      password: z.string().min(1).max(1024).optional(),
-    })
-    .optional(),
-});
+export const exportRequestSchema = z
+  .object({
+    source: z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal('table'),
+        database: identifierSchema,
+        table: identifierSchema,
+        where: whereSchema,
+        orderBy: z.array(sortKeySchema).max(16),
+      }),
+      z.object({
+        kind: z.literal('query'),
+        sql: z.string().min(1).max(1_000_000),
+        database: identifierSchema.optional(),
+      }),
+      z.object({
+        kind: z.literal('database'),
+        database: identifierSchema,
+        tables: z.array(identifierSchema).min(1).max(10_000),
+        structure: z.boolean(),
+        data: z.boolean(),
+      }),
+    ]),
+    format: z.enum(['csv', 'json', 'sql', 'xlsx', 'markdown']),
+    file: z.string().max(4096),
+    destination: z.enum(['file', 'clipboard']).optional(),
+    csv: z
+      .object({ delimiter: z.enum([',', ';', '\t']), header: z.boolean(), bom: z.boolean() })
+      .optional(),
+    json: z.object({ style: z.enum(['array', 'lines']) }).optional(),
+    sql: z
+      .object({
+        rowsPerInsert: z.number().int().min(1).max(10_000),
+        tableName: identifierSchema.optional(),
+        createTable: z.boolean().optional(),
+        dropTable: z.boolean().optional(),
+      })
+      .optional(),
+    archive: z
+      .object({
+        kind: z.enum(['gzip', 'zip', '7z']),
+        password: z.string().min(1).max(1024).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((r, ctx) => {
+    if (r.destination === 'clipboard') {
+      if (r.format === 'xlsx')
+        ctx.addIssue({ code: 'custom', message: 'Excel kan niet naar het klembord.' });
+      if (r.archive) ctx.addIssue({ code: 'custom', message: 'Het klembord kan niet ingepakt.' });
+    } else if (!filePathSchema.safeParse(r.file).success) {
+      ctx.addIssue({ code: 'custom', message: 'Geen bestand gekozen.', path: ['file'] });
+    }
+  });
 
 export const fileNameSchema = z
   .string()
