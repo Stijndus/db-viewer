@@ -32,7 +32,16 @@ describe('parseCli', () => {
   });
 
   it('builds a connection from options, with defaults per type', () => {
-    const cmd = parse(['--db-type', 'postgres', '--host', 'db.example.com', '-d', 'app', '-p', 'pw']);
+    const cmd = parse([
+      '--db-type',
+      'postgres',
+      '--host',
+      'db.example.com',
+      '-d',
+      'app',
+      '-p',
+      'pw',
+    ]);
     expect(cmd).toMatchObject({
       kind: 'connect',
       save: false,
@@ -125,10 +134,12 @@ describe('parseCli', () => {
     expect(parse(['./data/archief'], ctx({}, [noExt]))).toMatchObject({
       input: { type: 'sqlite', database: noExt },
     });
-    expect(parse(['--db-type', 'sqlite', '--file', 'x.db', '--save', '--read-only'])).toMatchObject({
-      save: true,
-      input: { readOnly: true },
-    });
+    expect(parse(['--db-type', 'sqlite', '--file', 'x.db', '--save', '--read-only'])).toMatchObject(
+      {
+        save: true,
+        input: { readOnly: true },
+      },
+    );
   });
 
   it('explains mistakes', () => {
@@ -184,5 +195,12 @@ describe('userArgs', () => {
       '--no-sandbox',
       'mysql://u@h',
     ]);
+  });
+
+  it('leaves out the flags the installer adds after an update', () => {
+    expect(userArgs(['C:\\DB Viewer.exe', '--updated'], true, '')).toEqual([]);
+    expect(
+      userArgs(['C:\\DB Viewer.exe', '--updated', '--force-run', 'Productie'], true, ''),
+    ).toEqual(['Productie']);
   });
 });

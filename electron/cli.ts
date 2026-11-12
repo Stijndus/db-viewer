@@ -455,11 +455,18 @@ function error(message: string, hint?: string): CliCommand {
 }
 
 /**
- * The user's arguments: argv without the executable, and in development without the app path
- * (`electron . args` or `electron /path/to/app args`, with Chromium switches anywhere).
+ * Flags the Windows installer adds when it starts the app after an (auto-)update. They are not the
+ * user's and are left out, so the app starts normally instead of reporting an unknown option.
+ */
+const INSTALLER_FLAGS = new Set(['--updated', '--force-run']);
+
+/**
+ * The user's arguments: argv without the executable and the installer's flags, and in development
+ * without the app path (`electron . args` or `electron /path/to/app args`, with Chromium switches
+ * anywhere).
  */
 export function userArgs(argv: string[], packaged: boolean, appPath: string): string[] {
-  const rest = argv.slice(1);
+  const rest = argv.slice(1).filter((a) => !INSTALLER_FLAGS.has(a));
   if (packaged) return rest;
   const i = rest.findIndex((a) => !a.startsWith('-') && path.resolve(a) === path.resolve(appPath));
   return i < 0 ? rest : [...rest.slice(0, i), ...rest.slice(i + 1)];
