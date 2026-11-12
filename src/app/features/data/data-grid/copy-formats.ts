@@ -32,6 +32,7 @@ function value(cell: GridCell): string | null | typeof DEFAULT {
   if (cell === null) return null;
   if (typeof cell === 'string') return cell;
   if (cell.kind === 'default') return DEFAULT;
+  if (cell.kind === 'sql') return cell.sql;
   if (cell.kind === 'binary') return `0x${cell.hex.toUpperCase()}`;
   return cell.text;
 }
@@ -139,6 +140,7 @@ export function gridValues(
       row.map((cell) => {
         if (cell === null || typeof cell === 'string') return cell;
         if (cell.kind === 'default') return null;
+        if (cell.kind === 'sql') return cell.sql;
         if (cell.kind === 'binary') return `0x${cell.hex.toUpperCase()}`;
         return cell.text;
       }),

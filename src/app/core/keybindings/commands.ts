@@ -87,6 +87,11 @@ export const COMMANDS: CommandInfo[] = [
   { id: 'data.nextPage', title: 'Volgende pagina', category: 'Data' },
   { id: 'data.previousPage', title: 'Vorige pagina', category: 'Data' },
   { id: 'data.copy', title: 'Kopiëren', category: 'Data' },
+  { id: 'data.paste', title: 'Plakken', category: 'Data' },
+  { id: 'data.find', title: 'Zoeken in het grid', category: 'Data' },
+  { id: 'data.sqlFunction', title: 'SQL-functie in cel…', category: 'Data' },
+  { id: 'data.duplicateRow', title: 'Rij dupliceren zonder sleutels', category: 'Data' },
+  { id: 'data.discard', title: 'Wijzigingen annuleren', category: 'Data' },
   { id: 'data.selectAll', title: 'Alles selecteren', category: 'Data' },
   { id: 'data.exportRows', title: 'Rijen exporteren naar klembord…', category: 'Data' },
 ];
@@ -160,6 +165,15 @@ export const DEFAULT_BINDINGS: DefaultBinding[] = [
   { key: 'ctrl+alt+pagedown', command: 'data.nextPage', when: 'tableTab', source: H },
   { key: 'ctrl+alt+pageup', command: 'data.previousPage', when: 'tableTab', source: H },
   { key: 'ctrl+c', command: 'data.copy', when: 'gridFocus', source: H },
+  { key: 'ctrl+v', command: 'data.paste', when: 'gridFocus', source: H },
+  { key: 'ctrl+f', command: 'data.find', when: 'gridFocus', source: H },
+  { key: 'ctrl+f2', command: 'data.sqlFunction', when: 'gridFocus', source: H },
+  {
+    key: 'ctrl+insert',
+    command: 'data.duplicateRow',
+    when: 'tableTab && !inputFocus && !treeFocus',
+    source: H,
+  },
   { key: 'ctrl+a', command: 'data.selectAll', when: 'gridFocus', source: H },
   { key: 'ctrl+shift+c', command: 'data.exportRows', when: 'gridFocus', source: H },
 ];

@@ -1,3 +1,51 @@
+@if (findOpen()) {
+  <div class="dg-find" role="search">
+    <input
+      #findInput
+      class="input input-sm"
+      type="text"
+      placeholder="Zoeken in deze pagina"
+      aria-label="Zoeken in het grid"
+      [value]="findText()"
+      (input)="findText.set(findInput.value); findIndex.set(-1)"
+      (keydown)="onFindKey($event)"
+    />
+    <span class="small muted" aria-live="polite">{{
+      findText()
+        ? findMatches().length
+          ? (findIndex() + 1 || '–') + ' van ' + findMatches().length
+          : 'Geen'
+        : ''
+    }}</span>
+    <button
+      type="button"
+      class="icon-btn"
+      aria-label="Vorige"
+      title="Vorige (Shift+Enter)"
+      (click)="findStep(true)"
+    >
+      ↑
+    </button>
+    <button
+      type="button"
+      class="icon-btn"
+      aria-label="Volgende"
+      title="Volgende (Enter)"
+      (click)="findStep(false)"
+    >
+      ↓
+    </button>
+    <button
+      type="button"
+      class="icon-btn"
+      aria-label="Zoeken sluiten"
+      title="Sluiten (Esc)"
+      (click)="closeFind()"
+    >
+      ✕
+    </button>
+  </div>
+}
 <div
   #scroller
   class="dg"

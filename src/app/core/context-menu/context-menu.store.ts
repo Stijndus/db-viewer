@@ -11,7 +11,7 @@ export interface MenuAction {
 
 export interface MenuSubmenu {
   label: string;
-  items: MenuAction[];
+  items: (MenuAction | 'separator')[];
 }
 
 export type MenuEntry = MenuAction | MenuSubmenu | 'separator';

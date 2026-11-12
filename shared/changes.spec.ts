@@ -110,4 +110,25 @@ describe('changeStatements per dialect', () => {
       expect(s.preview).toBe(inlineParams(s.sql, s.params));
     }
   });
+
+  it('writes SQL values as they are and numbers the parameters around them', () => {
+    const cs: ChangeSet = {
+      primaryKey: ['id'],
+      deletes: [],
+      updates: [
+        { key: { id: '7' }, values: { seen: { sql: 'NOW()' }, naam: 'x', n: { sql: 'DEFAULT' } } },
+      ],
+      inserts: [{ values: { logo: { sql: "X'89504E47'", label: 'logo.png' }, naam: null } }],
+    };
+    const [update, insert] = changeStatements('app', 't', cs, 'postgres');
+    expect(update!.sql).toBe(
+      'UPDATE "app"."t" SET "seen" = NOW(), "naam" = $1, "n" = DEFAULT WHERE "id" = $2',
+    );
+    expect(update!.params).toEqual(['x', '7']);
+    expect(update!.preview).toBe(
+      `UPDATE "app"."t" SET "seen" = NOW(), "naam" = 'x', "n" = DEFAULT WHERE "id" = '7'`,
+    );
+    expect(insert!.sql).toBe(`INSERT INTO "app"."t" ("logo", "naam") VALUES (X'89504E47', $1)`);
+    expect(insert!.params).toEqual([null]);
+  });
 });

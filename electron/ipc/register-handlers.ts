@@ -10,19 +10,27 @@ import { IPC, TRANSFER_EVENT, type AppInfo } from '../../shared/ipc-contract';
 import { exportData } from '../transfer/export';
 import { inspectImportFile, importSql } from '../transfer/sql-import';
 import path from 'node:path';
-import type {
-  ExportRequest,
-  LaunchRequest,
-  ReleaseNote,
-  Result,
-  TransferProgress,
+import { promises as fs } from 'node:fs';
+import { qualifiedName, quoteIdent, stringLiteral } from '../../shared/dialect';
+import {
+  CELL_FILE_MAX_BYTES,
+  type CellFile,
+  type CellSaveRequest,
+  type DbType,
+  type ExportRequest,
+  type LaunchRequest,
+  type ReleaseNote,
+  type Result,
+  type TransferProgress,
 } from '../../shared/models';
+import type { DbSession } from '../db/driver';
 import type { ConnectionManager } from '../db/connection-manager';
 import { objectDefinition, routineParams, runObjectAction } from '../db/objects';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
-import { toDbError } from './errors';
+import { AppError, toDbError } from './errors';
 import {
+  cellSaveRequestSchema,
   changeSetSchema,
   connectionInputSchema,
   identifierSchema,
@@ -57,6 +65,7 @@ export interface HandlerDeps {
   showInFolder(file: string): void;
   /** Puts text on the system clipboard (export to clipboard). */
   writeClipboard(text: string): void;
+  readClipboard(): string | Promise<string>;
   documentsDir?: string;
   setAppearance(background: string): void;
   zoom(action: 'in' | 'out' | 'reset' | 'get'): number;
@@ -247,6 +256,48 @@ export function registerHandlers(deps: HandlerDeps): void {
     if (written.has(file)) deps.showInFolder(file);
   });
 
+  // Grid cells: paste, load a file into a cell, save a value as a file.
+  handle(IPC.readClipboard, () => deps.readClipboard());
+
+  handle(IPC.pickCellFile, async () => {
+    const result = await deps.pickFile({ title: 'Bestand in cel laden', properties: ['openFile'] });
+    const file = result.canceled ? undefined : result.filePaths[0];
+    if (!file) return null;
+    const { size } = await fs.stat(file);
+    if (size > CELL_FILE_MAX_BYTES) {
+      throw new AppError(
+        'CELL_FILE_TOO_LARGE',
+        `Het bestand is te groot voor een cel (${Math.round(size / 1024 / 1024)} MB; maximaal ${CELL_FILE_MAX_BYTES / 1024 / 1024} MB).`,
+      );
+    }
+    const content = await fs.readFile(file);
+    return {
+      name: path.basename(file),
+      size,
+      base64: content.toString('base64'),
+    } satisfies CellFile;
+  });
+
+  handle(IPC.saveCellToFile, async (rawId, rawRequest) => {
+    const id = idSchema.parse(rawId);
+    const request = cellSaveRequestSchema.parse(rawRequest);
+    let content: Buffer;
+    if (request.kind === 'content') {
+      content = Buffer.from(request.base64, 'base64');
+    } else {
+      const profile = await store.get(id);
+      content = await cellContent(manager.session(id), profile.type, request);
+    }
+    const saved = await deps.pickSaveFile({
+      title: 'Waarde opslaan als bestand',
+      defaultPath: path.join(deps.documentsDir ?? '', request.name.replace(/[\\/:*?"<>|]/g, '_')),
+    });
+    if (saved.canceled || !saved.filePath) return null;
+    await fs.writeFile(saved.filePath, content);
+    written.add(saved.filePath);
+    return saved.filePath;
+  });
+
   handle(IPC.cancelTransfer, (rawJob) => {
     jobs.get(jobIdSchema.parse(rawJob))?.abort();
   });
@@ -373,4 +424,30 @@ export function registerHandlers(deps: HandlerDeps): void {
     // Closing a tab after disconnecting is fine: there is nothing left to close.
     if (manager.isConnected(id)) await manager.session(id).closeEditor(tabIdSchema.parse(rawTab));
   });
+}
+
+/** A cell's complete value, fetched again by primary key: bytes as they are, text as UTF-8. */
+async function cellContent(
+  session: DbSession,
+  dialect: DbType,
+  request: Extract<CellSaveRequest, { kind: 'key' }>,
+): Promise<Buffer> {
+  const where = request.keyColumns
+    .map((c, i) => {
+      const v = request.keyValues[i] ?? null;
+      return `${quoteIdent(c, dialect)} ${v === null ? 'IS NULL' : `= ${stringLiteral(v, dialect)}`}`;
+    })
+    .join(' AND ');
+  const res = await session.query(
+    `SELECT ${quoteIdent(request.column, dialect)} AS v FROM ${qualifiedName(request.database, request.table, dialect)} WHERE ${where}`,
+  );
+  const row = res.rows[0] as unknown;
+  if (row === undefined)
+    throw new AppError('ROW_NOT_FOUND', 'De rij bestaat niet meer.', 'Vernieuw de data.');
+  const value = Array.isArray(row) ? row[0] : (row as Record<string, unknown>)['v'];
+  if (value === null || value === undefined) return Buffer.alloc(0);
+  if (Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  if (value instanceof Date) return Buffer.from(value.toISOString());
+  return Buffer.from(typeof value === 'string' ? value : JSON.stringify(value), 'utf8');
 }

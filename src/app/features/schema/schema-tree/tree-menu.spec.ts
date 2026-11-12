@@ -26,7 +26,7 @@ function labels(entries: MenuEntry[]): string[] {
     e === 'separator'
       ? '—'
       : isSubmenu(e)
-        ? `${e.label}: ${e.items.map((i) => i.label).join(', ')}`
+        ? `${e.label}: ${e.items.map((i) => (i === 'separator' ? '—' : i.label)).join(', ')}`
         : e.label,
   );
 }
@@ -35,8 +35,8 @@ function find(entries: MenuEntry[], label: string): MenuAction {
   for (const e of entries) {
     if (e === 'separator') continue;
     if (isSubmenu(e)) {
-      const hit = e.items.find((i) => i.label === label);
-      if (hit) return hit;
+      const hit = e.items.find((i) => i !== 'separator' && i.label === label);
+      if (hit && hit !== 'separator') return hit;
     } else if (e.label === label) return e;
   }
   throw new Error(`Geen menu-item ${label}`);

@@ -1,6 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import type { ConnectionProfile } from '../../shared/models';
 import { ConfirmDanger } from './core/confirm-danger/confirm-danger';
+import { Prompt } from './core/prompt/prompt';
 import { ContextMenu } from './core/context-menu/context-menu';
 import { CommandPalette } from './core/keybindings/command-palette';
 import { KeybindingsEditor } from './core/keybindings/keybindings-editor';
@@ -44,6 +45,7 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     ConfirmDanger,
     KeybindingsEditor,
     CommandPalette,
+    Prompt,
   ],
   templateUrl: './app.html',
 })

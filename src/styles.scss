@@ -1505,6 +1505,7 @@ app-workspace {
 }
 .ctx-sub {
   position: absolute;
+  max-width: 480px;
 }
 .ctx-item {
   height: 30px;
@@ -1982,6 +1983,36 @@ app-code-editor,
   box-shadow:
     inset 0 0 0 2px var(--accent),
     inset 3px 0 0 var(--warn-text);
+}
+.dg-cell.is-sql {
+  color: var(--syn-special);
+  font-style: italic;
+}
+app-data-grid {
+  position: relative;
+}
+.pr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0;
+}
+.dg-find {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+.dg-find .input {
+  width: 200px;
 }
 .dg-cell.is-default {
   color: var(--text-3);

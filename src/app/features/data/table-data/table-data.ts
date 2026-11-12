@@ -13,6 +13,8 @@ import {
 import {
   changeCount,
   changeStatements,
+  isSqlValue,
+  type CellValue,
   type ChangeSet,
   type RowValues,
 } from '../../../../../shared/changes';
@@ -30,12 +32,28 @@ import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { TransferStore } from '../../transfer/transfer.store';
 import { gridValues } from '../data-grid/copy-formats';
+import { PromptStore } from '../../../core/prompt/prompt';
+import type { MenuAction, MenuEntry } from '../../../core/context-menu/context-menu.store';
+import { quoteIdent, stringLiteral } from '../../../../../shared/dialect';
+import {
+  base64Bytes,
+  binaryValue,
+  bytesBase64,
+  dateValues,
+  fileSize,
+  guidValues,
+  isBinaryType,
+  sqlFunctionSuggestions,
+  utf8Text,
+} from './cell-values';
 import {
   DataGrid,
   DEFAULT_CELL,
   type CellEdit,
   type GridCell,
   type GridColumn,
+  type GridMenuSections,
+  type GridSelection,
   type RowMark,
 } from '../data-grid/data-grid';
 
@@ -44,11 +62,18 @@ const PAGE_SIZE_KEY = 'dbv.pageSize';
 
 /** Unsaved edits on the current page. Row and column numbers refer to the page as loaded. */
 interface Pending {
-  /** row → col → new value */
-  edits: Record<number, Record<number, string | null>>;
+  /** row → col → new value (text, NULL, or SQL such as NOW()) */
+  edits: Record<number, Record<number, CellValue>>;
   deleted: number[];
   /** New rows: col → value; a column left out gets its DEFAULT. */
-  added: Record<number, string | null>[];
+  added: Record<number, CellValue>[];
+}
+
+/** A pending value as the grid shows it. */
+function asCell(value: CellValue): GridCell {
+  return isSqlValue(value)
+    ? { kind: 'sql', sql: value.sql, ...(value.label && { label: value.label }) }
+    : value;
 }
 
 const NO_CHANGES: Pending = { edits: {}, deleted: [], added: [] };
@@ -80,6 +105,7 @@ export class TableData {
   readonly estimate = input<number | null>(null);
 
   private readonly api = inject(DB_API);
+  private readonly prompt = inject(PromptStore);
   private readonly connections = inject(ConnectionsStore);
   private readonly workspace = inject(WorkspaceStore);
   private readonly transfer = inject(TransferStore);
@@ -195,10 +221,10 @@ export class TableData {
     if (!page) return [];
     const { edits, added } = this.pending();
     const rows: GridCell[][] = page.rows.map((row, r) =>
-      edits[r] ? row.map((cell, c) => (c in edits[r]! ? edits[r]![c]! : cell)) : row,
+      edits[r] ? row.map((cell, c) => (c in edits[r]! ? asCell(edits[r]![c]!) : cell)) : row,
     );
     for (const values of added) {
-      rows.push(page.columns.map((_, c) => (c in values ? values[c]! : DEFAULT_CELL)));
+      rows.push(page.columns.map((_, c) => (c in values ? asCell(values[c]!) : DEFAULT_CELL)));
     }
     return rows;
   });
@@ -233,7 +259,7 @@ export class TableData {
     if (pk.length === 0 || pkIndex.some((i) => i < 0)) return null;
     const keyOf = (r: number) =>
       Object.fromEntries(pk.map((name, i) => [name, String(page.rows[r]?.[pkIndex[i]!] ?? '')]));
-    const valuesOf = (cols: Record<number, string | null>): RowValues =>
+    const valuesOf = (cols: Record<number, CellValue>): RowValues =>
       Object.fromEntries(Object.entries(cols).map(([c, v]) => [page.columns[Number(c)]!, v]));
 
     const { edits, deleted, added } = this.pending();
@@ -493,7 +519,7 @@ export class TableData {
   }
 
   protected onCopied(text: string): void {
-    this.showNote(`Gekopieerd: ${text}`);
+    this.showNote(text);
   }
 
   // ── Editing ────────────────────────────────────────────────────
@@ -509,9 +535,16 @@ export class TableData {
     const n = page.rows.length;
     this.pending.update((p) => {
       if (row >= n) {
-        const added = p.added.map((values, i) =>
-          i === row - n ? { ...values, [col]: value } : values,
-        );
+        const added = p.added.map((values, i) => {
+          if (i !== row - n) return values;
+          // DEFAULT on a new row: leave the column out, the server fills it in.
+          if (isSqlValue(value) && value.sql === 'DEFAULT') {
+            const rest = { ...values };
+            delete rest[col];
+            return rest;
+          }
+          return { ...values, [col]: value };
+        });
         return { ...p, added };
       }
       const original = page.rows[row]?.[col] ?? null;
@@ -535,26 +568,9 @@ export class TableData {
     else setTimeout(() => this.grid()?.focusCell(row, 0));
   }
 
-  /** Deletes the selected row (or restores it, or drops it when it is new). */
-  protected toggleDelete(): void {
-    const cell = this.selectedCell();
-    const n = this.page()?.rows.length ?? 0;
-    if (!cell) return;
-    this.pending.update((p) => {
-      if (cell.row >= n) {
-        return { ...p, added: p.added.filter((_, i) => i !== cell.row - n) };
-      }
-      const deleted = p.deleted.includes(cell.row)
-        ? p.deleted.filter((r) => r !== cell.row)
-        : [...p.deleted, cell.row];
-      return { ...p, deleted };
-    });
-    if (cell.row >= n) this.selectedCell.set(null);
-  }
-
+  /** The NULL button: every selected cell, like Ctrl+Shift+N. */
   protected setNull(): void {
-    const cell = this.selectedCell();
-    if (cell && this.selectedRowMark() !== 'deleted') this.onCellEdited({ ...cell, value: null });
+    this.fill(() => null);
   }
 
   protected discard(): void {
@@ -593,6 +609,325 @@ export class TableData {
     this.sqlDialog()?.nativeElement.close();
   }
 
+  // ── The grid's context menu (like HeidiSQL's) ──────────────────────
+  /** The items this table adds to the grid menu: values, rows, sorting and filtering. */
+  protected readonly gridMenu = (sel: GridSelection): GridMenuSections => {
+    const editable = this.editState().editable;
+    const page = this.page();
+    const n = page?.rows.length ?? 0;
+    const key = (command: string) => this.keys.keyLabel(command);
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const rows = sel.bottom - sel.top + 1;
+    const dates = dateValues();
+    const fill = (make: () => CellValue) => () => this.fill(make);
+    const valueItems: MenuEntry[] = [];
+    if (editable) {
+      valueItems.push({
+        label: 'Waarde invoegen',
+        items: [
+          { label: 'NULL', shortcut: key('data.setNull'), run: fill(() => null) },
+          {
+            label: 'SQL-functie…',
+            shortcut: key('data.sqlFunction'),
+            run: () => void this.sqlFunction(),
+          },
+          ...(this.dialect() === 'sqlite' && sel.top < n
+            ? []
+            : [{ label: 'Standaardwaarde (DEFAULT)', run: fill(() => ({ sql: 'DEFAULT' })) }]),
+          'separator',
+          ...dates.local.map((v) => ({ label: v.label, run: fill(v.make) })),
+          'separator',
+          ...dates.utc.map((v) => ({ label: v.label, run: fill(v.make) })),
+          'separator',
+          ...guidValues().map((v) => ({ label: v.label, run: fill(v.make) })),
+        ],
+      });
+      if (single)
+        valueItems.push({ label: 'Bestand in cel laden…', run: () => void this.loadFile() });
+    }
+    if (single && sel.row < n) {
+      valueItems.push({ label: 'Waarde opslaan als bestand…', run: () => void this.saveValue() });
+    }
+
+    const rowItems: MenuEntry[] = [];
+    if (editable) {
+      const marks = this.rowMarks();
+      const allDeleted = Array.from({ length: rows }, (_, i) => sel.top + i).every(
+        (r) => r >= n || marks[r] === 'deleted',
+      );
+      rowItems.push(
+        { label: 'Rij toevoegen', shortcut: key('data.addRow'), run: () => this.addRow() },
+        {
+          label:
+            rows === 1
+              ? 'Rij dupliceren zonder sleutels'
+              : `${rows} rijen dupliceren zonder sleutels`,
+          shortcut: key('data.duplicateRow'),
+          run: () => this.duplicate(sel, false),
+        },
+        {
+          label:
+            rows === 1 ? 'Rij dupliceren met sleutels' : `${rows} rijen dupliceren met sleutels`,
+          run: () => this.duplicate(sel, true),
+        },
+        ...(this.hasChanges()
+          ? [
+              {
+                label: 'Wijzigingen opslaan',
+                shortcut: key('data.save'),
+                run: () => void this.save(),
+              },
+              { label: 'Wijzigingen annuleren', run: () => this.discard() },
+            ]
+          : []),
+        {
+          label: allDeleted
+            ? rows === 1
+              ? 'Rij terugzetten'
+              : `${rows} rijen terugzetten`
+            : rows === 1
+              ? 'Rij verwijderen'
+              : `${rows} rijen verwijderen`,
+          shortcut: key('data.deleteRows'),
+          danger: !allDeleted,
+          run: () => this.deleteRows(sel),
+        },
+      );
+    }
+
+    const viewItems: MenuEntry[] = [];
+    if (this.sort()) {
+      viewItems.push({
+        label: 'Sortering herstellen',
+        shortcut: key('data.resetSort'),
+        run: () => this.resetSort(),
+      });
+    }
+    const filters = this.quickFilters(sel);
+    if (filters.length) viewItems.push({ label: 'Snelfilter', items: filters });
+
+    return {
+      values: valueItems,
+      rows: rowItems,
+      view: viewItems,
+      tail: [{ label: 'Vernieuwen', shortcut: key('data.refresh'), run: () => this.refresh() }],
+    };
+  };
+
+  /** Gives every replaceable cell of the selection a value (a GUID per cell, for instance). */
+  private fill(make: () => CellValue): void {
+    const grid = this.grid();
+    const sel = grid?.selection();
+    if (!grid || !sel) return;
+    let n = 0;
+    for (let row = sel.top; row <= sel.bottom; row++)
+      for (let col = sel.left; col <= sel.right; col++)
+        if (grid.canReplace(row, col)) {
+          this.onCellEdited({ row, col, value: make() });
+          n++;
+        }
+    if (n > 1) this.showNote(`${n} cellen gewijzigd`);
+  }
+
+  /** Ctrl+F2: SQL for the selected cells, e.g. NOW() or UUID(). */
+  protected async sqlFunction(): Promise<void> {
+    if (!this.editState().editable || !this.grid()?.selection()) return;
+    const sql = await this.prompt.ask({
+      title: 'SQL-functie in cel',
+      label: 'SQL, wordt bij opslaan zo uitgevoerd',
+      value: sqlFunctionSuggestions(this.dialect())[0] ?? '',
+      suggestions: sqlFunctionSuggestions(this.dialect()),
+      hint: 'De database rekent de waarde uit bij het opslaan, zoals een functie in een UPDATE.',
+      confirm: 'Invoegen',
+    });
+    if (sql) this.fill(() => ({ sql }));
+  }
+
+  /** "Bestand in cel laden": bytes for a binary column, text (UTF-8) for the others. */
+  private async loadFile(): Promise<void> {
+    const sel = this.grid()?.selection();
+    const page = this.page();
+    if (!sel || !page) return;
+    const result = await this.api.pickCellFile();
+    if (!result.ok) return this.showNote(result.error.message);
+    if (!result.data) return;
+    const { name, base64 } = result.data;
+    const bytes = base64Bytes(base64);
+    const column = this.columnInfo().find((c) => c.name === page.columns[sel.col]);
+    if (column && isBinaryType(column.type)) {
+      this.onCellEdited({
+        row: sel.row,
+        col: sel.col,
+        value: binaryValue(bytes, name, this.dialect()),
+      });
+    } else {
+      const text = utf8Text(bytes);
+      if (text === null)
+        return this.showNote(`${name} is geen tekst; kies een binaire kolom (BLOB).`);
+      this.onCellEdited({ row: sel.row, col: sel.col, value: text });
+    }
+    this.showNote(`${name} geladen (${fileSize(bytes.length)}); sla op om het te bewaren`);
+  }
+
+  /** "Waarde opslaan als bestand": complete from the server by key, else as shown. */
+  private async saveValue(): Promise<void> {
+    const sel = this.grid()?.selection();
+    const page = this.page();
+    if (!sel || !page) return;
+    const o = this.object();
+    const column = page.columns[sel.col]!;
+    const pk = this.primaryKey();
+    const pkIndex = pk.map((c) => page.columns.indexOf(c));
+    const keyValues = pkIndex.map((i) => page.rows[sel.row]?.[i] ?? null);
+    const binary = isBinaryType(this.columnInfo().find((c) => c.name === column)?.type ?? '');
+    const name = `${o.name}-${column}-${keyValues.join('-') || sel.row + 1}.${binary ? 'bin' : 'txt'}`;
+    let result;
+    if (
+      pk.length &&
+      pkIndex.every((i) => i >= 0) &&
+      keyValues.every((v) => v === null || typeof v === 'string')
+    ) {
+      result = await this.api.saveCellToFile(o.connectionId, {
+        kind: 'key',
+        database: o.database,
+        table: o.name,
+        keyColumns: pk,
+        keyValues: keyValues as (string | null)[],
+        column,
+        name,
+      });
+    } else {
+      const cell = page.rows[sel.row]?.[sel.col] ?? null;
+      const text =
+        cell === null ? '' : typeof cell === 'string' ? cell : 'text' in cell ? cell.text : '';
+      result = await this.api.saveCellToFile(o.connectionId, {
+        kind: 'content',
+        base64: bytesBase64(new TextEncoder().encode(text)),
+        name,
+      });
+    }
+    if (!result.ok) this.showNote(result.error.message);
+    else if (result.data) this.showNote(`Opgeslagen: ${result.data}`);
+  }
+
+  /**
+   * New rows with the values of the selected rows. Without keys: the primary key and columns the
+   * server fills (auto-increment, identity) get their default. Values the grid has only in part
+   * (long text, large binary) are left to their default too, and the note says so.
+   */
+  protected duplicate(sel: GridSelection, withKeys: boolean): void {
+    const page = this.page();
+    if (!page || !this.editState().editable) return;
+    const shown = this.displayRows();
+    const info = new Map(this.columnInfo().map((c) => [c.name, c]));
+    let skipped = 0;
+    const added: Record<number, CellValue>[] = [];
+    for (let r = sel.top; r <= sel.bottom; r++) {
+      const values: Record<number, CellValue> = {};
+      page.columns.forEach((name, c) => {
+        const col = info.get(name);
+        if (
+          !withKeys &&
+          (col?.key === 'primary' ||
+            /auto_increment|identity|generated|computed/i.test(col?.extra ?? ''))
+        )
+          return;
+        const cell = shown[r]?.[c];
+        if (cell === undefined) return;
+        if (cell === null || typeof cell === 'string') values[c] = cell;
+        else if (cell.kind === 'sql')
+          values[c] = { sql: cell.sql, ...(cell.label && { label: cell.label }) };
+        else if (cell.kind === 'binary' && cell.hex.length / 2 >= cell.bytes)
+          values[c] = binaryValue(hexBytes(cell.hex), `${cell.bytes} bytes`, this.dialect());
+        else if (cell.kind !== 'default') skipped++;
+      });
+      added.push(values);
+    }
+    this.pending.update((p) => ({ ...p, added: [...p.added, ...added] }));
+    const first = n0(page) + this.pending().added.length - added.length;
+    this.grid()?.focusCell(first, 0);
+    this.showNote(
+      `${added.length === 1 ? 'Rij' : `${added.length} rijen`} gedupliceerd${
+        skipped
+          ? `; ${skipped} lange ${skipped === 1 ? 'waarde krijgt' : 'waarden krijgen'} de standaardwaarde`
+          : ''
+      }`,
+    );
+  }
+
+  /** The toolbar button: the selected rows, like Ctrl+Del. */
+  protected deleteSelected(): void {
+    const sel = this.grid()?.selection();
+    if (sel) this.deleteRows(sel);
+  }
+
+  /** Marks the selected rows deleted (new rows are dropped); all deleted already: restores them. */
+  protected deleteRows(sel: GridSelection): void {
+    const page = this.page();
+    if (!page || !this.editState().editable) return;
+    const n = page.rows.length;
+    const rows = Array.from({ length: sel.bottom - sel.top + 1 }, (_, i) => sel.top + i);
+    this.pending.update((p) => {
+      const existing = rows.filter((r) => r < n);
+      const restore = existing.length > 0 && existing.every((r) => p.deleted.includes(r));
+      const deleted = restore
+        ? p.deleted.filter((r) => !existing.includes(r))
+        : [...new Set([...p.deleted, ...existing])];
+      const added = p.added.filter((_, i) => !rows.includes(n + i));
+      return { ...p, deleted, added };
+    });
+    if (rows.some((r) => r >= n)) this.selectedCell.set(null);
+  }
+
+  private resetSort(): void {
+    if (!this.sort() || !this.confirmDiscard()) return;
+    this.sort.set(null);
+    this.offset.set(0);
+    void this.load();
+  }
+
+  /** Filters on the active cell's value, like HeidiSQL's Quick Filter. */
+  private quickFilters(sel: GridSelection): (MenuAction | 'separator')[] {
+    const page = this.page();
+    if (!page || sel.row >= page.rows.length) return [];
+    const name = page.columns[sel.col];
+    if (!name) return [];
+    const dialect = this.dialect();
+    const col = quoteIdent(name, dialect);
+    const cell = page.rows[sel.row]?.[sel.col] ?? null;
+    const numeric = this.gridColumns()[sel.col]?.numeric ?? false;
+    const apply = (where: string) => () => {
+      this.whereDraft.set(where);
+      this.applyFilter();
+    };
+    const items: (MenuAction | 'separator')[] = [];
+    if (typeof cell === 'string' && cell.length <= 1000) {
+      const v = numeric && /^-?\d+(\.\d+)?$/.test(cell) ? cell : stringLiteral(cell, dialect);
+      const like = (pattern: string) => stringLiteral(pattern, dialect);
+      const escaped = cell.replace(/[\\%_]/g, (c) => `\\${c}`);
+      const show = cell.length > 30 ? stringLiteral(cell.slice(0, 30) + '…', dialect) : v;
+      items.push(
+        { label: `${name} = ${show}`, run: apply(`${col} = ${v}`) },
+        { label: `${name} <> ${show}`, run: apply(`${col} <> ${v}`) },
+        { label: `${name} bevat ${show}`, run: apply(`${col} LIKE ${like(`%${escaped}%`)}`) },
+        {
+          label: `${name} bevat niet ${show}`,
+          run: apply(`${col} NOT LIKE ${like(`%${escaped}%`)}`),
+        },
+        { label: `${name} > ${show}`, run: apply(`${col} > ${v}`) },
+        { label: `${name} < ${show}`, run: apply(`${col} < ${v}`) },
+        'separator',
+      );
+    }
+    items.push(
+      { label: `${name} IS NULL`, run: apply(`${col} IS NULL`) },
+      { label: `${name} IS NOT NULL`, run: apply(`${col} IS NOT NULL`) },
+    );
+    if (this.whereApplied())
+      items.push('separator', { label: 'Filter wissen', run: () => this.clearFilter() });
+    return items;
+  }
+
   /** Data commands (F5, Ctrl+S, Ins, …) for this table while its tab is shown. */
   private registerCommands(): void {
     const keys = this.keys;
@@ -612,11 +947,12 @@ export class TableData {
       return true;
     });
     on('data.addRow', () => (this.editState().editable ? this.addRow() : false));
-    on('data.deleteRows', () =>
-      this.editState().editable && this.selectedCell() ? this.toggleDelete() : false,
-    );
+    on('data.deleteRows', () => {
+      const sel = this.grid()?.selection();
+      return sel && this.editState().editable ? this.deleteRows(sel) : false;
+    });
     on('data.setNull', () =>
-      this.editState().editable && this.selectedCell() ? this.setNull() : false,
+      this.editState().editable && this.grid()?.selection() ? this.fill(() => null) : false,
     );
     on('data.focusFilter', () => {
       const input = host.querySelector<HTMLInputElement>('.dt-where');
@@ -628,12 +964,13 @@ export class TableData {
       this.clearFilter();
       return true;
     });
-    on('data.resetSort', () => {
-      if (!this.sort() || !this.confirmDiscard()) return;
-      this.sort.set(null);
-      this.offset.set(0);
-      void this.load();
+    on('data.resetSort', () => (this.sort() ? this.resetSort() : false));
+    on('data.sqlFunction', () => (this.editState().editable ? void this.sqlFunction() : false));
+    on('data.duplicateRow', () => {
+      const sel = this.grid()?.selection();
+      return sel && this.editState().editable ? this.duplicate(sel, false) : false;
     });
+    on('data.discard', () => (this.hasChanges() ? this.discard() : false));
     on('data.nextPage', () => {
       if (!this.page()?.hasMore || this.loading()) return;
       this.goTo(this.offset() + this.pageSize());
@@ -714,4 +1051,14 @@ export function columnWidth(name: string, type: string): number {
   else width = 160;
   // Never narrower than the header: name in the 13px font plus the sort arrow.
   return Math.max(width, Math.min(320, name.length * 8 + 44));
+}
+
+function n0(page: RowsPage): number {
+  return page.rows.length;
+}
+
+function hexBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }

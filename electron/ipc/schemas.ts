@@ -110,7 +110,11 @@ export const runRequestSchema = z.object({
   maxRows: z.number().int().min(1).max(100_000).nullable(),
 });
 
-const cellValue = z.string().max(16_000_000).nullable();
+// A plain value, or SQL written as is (NOW(), DEFAULT, a binary literal of a loaded file).
+const cellValue = z.union([
+  z.string().max(16_000_000).nullable(),
+  z.object({ sql: z.string().min(1).max(40_000_000), label: z.string().max(300).optional() }),
+]);
 const rowKey = z.record(identifierSchema, z.string().max(65_535));
 const rowValues = z.record(identifierSchema, cellValue);
 
@@ -213,3 +217,20 @@ export const fileNameSchema = z
   .min(1)
   .max(255)
   .refine((n) => !/[\\/]/.test(n), 'Ongeldige naam');
+
+export const cellSaveRequestSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('key'),
+    database: identifierSchema,
+    table: identifierSchema,
+    keyColumns: z.array(identifierSchema).min(1).max(16),
+    keyValues: z.array(z.string().max(65_535).nullable()).min(1).max(16),
+    column: identifierSchema,
+    name: z.string().min(1).max(255),
+  }),
+  z.object({
+    kind: z.literal('content'),
+    base64: z.string().max(80_000_000),
+    name: z.string().min(1).max(255),
+  }),
+]);

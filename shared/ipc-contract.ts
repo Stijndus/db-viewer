@@ -1,5 +1,7 @@
 import type { ApplyResult, ChangeSet } from './changes';
 import type {
+  CellFile,
+  CellSaveRequest,
   ColumnInfo,
   ConnectResult,
   ConnectSecrets,
@@ -59,6 +61,9 @@ export const IPC = {
   pickExportFile: 'dialog:export-file',
   startExport: 'transfer:export',
   showInFolder: 'shell:show-in-folder',
+  readClipboard: 'clipboard:read',
+  pickCellFile: 'cell:pick-file',
+  saveCellToFile: 'cell:save-file',
   setAppearance: 'app:appearance',
   zoom: 'app:zoom',
   pickDatabaseFile: 'dialog:database-file',
@@ -184,6 +189,12 @@ export interface DbApi {
   startExport(connectionId: string, request: ExportRequest): Promise<Result<{ jobId: string }>>;
   /** Opens the folder with the file selected (only files an export wrote). */
   showInFolder(file: string): Promise<Result<void>>;
+  /** Text on the system clipboard (paste into the grid). */
+  readClipboard(): Promise<Result<string>>;
+  /** Lets the user pick a file for a cell; null when cancelled. Max CELL_FILE_MAX_BYTES. */
+  pickCellFile(): Promise<Result<CellFile | null>>;
+  /** Saves a cell's value as a file (save dialog); the file, or null when cancelled. */
+  saveCellToFile(connectionId: string, request: CellSaveRequest): Promise<Result<string | null>>;
   onTransfer(listener: (progress: TransferProgress) => void): () => void;
 
   /** What the command line asked to open at start; null when nothing (asked once). */

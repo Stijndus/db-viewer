@@ -12,9 +12,16 @@ import {
   viewChild,
 } from '@angular/core';
 import type { StatementResult } from '../../../../../shared/models';
+import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { gridValues } from '../../data/data-grid/copy-formats';
-import { DataGrid, type GridColumn } from '../../data/data-grid/data-grid';
+import {
+  DataGrid,
+  type GridColumn,
+  type GridMenuSections,
+  type GridSelection,
+} from '../../data/data-grid/data-grid';
+import { bytesBase64 } from '../../data/table-data/cell-values';
 import { columnWidth, isNumericType } from '../../data/table-data/table-data';
 import { SchemaStore } from '../../schema/schema.store';
 import { CodeEditor, type EditorCommand } from '../code-editor/code-editor';
@@ -36,6 +43,7 @@ export class SqlPanel {
   readonly connectionId = input.required<string>();
 
   protected readonly sql = inject(SqlStore);
+  private readonly api = inject(DB_API);
   protected readonly keys = inject(KeybindingsStore);
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
@@ -147,6 +155,42 @@ export class SqlPanel {
       source: { kind: 'query', sql: r.sql, ...(db && { database: db }) },
     });
   }
+
+  /** Menu items for a result grid: saving a value as a file (as shown; a result has no key). */
+  protected readonly gridMenu = (sel: GridSelection): GridMenuSections => {
+    const r = this.active();
+    if (r?.kind !== 'rows' || sel.top !== sel.bottom || sel.left !== sel.right) return {};
+    const cell = r.rows[sel.row]?.[sel.col] ?? null;
+    return {
+      values: [
+        {
+          label: 'Waarde opslaan als bestand…',
+          run: () => {
+            const text =
+              cell === null
+                ? ''
+                : typeof cell === 'string'
+                  ? cell
+                  : 'text' in cell
+                    ? cell.text
+                    : '';
+            const binary = cell !== null && typeof cell === 'object' && cell.kind === 'binary';
+            void this.api
+              .saveCellToFile(this.connectionId(), {
+                kind: 'content',
+                base64: binary ? hexBase64(cell.hex) : bytesBase64(new TextEncoder().encode(text)),
+                name: `${r.columns[sel.col]?.name ?? 'waarde'}.${binary ? 'bin' : 'txt'}`,
+              })
+              .then((res) =>
+                this.note.set(
+                  res.ok ? (res.data ? `Opgeslagen: ${res.data}` : null) : res.error.message,
+                ),
+              );
+          },
+        },
+      ],
+    };
+  };
 
   /** Selected rows of the result, as shown (a query result has no key to fetch them again). */
   protected exportRows({ rows: indexes, clipboard }: { rows: number[]; clipboard: boolean }): void {
@@ -268,7 +312,7 @@ export class SqlPanel {
   }
 
   protected onCopied(text: string): void {
-    this.note.set(`Gekopieerd: ${text}`);
+    this.note.set(text);
     clearTimeout(this.noteTimer);
     this.noteTimer = setTimeout(() => this.note.set(null), text.includes('let op') ? 6000 : 2500);
   }
@@ -311,4 +355,10 @@ function okShort(r: StatementResult & { kind: 'ok' }): string {
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('nl-NL').format(n);
+}
+
+function hexBase64(hex: string): string {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return bytesBase64(bytes);
 }

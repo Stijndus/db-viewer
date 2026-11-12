@@ -67,7 +67,7 @@
       type="button"
       class="btn btn-secondary btn-sm"
       [disabled]="selectedRowMark() === undefined"
-      (click)="toggleDelete()"
+      (click)="deleteSelected()"
     >
       {{ selectedRowMark() === 'deleted' ? 'Rij herstellen' : 'Rij verwijderen' }}
     </button>
@@ -151,6 +151,7 @@
         [pageKey]="pageVersion()"
         [rowOffset]="offset()"
         [editable]="editState().editable"
+        [menuSections]="gridMenu"
         [rowMarks]="rowMarks()"
         [editedCells]="editedCells()"
         (sortRequested)="toggleSort($event)"

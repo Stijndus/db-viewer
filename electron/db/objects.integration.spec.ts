@@ -10,6 +10,7 @@ import type { DbType, ObjectKind } from '../../shared/models';
 import { callTemplate, insertTemplate, selectSql } from '../../shared/object-sql';
 import type { ConnectionConfig, DbSession } from './driver';
 import { getDriver } from './driver-registry';
+import { binaryValue } from '../../src/app/features/data/table-data/cell-values';
 import { exportData } from '../transfer/export';
 import { objectDefinition, routineParams, runObjectAction } from './objects';
 
@@ -236,6 +237,54 @@ for (const server of servers) {
       );
       expect(result.phase).toBe('done');
       expect(clipboard).toBe('1,a\r\n2,b\r\n');
+    });
+
+    it('saves SQL values from the grid: a function, DEFAULT and a file as binary literal', async () => {
+      const types = {
+        mysql: ['blob', 'NOW()', 'datetime'],
+        postgres: ['bytea', 'now()', 'timestamp'],
+        mssql: ['varbinary(max)', 'GETDATE()', 'datetime2'],
+        sqlite: ['blob', "datetime('now')", 'text'],
+      }[server.type];
+      const t = server.type === 'mssql' ? 'dbo.ctx_vals' : 'ctx_vals';
+      await run([`DROP TABLE IF EXISTS ${t}`]);
+      await run([
+        `CREATE TABLE ${t} (id int PRIMARY KEY, n int DEFAULT 7, ts ${types[2]} NULL, b ${types[0]} NULL)`,
+      ]);
+      await run([`INSERT INTO ${t} (id, n) VALUES (1, 1)`]);
+      const bytes = new Uint8Array([0, 1, 0xfe, 0xff]);
+      await session.applyChanges(server.schema, 'ctx_vals', {
+        primaryKey: ['id'],
+        deletes: [],
+        updates: [
+          {
+            key: { id: '1' },
+            values: {
+              ts: { sql: types[1]! },
+              b: binaryValue(bytes, 'f', server.type),
+              ...(server.type !== 'sqlite' && { n: { sql: 'DEFAULT' } }),
+            },
+          },
+        ],
+        inserts: [{ values: { id: '2', b: binaryValue(new Uint8Array(), 'leeg', server.type) } }],
+      });
+      const hex =
+        server.type === 'mssql'
+          ? 'CONVERT(varchar(20), b, 2)'
+          : server.type === 'postgres'
+            ? "upper(encode(b, 'hex'))"
+            : 'hex(b)';
+      const [result] = await run([
+        `SELECT n, ${server.type === 'mssql' ? 'CASE WHEN ts IS NULL THEN 0 ELSE 1 END' : 'ts IS NOT NULL'}, ${hex} FROM ${t} ORDER BY id`,
+      ]);
+      const rows = result?.kind === 'rows' ? result.rows : [];
+      expect(rows[0]).toEqual([
+        server.type === 'sqlite' ? '1' : '7',
+        expect.stringMatching(/^(1|true|t)$/),
+        '0001FEFF',
+      ]);
+      expect(rows[1]?.[2] ?? '').toBe('');
+      await run([`DROP TABLE ${t}`]);
     });
 
     it('empties a table', async () => {

@@ -367,3 +367,26 @@ export interface ExportRequest {
   /** Pack the file: gzip, zip or 7z; zip and 7z can have a password (AES-256). */
   archive?: { kind: 'gzip' | 'zip' | '7z'; password?: string };
 }
+
+/** A file read for a grid cell ("load file into cell"). */
+export interface CellFile {
+  name: string;
+  size: number;
+  base64: string;
+}
+
+/** The largest file that can go into a cell (it travels as a literal in an UPDATE or INSERT). */
+export const CELL_FILE_MAX_BYTES = 16 * 1024 * 1024;
+
+/** "Save value to file": fetched again by primary key (complete), or the value as shown. */
+export type CellSaveRequest =
+  | {
+      kind: 'key';
+      database: string;
+      table: string;
+      keyColumns: string[];
+      keyValues: (string | null)[];
+      column: string;
+      name: string;
+    }
+  | { kind: 'content'; base64: string; name: string };

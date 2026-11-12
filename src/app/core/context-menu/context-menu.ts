@@ -65,16 +65,23 @@ const MARGIN = 8;
                 (keydown)="onKey($event, entry.items, $index)"
               >
                 @for (item of entry.items; track $index) {
-                  <button
-                    type="button"
-                    role="menuitem"
-                    tabindex="-1"
-                    class="ctx-item"
-                    [class.danger]="item.danger"
-                    (click)="run(item)"
-                  >
-                    <span class="ctx-label">{{ item.label }}</span>
-                  </button>
+                  @if (item === 'separator') {
+                    <div class="ctx-sep" role="separator"></div>
+                  } @else {
+                    <button
+                      type="button"
+                      role="menuitem"
+                      tabindex="-1"
+                      class="ctx-item"
+                      [class.danger]="item.danger"
+                      (click)="run(item)"
+                    >
+                      <span class="ctx-label">{{ item.label }}</span>
+                      @if (item.shortcut) {
+                        <kbd class="ctx-key">{{ item.shortcut }}</kbd>
+                      }
+                    </button>
+                  }
                 }
               </div>
             }

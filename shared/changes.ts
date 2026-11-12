@@ -8,8 +8,23 @@ import type { DbType } from './models';
 /** Primary key column → the row's original value, as text. Identifies one row. */
 export type RowKey = Record<string, string>;
 
+/**
+ * A value written as SQL instead of a parameter: a function call (`NOW()`), `DEFAULT`, or a
+ * binary literal for a loaded file. Typed by the user or built by the app, like SQL in an editor.
+ */
+export interface SqlValue {
+  sql: string;
+  /** What the grid shows instead of the SQL, e.g. "logo.png (12 KB)". */
+  label?: string;
+}
+
+export type CellValue = string | null | SqlValue;
+
+export const isSqlValue = (v: unknown): v is SqlValue =>
+  !!v && typeof v === 'object' && typeof (v as SqlValue).sql === 'string';
+
 /** Column → new value. `null` is SQL NULL; a column left out keeps its value (or its DEFAULT on insert). */
-export type RowValues = Record<string, string | null>;
+export type RowValues = Record<string, CellValue>;
 
 export interface ChangeSet {
   /** The table's primary key columns, as the UI understood them; the server checks this. */
@@ -57,24 +72,35 @@ export function changeStatements(
   const limit = dialect === 'mysql' ? ' LIMIT 1' : '';
   const out: ChangeStatement[] = [];
 
-  /** Builds the SQL twice: with placeholders to execute, and with literals to show. */
+  /**
+   * Builds the SQL twice: with placeholders to execute, and with literals to show. SQL values are
+   * written as they are; the others become parameters, numbered in order.
+   */
   const add = (
     kind: ChangeStatement['kind'],
     index: number,
-    params: (string | null)[],
+    values: CellValue[],
     build: (value: (i: number) => string) => string,
   ) => {
+    const params: (string | null)[] = [];
+    const slot = values.map((v) => (isSqlValue(v) ? -1 : params.push(v) - 1));
     out.push({
       kind,
       index,
       params,
-      sql: build((i) => placeholder(i, dialect)),
-      preview: build((i) => literal(params[i] ?? null, dialect)),
+      sql: build((i) => {
+        const v = values[i];
+        return isSqlValue(v) ? v.sql : placeholder(slot[i]!, dialect);
+      }),
+      preview: build((i) => {
+        const v = values[i] ?? null;
+        return isSqlValue(v) ? v.sql : literal(v, dialect);
+      }),
     });
   };
   const where = (key: RowKey, first: number, value: (i: number) => string) =>
     changes.primaryKey.map((c, i) => `${q(c)} = ${value(first + i)}`).join(' AND ');
-  const keyParams = (key: RowKey) => changes.primaryKey.map((c) => key[c] ?? null);
+  const keyParams = (key: RowKey): CellValue[] => changes.primaryKey.map((c) => key[c] ?? null);
 
   changes.deletes.forEach((d, index) => {
     add(
@@ -88,7 +114,7 @@ export function changeStatements(
   changes.updates.forEach((u, index) => {
     const columns = Object.keys(u.values);
     if (columns.length === 0) return;
-    const params = [...columns.map((c) => u.values[c] ?? null), ...keyParams(u.key)];
+    const params: CellValue[] = [...columns.map((c) => u.values[c] ?? null), ...keyParams(u.key)];
     add(
       'update',
       index,
@@ -100,7 +126,7 @@ export function changeStatements(
 
   changes.inserts.forEach((ins, index) => {
     const columns = Object.keys(ins.values);
-    const params = columns.map((c) => ins.values[c] ?? null);
+    const params: CellValue[] = columns.map((c) => ins.values[c] ?? null);
     add('insert', index, params, (v) =>
       columns.length === 0
         ? dialect === 'mysql'
