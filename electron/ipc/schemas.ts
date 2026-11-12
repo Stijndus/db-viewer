@@ -76,6 +76,20 @@ export const identifierSchema = z
   .max(128, 'Naam is langer dan 128 tekens')
   .refine((s) => !s.includes('\0'), 'Ongeldig teken in naam');
 
+export const objectKindSchema = z.enum(['table', 'view', 'procedure', 'function']);
+export const routineKindSchema = z.enum(['procedure', 'function']);
+
+export const objectActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('truncate'), database: identifierSchema, name: identifierSchema }),
+  z.object({
+    action: z.literal('drop'),
+    database: identifierSchema,
+    kind: objectKindSchema,
+    name: identifierSchema,
+  }),
+  z.object({ action: z.literal('drop-container'), database: identifierSchema }),
+]);
+
 export const whereSchema = z.string().max(10_000, 'Filter is langer dan 10.000 tekens').optional();
 
 export const rowsRequestSchema = z.object({

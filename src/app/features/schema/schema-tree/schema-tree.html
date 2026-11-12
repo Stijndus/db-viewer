@@ -16,14 +16,15 @@
       </svg>
       Verbindingen
     </button>
-    <div class="tree-title">
+    <div class="tree-title" (contextmenu)="openConnectionMenu($event, c)">
       <h2 class="section-label">Schema</h2>
       <button
         type="button"
         class="icon-btn borderless"
         aria-label="Schema vernieuwen"
-        title="Vernieuwen"
+        title="Vernieuwen (Shift+F10 voor meer)"
         (click)="schema.refresh(c.id)"
+        (keydown)="menuKey($event) && openConnectionMenu($event, c)"
       >
         <svg
           width="16"
@@ -82,8 +83,10 @@
               type="button"
               class="tree-main"
               [attr.data-level]="row.level"
+              aria-haspopup="menu"
               (click)="activate(row)"
               (keydown)="onKeydown($event, row)"
+              (contextmenu)="openMenu($event, row)"
             >
               <span class="chev" [class.open]="row.expanded" aria-hidden="true"></span>
               <svg
@@ -136,10 +139,12 @@
               class="tree-main mono"
               [class.selected]="row.selected"
               [attr.data-level]="row.level"
-              [disabled]="!hasColumns(row)"
+              [class.routine]="!hasColumns(row)"
+              aria-haspopup="menu"
               [title]="row.obj.comment || row.obj.name"
               (click)="activate(row)"
               (keydown)="onKeydown($event, row)"
+              (contextmenu)="openMenu($event, row)"
             >
               @switch (icon(row.obj.kind)) {
                 @case ('table') {
@@ -197,7 +202,7 @@
             </button>
           }
           @case ('column') {
-            <span class="tree-col mono">
+            <span class="tree-col mono" (contextmenu)="openMenu($event, row)">
               @if (row.col.key === 'primary') {
                 <svg
                   class="ti key"

@@ -1,24 +1,27 @@
 import type { ApplyResult, ChangeSet } from './changes';
 import type {
   ColumnInfo,
-  ConnectionInput,
-  ConnectionProfile,
   ConnectResult,
   ConnectSecrets,
+  ConnectionInput,
+  ConnectionProfile,
   DatabaseInfo,
   ExportRequest,
   ImportFileInfo,
   LaunchRequest,
-  SqlImportRequest,
-  TransferProgress,
+  ObjectAction,
+  ObjectKind,
   ReleaseNote,
   Result,
+  RoutineParam,
   RowsPage,
   RowsRequest,
   RunRequest,
   RunResult,
   SchemaObject,
+  SqlImportRequest,
   TestResult,
+  TransferProgress,
   UpdateState,
 } from './models';
 
@@ -35,6 +38,9 @@ export const IPC = {
   listObjects: 'schema:objects',
   listColumns: 'schema:columns',
   listAllColumns: 'schema:all-columns',
+  objectDefinition: 'schema:definition',
+  routineParams: 'schema:routine-params',
+  objectAction: 'schema:action',
   readRows: 'data:rows',
   countRows: 'data:count',
   applyChanges: 'data:apply',
@@ -108,6 +114,23 @@ export interface DbApi {
 
   /** Column names per table of one database (for autocompletion). */
   listAllColumns(connectionId: string, database: string): Promise<Result<Record<string, string[]>>>;
+
+  /** CREATE statement of a table, view, procedure or function (tree context menu). */
+  objectDefinition(
+    connectionId: string,
+    database: string,
+    kind: ObjectKind,
+    name: string,
+  ): Promise<Result<string>>;
+  /** Parameters of a procedure or function, for a call template. */
+  routineParams(
+    connectionId: string,
+    database: string,
+    kind: 'procedure' | 'function',
+    name: string,
+  ): Promise<Result<RoutineParam[]>>;
+  /** Empties or drops an object or database; refused on read-only connections. */
+  objectAction(connectionId: string, action: ObjectAction): Promise<Result<void>>;
 
   // Table data (step 3). Always read-only, with a time limit.
   /** One page of rows from a table or view. */

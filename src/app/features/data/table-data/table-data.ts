@@ -24,7 +24,7 @@ import type {
 } from '../../../../../shared/models';
 import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
-import type { Load, SelectedObject } from '../../schema/schema.store';
+import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { TransferStore } from '../../transfer/transfer.store';
 import {
@@ -81,6 +81,7 @@ export class TableData {
   private readonly connections = inject(ConnectionsStore);
   private readonly workspace = inject(WorkspaceStore);
   private readonly transfer = inject(TransferStore);
+  private readonly schema = inject(SchemaStore);
   private readonly grid = viewChild(DataGrid);
   private readonly sqlDialog = viewChild<ElementRef<HTMLDialogElement>>('sqlDialog');
 
@@ -301,7 +302,26 @@ export class TableData {
     });
   }
 
+  private readonly createdAt = performance.now();
+
   constructor() {
+    // Emptied from the tree's menu: show the (now empty) table again, edits are gone with the rows.
+    effect(() => {
+      const changed = this.schema.dataChanged();
+      const o = untracked(this.object);
+      if (
+        changed &&
+        changed.at >= this.createdAt &&
+        changed.object.connectionId === o.connectionId &&
+        changed.object.database === o.database &&
+        changed.object.name === o.name
+      ) {
+        untracked(() => {
+          this.reset();
+          void this.load();
+        });
+      }
+    });
     // New table: start over. Load once the column metadata is in (it decides the default order).
     effect(() => {
       const o = this.object();

@@ -204,6 +204,14 @@ export class CodeEditor {
     view.focus();
   }
 
+  /** Replaces the selection (or inserts at the cursor) and puts the focus in the editor. */
+  insert(text: string): void {
+    const view = this.view;
+    if (!view) return;
+    view.dispatch(view.state.replaceSelection(text));
+    view.focus();
+  }
+
   focus(): void {
     this.view?.focus();
   }

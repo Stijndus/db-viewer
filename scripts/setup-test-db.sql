@@ -9,6 +9,9 @@ GRANT ALL ON app_dev.* TO 'viewer'@'%';
 -- MySQL 8 logs binary by default: triggers from a non-SUPER user (as in an imported dump) need this.
 SET GLOBAL log_bin_trust_function_creators = 1;
 GRANT ALL ON app_dev.* TO 'viewer'@'localhost';
+-- The context-menu test creates and drops this database.
+GRANT ALL ON ctx_weg.* TO 'viewer'@'%';
+GRANT ALL ON ctx_weg.* TO 'viewer'@'localhost';
 FLUSH PRIVILEGES;
 
 CREATE TABLE IF NOT EXISTS app_dev.orders (

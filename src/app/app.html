@@ -176,8 +176,8 @@
   <app-export-dialog [target]="target" />
 }
 
-@if (transfer.importFor(); as connectionId) {
-  <app-import-dialog [connectionId]="connectionId" />
+@if (transfer.importFor(); as target) {
+  <app-import-dialog [connectionId]="target.connectionId" [intoDatabase]="target.database" />
 }
 
 @if (updates.whatsNew(); as content) {
@@ -191,3 +191,6 @@
 @if (sql.confirmation(); as request) {
   <app-confirm-write [request]="request" />
 }
+
+<app-context-menu />
+<app-confirm-danger />

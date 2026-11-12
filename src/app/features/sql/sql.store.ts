@@ -103,7 +103,11 @@ export class SqlStore {
     if (!untracked(this.tabsByConnection)[connectionId]) this.restore(connectionId);
   }
 
-  newTab(connectionId: string): SqlTab {
+  /** A new SQL tab, optionally with text, a database and a title (from the tree's menu). */
+  newTab(
+    connectionId: string,
+    init: { text?: string; database?: string; title?: string } = {},
+  ): SqlTab {
     const existing = this.tabsByConnection()[connectionId] ?? [];
     const numbers = existing.map((t) => Number(/^SQL (\d+)$/.exec(t.title)?.[1] ?? 0));
     const selected = this.schema.selected();
@@ -111,9 +115,10 @@ export class SqlStore {
     const tab: SqlTab = {
       ...emptyRunState(),
       id: newId(),
-      title: `SQL ${Math.max(0, ...numbers) + 1}`,
-      text: '',
+      title: init.title ?? `SQL ${Math.max(0, ...numbers) + 1}`,
+      text: init.text ?? '',
       database:
+        init.database ||
         (selected?.connectionId === connectionId ? selected.database : null) ||
         (profile ? defaultContainer(profile.type, profile.database) : null) ||
         null,
@@ -132,6 +137,16 @@ export class SqlStore {
     this.persist(connectionId);
     // Ends the tab's server connection; an open transaction is rolled back.
     await this.api.closeEditor(connectionId, tabId);
+  }
+
+  /** Text to insert at the cursor of a tab's editor; the SQL panel takes it and clears it. */
+  readonly insertRequest = signal<{ tabId: string; text: string } | null>(null);
+
+  /** A tab whose editor should get the focus once shown (a new tab). */
+  readonly focusRequest = signal<string | null>(null);
+
+  insertText(tabId: string, text: string): void {
+    this.insertRequest.set({ tabId, text });
   }
 
   setText(connectionId: string, tabId: string, text: string): void {

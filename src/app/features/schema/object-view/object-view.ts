@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import type { SchemaObject } from '../../../../../shared/models';
 import { TableData } from '../../data/table-data/table-data';
 import { SchemaStore, type SelectedObject } from '../schema.store';
@@ -21,6 +21,25 @@ export class ObjectView {
 
   /** Data or Structure, per tab; a new tab starts with the last choice. */
   protected readonly view = signal(this.schema.lastObjectTab());
+
+  private readonly createdAt = performance.now();
+
+  constructor() {
+    effect(() => {
+      const request = this.schema.viewRequest();
+      const o = untracked(this.object);
+      // Only requests made while this tab exists (a new tab starts on lastObjectTab anyway).
+      if (
+        request &&
+        request.at >= this.createdAt &&
+        request.object.connectionId === o.connectionId &&
+        request.object.database === o.database &&
+        request.object.name === o.name
+      ) {
+        untracked(() => this.view.set(request.view));
+      }
+    });
+  }
 
   protected setView(view: 'data' | 'structure'): void {
     this.view.set(view);

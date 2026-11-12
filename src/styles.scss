@@ -776,7 +776,7 @@ app-schema-tree {
 .tree-main.selected {
   background: var(--accent-soft);
 }
-.tree-main:disabled {
+.tree-main.routine {
   color: var(--text-2);
   cursor: default;
 }
@@ -1472,6 +1472,80 @@ app-workspace {
 .tab-menu button:disabled {
   color: var(--text-3);
   cursor: default;
+}
+/* Context menu (tree items): one for the whole app, see core/context-menu. */
+.ctx-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 220px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 30px var(--shadow);
+}
+.ctx-sub {
+  position: absolute;
+}
+.ctx-item {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ctx-item:hover,
+.ctx-item:focus-visible,
+.ctx-item[aria-expanded='true'] {
+  background: var(--panel-2);
+  outline: none;
+}
+.ctx-item:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.ctx-item.danger {
+  color: var(--err-text);
+}
+.ctx-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ctx-key {
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+}
+.ctx-arrow {
+  color: var(--text-3);
+  font-size: 15px;
+}
+.danger-sql {
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--err-border);
+  border-radius: 6px;
+  background: var(--err-bg);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
 }
 .ws-new {
   height: 30px;

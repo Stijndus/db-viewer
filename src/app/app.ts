@@ -1,5 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import type { ConnectionProfile } from '../../shared/models';
+import { ConfirmDanger } from './core/confirm-danger/confirm-danger';
+import { ContextMenu } from './core/context-menu/context-menu';
 import { ThemePicker } from './core/theme-picker/theme-picker';
 import { ThemeStore } from './core/theme.store';
 import { UpdateStore } from './core/update.store';
@@ -35,6 +37,8 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     Workspace,
     ConfirmWrite,
     ThemePicker,
+    ContextMenu,
+    ConfirmDanger,
   ],
   templateUrl: './app.html',
   host: { '(window:keydown)': 'onKeydown($event)' },

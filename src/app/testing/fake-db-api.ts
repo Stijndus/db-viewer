@@ -155,6 +155,9 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     listColumns: () => ok(COLUMNS),
     readRows: (_id, _db, _table, request) => ok(fakeRows(request)),
     countRows: (_id, _db, _table, where) => ok(where ? FAKE_ROW_COUNT / 2 : FAKE_ROW_COUNT),
+    objectDefinition: (_id, _db, _kind, name) => ok(`CREATE TABLE ${name} (id int)`),
+    routineParams: () => ok([]),
+    objectAction: () => ok(undefined),
     listAllColumns: () => ok({ customers: ['id', 'email', 'status'], orders: ['id', 'total'] }),
     applyChanges: (_id, _db, _table, changes) =>
       ok({

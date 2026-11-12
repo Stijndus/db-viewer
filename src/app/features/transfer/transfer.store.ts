@@ -17,8 +17,8 @@ export interface ExportTarget {
 export class TransferStore {
   private readonly api = inject(DB_API);
 
-  /** The SQL import dialog, for this connection. */
-  readonly importFor = signal<string | null>(null);
+  /** The SQL import dialog, for this connection (and a database to start with). */
+  readonly importFor = signal<{ connectionId: string; database?: string } | null>(null);
   readonly exportFor = signal<ExportTarget | null>(null);
   /** Latest progress per job id. */
   readonly progress = signal<Record<string, TransferProgress>>({});
@@ -27,8 +27,8 @@ export class TransferStore {
     this.api.onTransfer((p) => this.progress.update((all) => ({ ...all, [p.jobId]: p })));
   }
 
-  openImport(connectionId: string): void {
-    this.importFor.set(connectionId);
+  openImport(connectionId: string, database?: string): void {
+    this.importFor.set({ connectionId, ...(database && { database }) });
   }
 
   openExport(target: ExportTarget): void {

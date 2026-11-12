@@ -103,9 +103,13 @@ export class WorkspaceStore {
     this.insert(conn, tab);
   }
 
-  newSql(connectionId: string): void {
+  newSql(
+    connectionId: string,
+    init: { text?: string; database?: string; title?: string } = {},
+  ): void {
     this.restore(connectionId);
-    const tab = this.sql.newTab(connectionId);
+    const tab = this.sql.newTab(connectionId, init);
+    this.sql.focusRequest.set(tab.id);
     this.insert(connectionId, { id: tab.id, kind: 'sql' });
   }
 
@@ -148,6 +152,21 @@ export class WorkspaceStore {
     if (question && !confirm(question)) return false;
     this.remove(connectionId, [tabId]);
     return true;
+  }
+
+  /** Closes the tabs of a dropped table or view (or of every object in a dropped database). */
+  dropTabsOf(connectionId: string, database: string, name?: string): void {
+    const ids = this.tabsOf(connectionId)
+      .filter(
+        (t) =>
+          t.kind === 'table' && t.database === database && (name === undefined || t.name === name),
+      )
+      .map((t) => t.id);
+    if (ids.length) this.remove(connectionId, ids);
+    const s = this.schema.selected();
+    if (s?.connectionId === connectionId && s.database === database && (!name || s.name === name)) {
+      this.schema.selected.set(null);
+    }
   }
 
   closeOthers(connectionId: string, keepId: string): void {

@@ -53,6 +53,22 @@ export class SchemaStore {
   readonly showSystem = signal(false);
   /** Data or Structure: the last choice, used when a table opens in a new tab. */
   readonly lastObjectTab = signal<'data' | 'structure'>('data');
+  /** Asks an open tab to switch to Data or Structure (from the tree's menu). */
+  readonly viewRequest = signal<{
+    object: SelectedObject;
+    view: 'data' | 'structure';
+    at: number;
+  } | null>(null);
+
+  /** A table's rows changed outside its tab (emptied from the menu): open tabs reload. */
+  readonly dataChanged = signal<{ object: Omit<SelectedObject, 'kind'>; at: number } | null>(null);
+
+  /** Opens a table or view (a new tab starts on `view`; an open one switches to it). */
+  async openAs(object: SelectedObject, view: 'data' | 'structure'): Promise<void> {
+    this.lastObjectTab.set(view);
+    this.viewRequest.set({ object, view, at: performance.now() });
+    await this.select(object);
+  }
 
   constructor() {
     // Drop everything we know about a connection once it is no longer open.

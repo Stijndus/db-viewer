@@ -115,6 +115,20 @@ export interface DatabaseInfo {
 
 export type ObjectKind = 'table' | 'view' | 'procedure' | 'function';
 
+/** A parameter of a procedure or function, for the call template. */
+export interface RoutineParam {
+  /** Without a leading `@` (SQL Server); empty for unnamed PostgreSQL parameters. */
+  name: string;
+  mode: 'in' | 'out' | 'inout';
+  type: string;
+}
+
+/** A schema change from the tree's context menu. Refused on read-only connections. */
+export type ObjectAction =
+  | { action: 'truncate'; database: string; name: string }
+  | { action: 'drop'; database: string; kind: ObjectKind; name: string }
+  | { action: 'drop-container'; database: string };
+
 export interface SchemaObject {
   name: string;
   kind: ObjectKind;

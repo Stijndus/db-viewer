@@ -18,6 +18,7 @@ import type {
   TransferProgress,
 } from '../../shared/models';
 import type { ConnectionManager } from '../db/connection-manager';
+import { objectDefinition, routineParams, runObjectAction } from '../db/objects';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
 import { toDbError } from './errors';
@@ -26,6 +27,9 @@ import {
   connectionInputSchema,
   identifierSchema,
   idSchema,
+  objectActionSchema,
+  objectKindSchema,
+  routineKindSchema,
   optionalIdSchema,
   connectSecretsSchema,
   exportRequestSchema,
@@ -285,6 +289,38 @@ export function registerHandlers(deps: HandlerDeps): void {
   handle(IPC.listAllColumns, (rawId, rawDb) =>
     manager.session(idSchema.parse(rawId)).listAllColumns(identifierSchema.parse(rawDb)),
   );
+
+  // Tree context menu: definitions, call templates and dropping or emptying objects.
+  handle(IPC.objectDefinition, async (rawId, rawDb, rawKind, rawName) => {
+    const id = idSchema.parse(rawId);
+    const profile = await store.get(id);
+    return objectDefinition(
+      manager.session(id),
+      profile.type,
+      identifierSchema.parse(rawDb),
+      objectKindSchema.parse(rawKind),
+      identifierSchema.parse(rawName),
+    );
+  });
+
+  handle(IPC.routineParams, async (rawId, rawDb, rawKind, rawName) => {
+    const id = idSchema.parse(rawId);
+    const profile = await store.get(id);
+    return routineParams(
+      manager.session(id),
+      profile.type,
+      identifierSchema.parse(rawDb),
+      routineKindSchema.parse(rawKind),
+      identifierSchema.parse(rawName),
+    );
+  });
+
+  handle(IPC.objectAction, async (rawId, rawAction) => {
+    const id = idSchema.parse(rawId);
+    const action = objectActionSchema.parse(rawAction);
+    const profile = await store.get(id);
+    await runObjectAction(manager.session(id), profile.type, profile.readOnly, action);
+  });
 
   // Table data: read-only and time-limited inside the driver.
   handle(IPC.readRows, (rawId, rawDb, rawTable, rawRequest) =>

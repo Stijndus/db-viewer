@@ -25,6 +25,8 @@ import { TransferStore } from '../transfer.store';
 })
 export class ImportDialog {
   readonly connectionId = input.required<string>();
+  /** Import into this database (from the tree's context menu); else the usual default. */
+  readonly intoDatabase = input<string | undefined>();
 
   private readonly api = inject(DB_API);
   private readonly connections = inject(ConnectionsStore);
@@ -91,6 +93,7 @@ export class ImportDialog {
       const p = this.profile();
       const dbs = this.databases();
       const preferred = [
+        this.intoDatabase() ?? '',
         selected?.connectionId === this.connectionId() ? selected.database : '',
         p?.type === 'sqlite' ? 'main' : (p?.database ?? ''),
       ];

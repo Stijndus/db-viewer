@@ -7,9 +7,12 @@ import type {
   SchemaObject,
 } from '../../../../../shared/models';
 import { defaultContainer } from '../../../../../shared/dialect';
+import { ContextMenuStore } from '../../../core/context-menu/context-menu.store';
+import type { ConnectionProfile } from '../../../../../shared/models';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { dbKey, groupKey, type GroupId, objectKey, SchemaStore } from '../schema.store';
+import { TreeMenu } from './tree-menu';
 
 type Row =
   | { type: 'db'; key: string; level: 1; db: DatabaseInfo; expanded: boolean }
@@ -58,6 +61,8 @@ export class SchemaTree {
   protected readonly schema = inject(SchemaStore);
   protected readonly ws = inject(WorkspaceStore);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly menus = inject(TreeMenu);
+  private readonly contextMenu = inject(ContextMenuStore);
 
   protected readonly conn = computed(() => this.connections.active());
 
@@ -189,6 +194,8 @@ export class SchemaTree {
         this.schema.toggleGroup(conn.id, row.db, row.group);
         break;
       case 'object':
+        // Routines have no data to show; their actions are in the context menu.
+        if (!this.hasColumns(row)) break;
         void this.schema.select({
           connectionId: conn.id,
           database: row.db,
@@ -204,8 +211,49 @@ export class SchemaTree {
     if (conn) void this.schema.toggleObject(conn.id, row.db, row.obj.name);
   }
 
+  /** Right click, Shift+F10 or the menu key: the actions for this row. */
+  protected openMenu(event: MouseEvent | KeyboardEvent, row: Row): void {
+    const conn = this.conn();
+    if (!conn) return;
+    switch (row.type) {
+      case 'db':
+        this.contextMenu.open(
+          event,
+          `Acties voor ${row.db.name}`,
+          this.menus.forDatabase(conn, row.db.name),
+        );
+        break;
+      case 'object':
+        this.contextMenu.open(
+          event,
+          `Acties voor ${row.obj.name}`,
+          this.menus.forObject(conn, row.db, row.obj),
+        );
+        break;
+      case 'column':
+        this.contextMenu.open(
+          event,
+          `Acties voor ${row.col.name}`,
+          this.menus.forColumn(conn, row.col),
+        );
+        break;
+    }
+  }
+
+  protected openConnectionMenu(event: MouseEvent | KeyboardEvent, conn: ConnectionProfile): void {
+    this.contextMenu.open(event, `Acties voor ${conn.name}`, this.menus.forConnection(conn));
+  }
+
+  protected menuKey(event: KeyboardEvent): boolean {
+    return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey);
+  }
+
   /** Arrow keys walk the visible rows; Right/Left open and close like a file explorer. */
   protected onKeydown(event: KeyboardEvent, row: Row): void {
+    if (this.menuKey(event)) {
+      this.openMenu(event, row);
+      return;
+    }
     const buttons = Array.from(
       this.host.nativeElement.querySelectorAll<HTMLButtonElement>('.tree-main'),
     );

@@ -75,6 +75,26 @@ export class SqlPanel {
   );
 
   constructor() {
+    // A new tab: put the cursor in the editor, so typing or Ctrl+Enter works at once.
+    effect(() => {
+      const id = this.sql.focusRequest();
+      const editor = this.editor();
+      if (!id || !editor || id !== this.tab().id) return;
+      untracked(() => {
+        this.sql.focusRequest.set(null);
+        setTimeout(() => editor.focus());
+      });
+    });
+    // Text sent from the tree's menu ("insert in SQL tab"): at the cursor of this tab's editor.
+    effect(() => {
+      const request = this.sql.insertRequest();
+      const editor = this.editor();
+      if (!request || !editor || request.tabId !== this.tab().id) return;
+      untracked(() => {
+        this.sql.insertRequest.set(null);
+        editor.insert(request.text);
+      });
+    });
     // Fetch autocompletion columns for the tab's database (again after DDL cleared them).
     effect(() => {
       const id = this.connectionId();
