@@ -6,7 +6,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { DbType } from '../../shared/models';
+import type { DbType, ObjectKind } from '../../shared/models';
 import { callTemplate, insertTemplate, selectSql } from '../../shared/object-sql';
 import type { ConnectionConfig, DbSession } from './driver';
 import { getDriver } from './driver-registry';
@@ -233,16 +233,16 @@ for (const server of servers) {
     });
 
     it('drops views, routines and tables', async () => {
-      const kinds = [
+      const kinds: [ObjectKind, string][] = [
         ['view', 'ctx_v'],
         ...(routines
-          ? [
+          ? ([
               ['procedure', 'ctx_p'],
               ['function', 'ctx_f'],
-            ]
+            ] as [ObjectKind, string][])
           : []),
         ['table', 'ctx_t'],
-      ] as const;
+      ];
       for (const [kind, name] of kinds) {
         await runObjectAction(session, server.type, false, {
           action: 'drop',
