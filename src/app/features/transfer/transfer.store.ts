@@ -39,6 +39,8 @@ export class TransferStore {
   );
   /** Imports started in this session, running or finished, until their result was seen. */
   readonly imports = signal<ImportJob[]>([]);
+  /** Jobs asked to stop that have not reported back yet: "Stoppen…" until they do. */
+  readonly stopping = signal<ReadonlySet<string>>(new Set());
   /** The imports still running, per connection or all. */
   readonly runningImports = computed(() =>
     this.imports().filter((j) => (this.progress()[j.jobId]?.phase ?? 'running') === 'running'),
@@ -57,6 +59,13 @@ export class TransferStore {
         void this.schema.refresh(job.connectionId);
       }
     });
+  }
+
+  /** Asks a job to stop; shown as stopping at once, until its last progress arrives. */
+  stop(jobId: string): void {
+    if (this.stopping().has(jobId)) return;
+    this.stopping.update((set) => new Set(set).add(jobId));
+    void this.api.cancelTransfer(jobId);
   }
 
   addImport(job: ImportJob): void {
@@ -82,7 +91,7 @@ export class TransferStore {
     const ok = confirm(
       `Er loopt nog een import (${names}). Verbreken stopt die import; wat al is uitgevoerd blijft staan. Doorgaan?`,
     );
-    if (ok) for (const j of running) void this.api.cancelTransfer(j.jobId);
+    if (ok) for (const j of running) this.stop(j.jobId);
     return ok;
   }
 
@@ -96,6 +105,11 @@ export class TransferStore {
 
   forget(jobId: string): void {
     this.progress.update(({ [jobId]: _, ...rest }) => rest);
+    this.stopping.update((set) => {
+      const next = new Set(set);
+      next.delete(jobId);
+      return next;
+    });
     this.imports.update((all) => all.filter((j) => j.jobId !== jobId));
   }
 }

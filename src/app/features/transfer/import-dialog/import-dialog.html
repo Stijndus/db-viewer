@@ -180,11 +180,19 @@
       <div class="import-progress" role="status" aria-live="polite">
         @switch (p?.phase ?? 'running') {
           @case ('running') {
-            <strong>Bezig met importeren…</strong>
-            <span class="muted small"
-              >Je kunt dit venster sluiten en verder werken; de import loopt door en staat onderin
-              de statusbalk.</span
-            >
+            @if (stopping()) {
+              <strong>Bezig met stoppen…</strong>
+              <span class="muted small"
+                >Het statement dat nu loopt wordt afgebroken; daarna stopt de import. Wat al is
+                uitgevoerd blijft staan.</span
+              >
+            } @else {
+              <strong>Bezig met importeren…</strong>
+              <span class="muted small"
+                >Je kunt dit venster sluiten en verder werken; de import loopt door en staat onderin
+                de statusbalk.</span
+              >
+            }
           }
           @case ('done') {
             <strong class="ok-text">Klaar: alle statements zijn uitgevoerd.</strong>
@@ -246,7 +254,9 @@
         Importeren
       </button>
     } @else if (running()) {
-      <button type="button" class="btn btn-danger-ghost" (click)="stop()">Stoppen</button>
+      <button type="button" class="btn btn-danger-ghost" [disabled]="stopping()" (click)="stop()">
+        {{ stopping() ? 'Stoppen…' : 'Stoppen' }}
+      </button>
       <button type="button" class="btn btn-primary" (click)="close()">Op de achtergrond</button>
     } @else {
       <button type="button" class="btn btn-primary" (click)="close()">Sluiten</button>

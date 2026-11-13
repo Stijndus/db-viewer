@@ -5,7 +5,7 @@ import { readOnlyViolation } from '../../shared/sql';
 import { AppError, toSqlError } from '../ipc/errors';
 import type { ConnectionConfig } from './driver';
 import { quoteIdent } from '../../shared/dialect';
-import { HARD_ROW_CAP, toCell } from './common';
+import { HARD_ROW_CAP, stoppedResult, toCell } from './common';
 
 export { HARD_ROW_CAP };
 
@@ -13,6 +13,8 @@ interface Editor {
   conn: mysql.Connection;
   threadId: number;
   running: boolean;
+  /** Stop was clicked: run no further statements. */
+  stopped: boolean;
 }
 
 type OptionsFactory = (cfg: ConnectionConfig) => mysql.ConnectionOptions;
@@ -40,6 +42,7 @@ export class EditorSessions {
       );
     }
     editor.running = true;
+    editor.stopped = false;
     const results: StatementResult[] = [];
     try {
       const { conn } = editor;
@@ -49,6 +52,10 @@ export class EditorSessions {
       await conn.query(`SET SESSION sql_select_limit = ${limit + 1}`);
 
       for (const [index, sql] of req.statements.entries()) {
+        if (editor.stopped) {
+          results.push(stoppedResult(index, sql));
+          break;
+        }
         const violation = this.cfg.readOnly ? readOnlyViolation(sql) : null;
         if (violation) {
           results.push({
@@ -95,6 +102,7 @@ export class EditorSessions {
     if (!pending) return;
     const editor = await pending;
     if (!editor.running) return;
+    editor.stopped = true;
     await this.pool.query('KILL QUERY ?', [editor.threadId]);
   }
 
@@ -128,7 +136,7 @@ export class EditorSessions {
       await conn.query('SET SESSION TRANSACTION READ ONLY');
     }
     conn.on('error', () => undefined); // a dropped connection surfaces on the next query
-    return { conn, threadId: conn.threadId, running: false };
+    return { conn, threadId: conn.threadId, running: false, stopped: false };
   }
 }
 

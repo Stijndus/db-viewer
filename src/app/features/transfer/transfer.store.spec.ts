@@ -91,4 +91,18 @@ describe('TransferStore imports', () => {
     expect(transfer.confirmStopImports(ID)).toBe(true);
     expect(cancelled).toEqual(['job-1']);
   });
+
+  it('shows stopping at once, until the import reports it stopped', () => {
+    const { transfer, emit, cancelled } = setup();
+    transfer.addImport({ jobId: 'job-1', connectionId: ID, name: 'dump.sql' });
+    emit(progress('running'));
+    transfer.stop('job-1');
+    transfer.stop('job-1');
+    expect(cancelled).toEqual(['job-1']);
+    expect(transfer.stopping().has('job-1')).toBe(true);
+    emit(progress('cancelled'));
+    expect(transfer.runningImports()).toEqual([]);
+    transfer.forget('job-1');
+    expect(transfer.stopping().size).toBe(0);
+  });
 });

@@ -7,7 +7,7 @@ import {
 } from '../../shared/changes';
 import { qualifiedName, quoteIdent } from '../../shared/dialect';
 import { classify, splitStatements } from '../../shared/sql';
-import type { Cell, ColumnInfo, DbType, SortKey } from '../../shared/models';
+import type { Cell, ColumnInfo, DbType, SortKey, StatementResult } from '../../shared/models';
 import { AppError, toSqlError } from '../ipc/errors';
 
 /** Building blocks every driver shares: value conversion, filter clauses, saving grid edits. */
@@ -257,4 +257,19 @@ export function ddlFromColumns(
   const pk = columns.filter((c) => c.key === 'primary').map((c) => q(c.name));
   if (pk.length) lines.push(`  PRIMARY KEY (${pk.join(', ')})`);
   return `CREATE TABLE ${qualifiedName(database, table, dialect)} (\n${lines.join(',\n')}\n)`;
+}
+
+/**
+ * The result for a statement that was not run because the user stopped the script. Stopping
+ * kills the running statement, but between two statements there is nothing to kill: the editor
+ * checks this flag before each one, so Stop always ends the script.
+ */
+export function stoppedResult(index: number, sql: string): StatementResult {
+  return {
+    kind: 'error',
+    index,
+    sql,
+    durationMs: 0,
+    error: { code: 'CANCELLED', message: 'Gestopt.' },
+  };
 }

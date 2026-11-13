@@ -88,6 +88,12 @@ export class ImportDialog implements OnInit {
     return Math.min(100, Math.round((p.bytes / p.totalBytes) * 100));
   });
 
+  /** Stop was clicked and the import has not ended yet. */
+  protected readonly stopping = computed(() => {
+    const id = this.jobId();
+    return id !== null && this.running() && this.transfer.stopping().has(id);
+  });
+
   /** The started import this dialog shows, for its name. */
   protected readonly jobInfo = computed(() => {
     const id = this.jobId();
@@ -181,7 +187,7 @@ export class ImportDialog implements OnInit {
 
   protected stop(): void {
     const id = this.jobId();
-    if (id) void this.api.cancelTransfer(id);
+    if (id) this.transfer.stop(id);
   }
 
   /** Closes the dialog; a running import goes on (the store refreshes the schema when done). */

@@ -61,6 +61,7 @@ export class App implements OnInit {
     const p = this.transfer.progress()[jobId];
     switch (p?.phase ?? 'running') {
       case 'running':
+        if (this.transfer.stopping().has(jobId)) return 'stoppen…';
         return p?.totalBytes ? `${Math.floor((p.bytes / p.totalBytes) * 100)}%` : 'bezig';
       case 'done':
         return 'klaar';

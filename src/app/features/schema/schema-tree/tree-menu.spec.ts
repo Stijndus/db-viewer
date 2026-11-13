@@ -102,7 +102,9 @@ describe('TreeMenu', () => {
       ...labels(menu.forObject(readOnly, 'app_dev', table)),
       ...labels(menu.forObject(readOnly, 'app_dev', procedure)),
     ];
-    expect(all.filter((l) => /verwijderen…|leegmaken|importeren|nieuwe? (database|schema)/i.test(l))).toEqual([]);
+    expect(
+      all.filter((l) => /verwijderen…|leegmaken|importeren|nieuwe? (database|schema)/i.test(l)),
+    ).toEqual([]);
   });
 
   it('only drops a database where the dialect can', async () => {
@@ -222,7 +224,9 @@ describe('TreeMenu', () => {
     expect(labels(menu.forConnection(PROFILE))).toContain('Nieuwe database…');
     expect(labels(menu.forDatabase(PROFILE, 'app_dev'))).toContain('Nieuwe database…');
     expect(labels(menu.forConnection(as({ type: 'postgres' })))).toContain('Nieuw schema…');
-    expect(labels(menu.forConnection(as({ type: 'sqlite' }))).join()).not.toMatch(/Nieuwe? (database|schema)/);
+    expect(labels(menu.forConnection(as({ type: 'sqlite' }))).join()).not.toMatch(
+      /Nieuwe? (database|schema)/,
+    );
 
     find(menu.forConnection(PROFILE), 'Nieuwe database…').run();
     expect(prompt.question()?.confirm).toBe('Database aanmaken');

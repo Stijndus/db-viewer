@@ -197,5 +197,37 @@ for (const server of servers) {
       expect(result.errors[0]?.message).toMatch(/bestaat_niet/i);
       expect(await rows()).toHaveLength(3);
     });
+
+    it('stops at once, also between statements', async () => {
+      // Short sleeps: a stop mostly lands between two of them, where there is nothing to kill
+      // (and MySQL's SLEEP even returns normally when killed). The script must still end there.
+      const sleep =
+        server.type === 'mysql'
+          ? 'DO SLEEP(0.05)'
+          : server.type === 'postgres'
+            ? 'SELECT pg_sleep(0.05)'
+            : "WAITFOR DELAY '00:00:00.050'";
+      const sep = server.type === 'mssql' ? '\nGO\n' : ';\n';
+      const file = path.join(dir, 'traag.sql');
+      await fs.writeFile(file, Array.from({ length: 150 }, () => sleep).join(sep) + sep);
+      const controller = new AbortController();
+      const running = importSql(
+        session,
+        server.type,
+        false,
+        { file, database: server.schema, onError: 'stop' },
+        'd',
+        () => {},
+        controller.signal,
+      );
+      await new Promise((r) => setTimeout(r, 800));
+      const stoppedAt = Date.now();
+      controller.abort();
+      const result = await running;
+      expect(Date.now() - stoppedAt).toBeLessThan(1000);
+      expect(result.phase).toBe('cancelled');
+      expect(result.statements).toBeLessThan(100);
+      expect(result.failed).toBe(0);
+    });
   });
 }

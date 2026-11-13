@@ -3,7 +3,7 @@ import Cursor from 'pg-cursor';
 import type { ResultColumn, RunRequest, RunResult, StatementResult } from '../../shared/models';
 import { readOnlyViolation } from '../../shared/sql';
 import { AppError, toSqlError } from '../ipc/errors';
-import { HARD_ROW_CAP, toCell } from './common';
+import { HARD_ROW_CAP, stoppedResult, toCell } from './common';
 import type { ConnectionConfig } from './driver';
 import { clientConfig, pgError, RAW_TYPES, searchPath } from './postgres.common';
 
@@ -12,6 +12,8 @@ interface Editor {
   pid: number;
   running: boolean;
   broken: boolean;
+  /** Stop was clicked: run no further statements. */
+  stopped: boolean;
 }
 
 /**
@@ -39,6 +41,7 @@ export class PgEditorSessions {
       );
     }
     editor.running = true;
+    editor.stopped = false;
     const results: StatementResult[] = [];
     try {
       const { client } = editor;
@@ -50,6 +53,10 @@ export class PgEditorSessions {
       const limit = Math.min(req.maxRows ?? HARD_ROW_CAP, HARD_ROW_CAP);
 
       for (const [index, sql] of req.statements.entries()) {
+        if (editor.stopped) {
+          results.push(stoppedResult(index, sql));
+          break;
+        }
         const violation = this.cfg.readOnly ? readOnlyViolation(sql, 'postgres') : null;
         if (violation) {
           results.push({
@@ -98,6 +105,7 @@ export class PgEditorSessions {
     if (!pending) return;
     const editor = await pending.catch(() => null);
     if (!editor?.running) return;
+    editor.stopped = true;
     await this.pool.query('SELECT pg_cancel_backend($1)', [editor.pid]);
   }
 
@@ -126,7 +134,7 @@ export class PgEditorSessions {
 
   private async open(): Promise<Editor> {
     const client = new pg.Client(clientConfig(this.cfg));
-    const editor: Editor = { client, pid: 0, running: false, broken: false };
+    const editor: Editor = { client, pid: 0, running: false, broken: false, stopped: false };
     client.on('error', () => {
       editor.broken = true; // a dropped connection: the next run opens a new one
     });

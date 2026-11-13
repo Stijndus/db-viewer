@@ -2,7 +2,7 @@ import sql from 'mssql';
 import type { RunRequest, RunResult, StatementResult } from '../../shared/models';
 import { classify, readOnlyViolation } from '../../shared/sql';
 import { AppError, toSqlError } from '../ipc/errors';
-import { HARD_ROW_CAP, toCell } from './common';
+import { HARD_ROW_CAP, stoppedResult, toCell } from './common';
 import { columnType, mssqlError, mssqlValue, poolConfig } from './mssql.common';
 import type { ConnectionConfig } from './driver';
 
@@ -10,6 +10,8 @@ interface Editor {
   pool: sql.ConnectionPool;
   running: sql.Request | null;
   broken: boolean;
+  /** Stop was clicked: run no further batches. */
+  stopped: boolean;
 }
 
 /** Rows read and dropped after the limit before a result is cut off by stopping the batch. */
@@ -38,8 +40,13 @@ export class MssqlEditorSessions {
     }
     const limit = Math.min(req.maxRows ?? HARD_ROW_CAP, HARD_ROW_CAP);
     const results: StatementResult[] = [];
+    editor.stopped = false;
     try {
       for (const [index, batch] of req.statements.entries()) {
+        if (editor.stopped) {
+          results.push(stoppedResult(index, batch));
+          break;
+        }
         const violation = this.cfg.readOnly ? readOnlyViolation(batch, 'mssql') : null;
         if (violation) {
           results.push({
@@ -177,7 +184,9 @@ export class MssqlEditorSessions {
     const pending = this.editors.get(tabId);
     if (!pending) return;
     const editor = await pending.catch(() => null);
-    editor?.running?.cancel();
+    if (!editor?.running) return;
+    editor.stopped = true;
+    editor.running.cancel();
   }
 
   async close(tabId: string): Promise<void> {
@@ -211,7 +220,7 @@ export class MssqlEditorSessions {
       // Exactly one connection, never closed while idle: it carries the tab's session.
       pool: { max: 1, min: 0, idleTimeoutMillis: 2_147_483_647 },
     });
-    const editor: Editor = { pool, running: null, broken: false };
+    const editor: Editor = { pool, running: null, broken: false, stopped: false };
     pool.on('error', () => {
       editor.broken = true;
     });

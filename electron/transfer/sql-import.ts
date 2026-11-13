@@ -106,6 +106,8 @@ export async function importSql(
         return;
       }
       progress.statements += failedAt;
+      // Stopped: the interrupted statement is not a failure of the dump.
+      if (signal.aborted) throw cancelled();
       progress.failed++;
       const failed = run.results[failedAt] as Extract<StatementResult, { kind: 'error' }>;
       if (progress.errors.length < MAX_ERRORS) {
