@@ -61,6 +61,21 @@ describe('parseCli', () => {
     });
   });
 
+  it('knows every colour label, in Dutch and English', () => {
+    expect(parse(['-t', 'mysql', '--host', 'h', '--color', 'paars'])).toMatchObject({
+      input: { color: 'purple' },
+    });
+    expect(parse(['-t', 'mysql', '--host', 'h', '--color', 'Grey'])).toMatchObject({
+      input: { color: 'gray' },
+    });
+    expect(parse(['-t', 'mysql', '--host', 'h', '--color', 'turquoise'])).toMatchObject({
+      input: { color: 'teal' },
+    });
+    expect(parse(['-t', 'mysql', '--host', 'h', '--color', 'zalm'])).toMatchObject({
+      kind: 'error',
+    });
+  });
+
   it('reads a URL, and lets options override it', () => {
     const cmd = parse([
       'mysql://stijn:p%40ss@db.example.com:3307/shop?ssl=true&read-only=1&name=Shop',

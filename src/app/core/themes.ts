@@ -617,9 +617,35 @@ export function contrast(a: string, b: string): number {
   return (x! + 0.05) / (y! + 0.05);
 }
 
+/**
+ * Connection labels beyond the four that come from the theme (green, orange, red, blue follow
+ * ok/warn/err/label-blue): one set for dark themes and a deeper one for light themes, so each
+ * stands out on the background as a dot or bar.
+ */
+export const LABEL_COLORS = {
+  dark: {
+    purple: '#b48cff',
+    pink: '#ff7ac6',
+    yellow: '#f2cf3d',
+    teal: '#2ec4b6',
+    brown: '#c08a5b',
+    gray: '#9aa3ad',
+  },
+  light: {
+    purple: '#7b3fe4',
+    pink: '#d6338a',
+    yellow: '#9a7400',
+    teal: '#0f8f84',
+    brown: '#8a5a2b',
+    gray: '#6b7380',
+  },
+} as const;
+
 /** Puts a theme's colours on the page (CSS variables on <html>). */
 export function applyTheme(theme: Theme, root: HTMLElement = document.documentElement): void {
   for (const token of TOKENS) root.style.setProperty(`--${token}`, theme.colors[token]);
+  for (const [name, value] of Object.entries(LABEL_COLORS[theme.dark ? 'dark' : 'light']))
+    root.style.setProperty(`--label-${name}`, value);
   root.style.colorScheme = theme.dark ? 'dark' : 'light';
   root.dataset['theme'] = theme.id;
 }

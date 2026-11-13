@@ -329,6 +329,24 @@ app-connection-list {
 .color-blue {
   background: var(--label-blue);
 }
+.color-purple {
+  background: var(--label-purple);
+}
+.color-pink {
+  background: var(--label-pink);
+}
+.color-yellow {
+  background: var(--label-yellow);
+}
+.color-teal {
+  background: var(--label-teal);
+}
+.color-brown {
+  background: var(--label-brown);
+}
+.color-gray {
+  background: var(--label-gray);
+}
 
 /* Status */
 .status {
@@ -671,7 +689,9 @@ fieldset .field-label {
 .swatches {
   margin-left: auto;
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
 }
 .swatch {
   position: relative;

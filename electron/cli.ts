@@ -46,7 +46,7 @@ Opties:
   --ssl            SSL/TLS gebruiken
   --allow-self-signed  self-signed certificaat toestaan
   --read-only      alleen-lezen
-  --color          groen | oranje | rood | blauw
+  --color          groen | oranje | rood | blauw | paars | roze | geel | turquoise | bruin | grijs
   --name           naam in de lijst
   --save           als verbinding bewaren (anders tijdelijk, tot de app sluit)
 
@@ -84,6 +84,19 @@ const COLORS: Record<string, ConnectionColor> = {
   red: 'red',
   blauw: 'blue',
   blue: 'blue',
+  paars: 'purple',
+  purple: 'purple',
+  roze: 'pink',
+  pink: 'pink',
+  geel: 'yellow',
+  yellow: 'yellow',
+  turquoise: 'teal',
+  teal: 'teal',
+  bruin: 'brown',
+  brown: 'brown',
+  grijs: 'gray',
+  gray: 'gray',
+  grey: 'gray',
 };
 
 /** Options that take a value, with their short forms. */
@@ -240,7 +253,11 @@ export function parseCli(args: string[], ctx: CliContext): CliCommand {
   let color: ConnectionColor = 'green';
   if (v['color']) {
     const c = COLORS[v['color'].toLowerCase()];
-    if (!c) return error(`Onbekende kleur: ${v['color']}.`, 'Kies groen, oranje, rood of blauw.');
+    if (!c)
+      return error(
+        `Onbekende kleur: ${v['color']}.`,
+        'Kies groen, oranje, rood, blauw, paars, roze, geel, turquoise, bruin of grijs.',
+      );
     color = c;
   }
 

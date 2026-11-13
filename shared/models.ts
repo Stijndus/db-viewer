@@ -50,7 +50,20 @@ export interface SshSettings {
   hostKey: string;
 }
 
-export type ConnectionColor = 'green' | 'orange' | 'red' | 'blue';
+/** Colour labels for connections, in the order of the picker. */
+export const CONNECTION_COLORS = [
+  'green',
+  'orange',
+  'red',
+  'blue',
+  'purple',
+  'pink',
+  'yellow',
+  'teal',
+  'brown',
+  'gray',
+] as const;
+export type ConnectionColor = (typeof CONNECTION_COLORS)[number];
 
 /** What the form sends to create, update or test a connection. */
 export interface ConnectionInput {

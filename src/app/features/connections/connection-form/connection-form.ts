@@ -68,6 +68,12 @@ export class ConnectionForm {
     { value: 'orange', label: 'Oranje' },
     { value: 'red', label: 'Rood' },
     { value: 'blue', label: 'Blauw' },
+    { value: 'purple', label: 'Paars' },
+    { value: 'pink', label: 'Roze' },
+    { value: 'yellow', label: 'Geel' },
+    { value: 'teal', label: 'Turquoise' },
+    { value: 'brown', label: 'Bruin' },
+    { value: 'gray', label: 'Grijs' },
   ];
 
   protected readonly form = this.fb.group({

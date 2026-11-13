@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CONNECTION_COLORS } from '../../shared/models';
 
 export const idSchema = z.string().uuid();
 
@@ -34,7 +35,7 @@ export const connectionInputSchema = z
     user: z.string().trim().max(255),
     ssl: z.boolean(),
     allowSelfSigned: z.boolean(),
-    color: z.enum(['green', 'orange', 'red', 'blue']),
+    color: z.enum(CONNECTION_COLORS),
     readOnly: z.boolean().default(false),
     password: z.string().max(1024).optional(),
     savePassword: z.boolean(),

@@ -1,4 +1,4 @@
-import { contrast, THEMES, TOKENS, type Token } from './themes';
+import { contrast, LABEL_COLORS, THEMES, TOKENS, type Token } from './themes';
 
 /** WCAG AA: 4.5 for text, 3 for large text and UI parts. Pairs as they appear on screen. */
 const PAIRS: [Token, Token, number][] = [
@@ -48,6 +48,18 @@ describe('themes', () => {
         ([fg, bg, min]) =>
           `${fg} op ${bg}: ${contrast(theme.colors[fg], theme.colors[bg]).toFixed(2)} < ${min}`,
       );
+      expect(failures).toEqual([]);
+    });
+  }
+
+  // A connection's colour is a dot or bar: it must stand out from the background (3:1, as for
+  // graphics), in every theme.
+  for (const theme of THEMES) {
+    it(`${theme.name} shows every connection colour`, () => {
+      const labels = LABEL_COLORS[theme.dark ? 'dark' : 'light'];
+      const failures = Object.entries(labels)
+        .filter(([, c]) => contrast(c, theme.colors.panel) < 3)
+        .map(([n, c]) => `${n} op panel: ${contrast(c, theme.colors.panel).toFixed(2)}`);
       expect(failures).toEqual([]);
     });
   }
