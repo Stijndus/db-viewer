@@ -5,6 +5,7 @@ import {
   ElementRef,
   inject,
   input,
+  type OnInit,
   signal,
   viewChild,
 } from '@angular/core';
@@ -23,10 +24,12 @@ import { TransferStore } from '../transfer.store';
   selector: 'app-import-dialog',
   templateUrl: './import-dialog.html',
 })
-export class ImportDialog {
+export class ImportDialog implements OnInit {
   readonly connectionId = input.required<string>();
   /** Import into this database (from the tree's context menu); else the usual default. */
   readonly intoDatabase = input<string | undefined>();
+  /** Show this started import (opened again from the status bar). */
+  readonly job = input<string | undefined>();
 
   private readonly api = inject(DB_API);
   private readonly connections = inject(ConnectionsStore);
@@ -85,8 +88,15 @@ export class ImportDialog {
     return Math.min(100, Math.round((p.bytes / p.totalBytes) * 100));
   });
 
+  /** The started import this dialog shows, for its name. */
+  protected readonly jobInfo = computed(() => {
+    const id = this.jobId();
+    return id ? (this.transfer.imports().find((j) => j.jobId === id) ?? null) : null;
+  });
+
   constructor() {
     afterNextRender(() => this.dialog().nativeElement.showModal());
+
     // Default target: the database the profile opens in, else the selected one, else the first.
     const selected = this.schema.selected();
     queueMicrotask(() => {
@@ -156,6 +166,17 @@ export class ImportDialog {
       return;
     }
     this.jobId.set(result.data.jobId);
+    this.transfer.addImport({
+      jobId: result.data.jobId,
+      connectionId: this.connectionId(),
+      name: (info.kind === 'archive' && this.entry()?.split('/').pop()) || info.name,
+      ...(this.database() && { database: this.database() }),
+    });
+  }
+
+  ngOnInit(): void {
+    const job = this.job();
+    if (job) this.jobId.set(job);
   }
 
   protected stop(): void {
@@ -163,24 +184,20 @@ export class ImportDialog {
     if (id) void this.api.cancelTransfer(id);
   }
 
-  /** After a run the schema may have new tables: reload what is open. */
+  /** Closes the dialog; a running import goes on (the store refreshes the schema when done). */
   protected close(): void {
     this.dialog().nativeElement.close();
   }
 
+  /** Closing a finished import forgets it; a running one goes on in the background. */
   protected onClose(): void {
     const id = this.jobId();
-    if (id && !this.running()) {
-      this.transfer.forget(id);
-      void this.schema.refresh(this.connectionId());
-    }
+    if (id && !this.running()) this.transfer.forget(id);
     this.transfer.importFor.set(null);
   }
 
-  protected onCancel(event: Event): void {
-    // Escape while running would hide a job that keeps going: ask to stop it instead.
-    if (this.running()) event.preventDefault();
-  }
+  /** Esc while running: on to the background, like the button. */
+  protected onCancel(_event: Event): void {}
 
   protected size(bytes: number | null | undefined): string {
     if (bytes === null || bytes === undefined) return '';

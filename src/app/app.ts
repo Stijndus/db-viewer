@@ -55,6 +55,25 @@ export class App implements OnInit {
   protected readonly updates = inject(UpdateStore);
   protected readonly ws = inject(WorkspaceStore);
   protected readonly transfer = inject(TransferStore);
+
+  /** "43%", "klaar", … for an import in the status bar. */
+  protected importStatus(jobId: string): string {
+    const p = this.transfer.progress()[jobId];
+    switch (p?.phase ?? 'running') {
+      case 'running':
+        return p?.totalBytes ? `${Math.floor((p.bytes / p.totalBytes) * 100)}%` : 'bezig';
+      case 'done':
+        return 'klaar';
+      case 'done-with-errors':
+        return 'klaar met fouten';
+      case 'stopped-at-error':
+        return 'gestopt bij een fout';
+      case 'cancelled':
+        return 'gestopt';
+      default:
+        return 'mislukt';
+    }
+  }
   protected readonly theme = inject(ThemeStore);
   private readonly api = inject(DB_API);
   /** Zoom factor; shown in the status bar when it is not 100%. */

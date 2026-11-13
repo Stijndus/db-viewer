@@ -2411,3 +2411,17 @@ input.input-sm[type='number'] {
 .zoom-indicator {
   font-variant-numeric: tabular-nums;
 }
+
+.import-indicator {
+  font-variant-numeric: tabular-nums;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &.ok {
+    color: var(--ok-text, var(--accent-text));
+  }
+  &.err {
+    color: var(--danger-text, var(--danger));
+  }
+}

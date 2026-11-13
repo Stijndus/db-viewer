@@ -2,6 +2,7 @@ import { computed, effect, inject, Injectable, signal, untracked } from '@angula
 import type { ObjectKind } from '../../../../shared/models';
 import { ConnectionsStore } from '../connections/connections.store';
 import { SchemaStore, type SelectedObject } from '../schema/schema.store';
+import { TransferStore } from '../transfer/transfer.store';
 import { SqlStore } from '../sql/sql.store';
 
 export type WorkspaceTab =
@@ -24,6 +25,7 @@ export class WorkspaceStore {
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
   private readonly sql = inject(SqlStore);
+  private readonly transfer = inject(TransferStore);
 
   private readonly tabsByConnection = signal<Record<string, WorkspaceTab[]>>({});
   private readonly activeByConnection = signal<Record<string, string | null>>({});
@@ -200,6 +202,7 @@ export class WorkspaceStore {
   /** Disconnects after confirming that unsaved edits may be lost. */
   disconnect(connectionId: string): void {
     if (!this.confirmLeave(connectionId)) return;
+    if (!this.transfer.confirmStopImports(connectionId)) return;
     this.forgetDirty(connectionId);
     void this.connections.disconnect(connectionId);
   }

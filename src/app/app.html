@@ -107,6 +107,24 @@
     >
     <span>{{ store.connectedCount() }} verbonden</span>
     <span class="push"></span>
+    @for (job of transfer.imports(); track job.jobId) {
+      @let p = transfer.progress()[job.jobId];
+      <button
+        type="button"
+        class="link-btn small import-indicator"
+        [class.ok]="p?.phase === 'done'"
+        [class.err]="p && p.phase !== 'running' && p.phase !== 'done'"
+        [title]="
+          'Import van ' +
+          job.name +
+          (job.database ? ' in ' + job.database : '') +
+          '. Klik voor details.'
+        "
+        (click)="transfer.showImport(job.jobId)"
+      >
+        Import {{ job.name }} · {{ importStatus(job.jobId) }}
+      </button>
+    }
     @if (updates.statusText(); as status) {
       <span>{{ status }}</span>
     }
@@ -185,7 +203,11 @@
 }
 
 @if (transfer.importFor(); as target) {
-  <app-import-dialog [connectionId]="target.connectionId" [intoDatabase]="target.database" />
+  <app-import-dialog
+    [connectionId]="target.connectionId"
+    [intoDatabase]="target.database"
+    [job]="target.jobId"
+  />
 }
 
 @if (updates.whatsNew(); as content) {

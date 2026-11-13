@@ -91,7 +91,13 @@ export async function wrap<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
   }
 }
 
-export function registerHandlers(deps: HandlerDeps): void {
+/** What the main process needs to know of the handlers, e.g. before closing the window. */
+export interface Handlers {
+  /** Imports and exports still running. */
+  runningJobs(): number;
+}
+
+export function registerHandlers(deps: HandlerDeps): Handlers {
   const { store, manager, cipher, updater } = deps;
 
   const handle = <T>(channel: string, fn: (...args: unknown[]) => Promise<T> | T) => {
@@ -424,6 +430,8 @@ export function registerHandlers(deps: HandlerDeps): void {
     // Closing a tab after disconnecting is fine: there is nothing left to close.
     if (manager.isConnected(id)) await manager.session(id).closeEditor(tabIdSchema.parse(rawTab));
   });
+
+  return { runningJobs: () => jobs.size };
 }
 
 /** A cell's complete value, fetched again by primary key: bytes as they are, text as UTF-8. */

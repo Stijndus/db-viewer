@@ -19,7 +19,7 @@ import { parseCli, USAGE, userArgs, type CliCommand } from './cli';
 import { launchEnv, resolveLaunch, type LaunchData } from './launch';
 import { ConnectionManager } from './db/connection-manager';
 import { getDriver } from './db/driver-registry';
-import { registerHandlers } from './ipc/register-handlers';
+import { registerHandlers, type Handlers } from './ipc/register-handlers';
 import { Updater } from './updater';
 import { ConnectionStore, type SecretCipher } from './store/connection-store';
 
@@ -130,6 +130,27 @@ function createWindow(): BrowserWindow {
   });
   rememberBounds(win);
 
+  // An import or export still running would be cut off: ask first.
+  win.on('close', (event) => {
+    const running = handlers?.runningJobs() ?? 0;
+    if (running === 0) return;
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning',
+      title: 'DB Viewer',
+      message:
+        running === 1
+          ? 'Er loopt nog een import of export.'
+          : `Er lopen nog ${running} imports of exports.`,
+      detail:
+        'Afsluiten stopt ze. Wat een import al heeft uitgevoerd, blijft in de database staan.',
+      buttons: ['Toch afsluiten', 'Annuleren'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (choice === 1) event.preventDefault();
+  });
+
   // Zoom (Ctrl+scroll, Ctrl+= / Ctrl+-, Ctrl+0) is handled by the page and set through IPC, so
   // it is remembered between starts.
   win.webContents.on('did-finish-load', () =>
@@ -205,7 +226,7 @@ function startApp(): void {
     );
     manager = new ConnectionManager(store, getDriver);
     const updater = new Updater(() => mainWindow);
-    registerHandlers({
+    handlers = registerHandlers({
       store,
       manager,
       cipher,
@@ -281,6 +302,9 @@ function isLaunchData(value: unknown): value is LaunchData {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+/** Set once the handlers are registered: knows the running imports and exports. */
+let handlers: Handlers | null = null;
 
 // Close every pool before quitting so MySQL doesn't keep half-open connections.
 let closing = false;
