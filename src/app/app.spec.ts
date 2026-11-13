@@ -40,7 +40,7 @@ describe('App', () => {
       fixture.detectChanges();
       expect(el.querySelector('h1')?.textContent).toContain('Verbonden met lokaal-dev');
     });
-    expect(el.querySelector('.pill-connected')?.textContent).toContain('lokaal-dev');
+    expect(el.querySelector('.conn-chip.active')?.textContent).toContain('lokaal-dev');
   });
 
   it('shows the schema tree and opens a table structure', async () => {

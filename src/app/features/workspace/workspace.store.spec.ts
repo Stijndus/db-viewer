@@ -173,4 +173,52 @@ describe('WorkspaceStore', () => {
     expect(connections.activeId()).toBeNull();
     expect(ws.isDirty(ws.tabs()[0]?.id ?? '')).toBe(false);
   });
+
+  it('switches between open connections with their own tabs, round', async () => {
+    const { connections, schema, ws } = await setup();
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    connections.connections.update((all) => [...all, { ...PROFILE, id: OTHER, name: 'productie' }]);
+    await schema.select(table('customers'));
+    TestBed.tick();
+
+    // One open connection: nothing to switch to, so Ctrl+Tab goes on to the tabs.
+    expect(ws.switchBy(1)).toBe(false);
+
+    await connections.connect(OTHER);
+    TestBed.tick();
+    expect(connections.open().map((c) => c.name)).toEqual(['lokaal-dev', 'productie']);
+    expect(names(ws)).toEqual([]);
+
+    expect(ws.switchBy(1)).toBe(true);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(ID));
+    TestBed.tick();
+    expect(names(ws)).toEqual(['customers']);
+    expect(ws.switchBy(-1)).toBe(true);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(OTHER));
+
+    // From the overview, the first open one.
+    connections.activeId.set(null);
+    expect(ws.switchBy(1)).toBe(true);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(ID));
+  });
+
+  it('asks before switching away from unsaved edits', async () => {
+    const { connections, schema, ws } = await setup();
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    connections.connections.update((all) => [...all, { ...PROFILE, id: OTHER, name: 'productie' }]);
+    await connections.connect(OTHER);
+    connections.activeId.set(ID);
+    TestBed.tick();
+    await schema.select(table('customers'));
+    TestBed.tick();
+    ws.setDirty(ws.tabs()[0]!.id, true);
+
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    ws.switchTo(OTHER);
+    expect(ask).toHaveBeenCalledOnce();
+    expect(connections.activeId()).toBe(ID);
+    ask.mockReturnValue(true);
+    ws.switchTo(OTHER);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(OTHER));
+  });
 });

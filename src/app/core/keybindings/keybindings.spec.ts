@@ -76,8 +76,10 @@ describe('default keys', () => {
       const seen = new Map<string, string>();
       for (const b of DEFAULT_BINDINGS.filter((b) => matchesWhen(b.when, ctx))) {
         const other = seen.get(b.key);
-        // Esc may fall through (sql.stop only acts while running); everything else must be unique.
-        if (other && other !== b.command) expect(`${b.key}: ${other} / ${b.command}`).toBe('');
+        // Ctrl+Tab falls through on purpose: with one connection open it moves between tabs.
+        const fallThrough = ['ctrl+tab', 'ctrl+shift+tab'].includes(b.key);
+        if (other && other !== b.command && !fallThrough)
+          expect(`${b.key}: ${other} / ${b.command}`).toBe('');
         seen.set(b.key, b.command);
       }
     }

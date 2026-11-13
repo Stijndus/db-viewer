@@ -5,6 +5,8 @@
  *
  * Contexts for `when`:
  *   connected     a connection is open (the workspace is shown)
+ *
+ * Ctrl+Tab switches between open connections, as asked; with only one open it moves between tabs.
  *   tableTab      the active tab shows a table or view
  *   sqlTab        the active tab is a SQL editor
  *   editorFocus   the focus is in the SQL editor
@@ -39,6 +41,10 @@ export const COMMANDS: CommandInfo[] = [
   { id: 'workbench.zoomIn', title: 'Inzoomen', category: 'Algemeen' },
   { id: 'workbench.zoomOut', title: 'Uitzoomen', category: 'Algemeen' },
   { id: 'workbench.zoomReset', title: 'Zoom op 100%', category: 'Algemeen' },
+  // Verbindingen
+  { id: 'connections.next', title: 'Volgende open verbinding', category: 'Verbindingen' },
+  { id: 'connections.previous', title: 'Vorige open verbinding', category: 'Verbindingen' },
+  { id: 'connections.overview', title: 'Naar het verbindingenoverzicht', category: 'Verbindingen' },
   // Tabbladen
   { id: 'tabs.newSql', title: 'Nieuw SQL-tabblad', category: 'Tabbladen' },
   { id: 'tabs.close', title: 'Tabblad sluiten', category: 'Tabbladen' },
@@ -112,10 +118,16 @@ export const DEFAULT_BINDINGS: DefaultBinding[] = [
   { key: 'ctrl+numpad_subtract', command: 'workbench.zoomOut', source: D },
   { key: 'ctrl+0', command: 'workbench.zoomReset', source: D },
 
+  // With one connection open, Ctrl+Tab goes on to the tabs (the switch passes the key on).
+  { key: 'ctrl+tab', command: 'connections.next', source: D },
+  { key: 'ctrl+shift+tab', command: 'connections.previous', source: D },
+
   { key: 'ctrl+t', command: 'tabs.newSql', when: 'connected', source: H },
   { key: 'ctrl+f4', command: 'tabs.close', when: 'connected', source: H },
   { key: 'ctrl+tab', command: 'tabs.next', when: 'connected', source: H },
   { key: 'ctrl+shift+tab', command: 'tabs.previous', when: 'connected', source: H },
+  { key: 'ctrl+pagedown', command: 'tabs.next', when: 'connected', source: V },
+  { key: 'ctrl+pageup', command: 'tabs.previous', when: 'connected', source: V },
   ...Array.from({ length: 9 }, (_, i) => ({
     key: `ctrl+${i + 1}`,
     command: `tabs.goTo${i + 1}`,

@@ -214,6 +214,37 @@ export class WorkspaceStore {
     this.connections.activeId.set(null);
   }
 
+  /**
+   * Shows another open connection; its tabs come back as they were left. Table views of the one
+   * left are rebuilt later, so unsaved edits there are asked about first.
+   */
+  switchTo(connectionId: string): void {
+    const current = this.connections.activeId();
+    if (current === connectionId) return;
+    if (current) {
+      if (!this.confirmLeave(current)) return;
+      this.forgetDirty(current);
+    }
+    void this.connections.connect(connectionId);
+  }
+
+  /**
+   * The next (+1) or previous (-1) open connection; false when there is nothing to switch to, so
+   * the key goes on (Ctrl+Tab to the next tab).
+   */
+  switchBy(step: 1 | -1): boolean {
+    const open = this.connections
+      .open()
+      .filter((c) => this.connections.statusOf(c.id) === 'connected');
+    const current = this.connections.activeId();
+    const at = open.findIndex((c) => c.id === current);
+    if (open.length === 0 || (at >= 0 && open.length < 2)) return false;
+    const next =
+      at < 0 ? (step > 0 ? 0 : open.length - 1) : (at + step + open.length) % open.length;
+    this.switchTo(open[next]!.id);
+    return true;
+  }
+
   /** Clears the unsaved-edit markers of a connection after leaving it. */
   forgetDirty(connectionId: string): void {
     const ids = new Set(this.tabsOf(connectionId).map((t) => t.id));

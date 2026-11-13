@@ -58,6 +58,13 @@ export class ConnectionsStore {
   readonly active = computed(
     () => this.connections().find((c) => c.id === this.activeId()) ?? null,
   );
+  /** Connections that are open (or opening), in the order of the list: the switch bar. */
+  readonly open = computed(() =>
+    this.connections().filter((c) => {
+      const s = this.status()[c.id];
+      return s === 'connected' || s === 'connecting';
+    }),
+  );
   readonly connectedCount = computed(
     () => Object.values(this.status()).filter((s) => s === 'connected').length,
   );

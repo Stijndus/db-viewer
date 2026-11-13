@@ -128,6 +128,14 @@ export class App implements OnInit {
     keys.handle('workbench.theme', () => this.theme.openPicker());
     keys.handle('workbench.keybindings', () => keys.editorOpen.set(true));
     keys.handle('workbench.commandPalette', () => keys.paletteOpen.set(true));
+    keys.handle('connections.next', () => this.ws.switchBy(1));
+    keys.handle('connections.previous', () => this.ws.switchBy(-1));
+    keys.handle('connections.overview', () => {
+      const id = this.store.activeId();
+      if (!id) return false;
+      this.ws.leave(id);
+      return true;
+    });
     keys.provideContext(() => {
       const tab = this.ws.active();
       return {

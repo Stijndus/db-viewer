@@ -15,6 +15,33 @@
       <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
     </svg>
     <span class="app-name">DB Viewer</span>
+    @if (store.open().length > 0) {
+      <nav class="conn-switch" aria-label="Open verbindingen">
+        @for (c of store.open(); track c.id) {
+          @let current = c.id === store.activeId();
+          <button
+            type="button"
+            class="conn-chip"
+            [class.active]="current"
+            [attr.aria-current]="current ? 'page' : null"
+            [title]="
+              current
+                ? c.name + ' (actief)'
+                : 'Naar ' + c.name + ' (' + keys.keyLabel('connections.next') + ')'
+            "
+            (click)="ws.switchTo(c.id)"
+          >
+            <span [class]="'conn-chip-color color-' + c.color" aria-hidden="true"></span>
+            <span class="conn-chip-name"
+              >{{ c.name }}{{ current && c.database ? ' · ' + location(c) : '' }}</span
+            >
+            @if (store.statusOf(c.id) === 'connecting') {
+              <span class="muted small">verbinden…</span>
+            }
+          </button>
+        }
+      </nav>
+    }
     @if (store.active(); as active) {
       @if (active.readOnly) {
         <span class="ro-badge" title="Deze verbinding weigert alles wat gegevens wijzigt"
@@ -28,15 +55,11 @@
           >Tijdelijk</span
         >
       }
-      <span class="pill-connected"
-        ><span class="dot"></span>{{ active.name
-        }}{{ active.database ? ' · ' + location(active) : '' }}</span
-      >
       <span class="push"></span>
       <button type="button" class="btn btn-secondary btn-sm" (click)="ws.disconnect(active.id)">
         Verbreken
       </button>
-    } @else {
+    } @else if (store.open().length === 0) {
       <span class="muted small">Geen actieve verbinding</span>
     }
   </header>
