@@ -18,12 +18,17 @@ export interface DangerQuestion {
   message: string;
   /** The statement that runs, shown so there are no surprises. */
   sql: string;
+  /**
+   * A checkbox that changes what runs (foreign key checks off): its text and explanation, and the
+   * statement shown when it is on.
+   */
+  option?: { label: string; hint: string; sql: string };
   /** Has to be typed over before the button works. */
   name: string;
   /** Button text, e.g. "Tabel verwijderen". */
   confirm: string;
-  /** Runs after confirming; an error keeps the dialog open and is shown in it. */
-  run: () => Promise<Result<void>>;
+  /** Runs after confirming (with the option on or off); an error keeps the dialog open. */
+  run: (option: boolean) => Promise<Result<void>>;
   done: (ok: boolean) => void;
 }
 
@@ -62,7 +67,23 @@ export class ConfirmDangerStore {
         </div>
         <form class="dialog-body" (submit)="$event.preventDefault(); confirm()">
           <p id="cd-text">{{ q.message }} Dit kan niet ongedaan worden gemaakt.</p>
-          <pre class="danger-sql mono small">{{ q.sql }}</pre>
+          <pre class="danger-sql mono small">{{
+            q.option && optionOn() ? q.option.sql : q.sql
+          }}</pre>
+          @if (q.option; as option) {
+            <label class="check danger-option">
+              <input
+                type="checkbox"
+                [checked]="optionOn()"
+                [disabled]="busy()"
+                (change)="optionOn.set($any($event.target).checked); error.set(null)"
+              />
+              <span
+                >{{ option.label }}
+                <span class="muted small danger-option-hint">{{ option.hint }}</span></span
+              >
+            </label>
+          }
           <label class="field">
             <span
               >Typ <strong class="mono">{{ q.name }}</strong> om te bevestigen</span
@@ -82,6 +103,11 @@ export class ConfirmDangerStore {
               <strong>{{ e.message }}</strong>
               @if (e.hint) {
                 <span class="small">{{ e.hint }}</span>
+              }
+              @if (q.option && !optionOn() && isForeignKeyError(e)) {
+                <span class="small"
+                  >Kies <strong>{{ q.option.label }}</strong> hierboven om het toch te doen.</span
+                >
               }
             </div>
           }
@@ -111,6 +137,7 @@ export class ConfirmDanger {
   private readonly input = viewChild<ElementRef<HTMLInputElement>>('typed');
   protected readonly typedText = signal('');
   protected readonly busy = signal(false);
+  protected readonly optionOn = signal(false);
   protected readonly error = signal<DbError | null>(null);
   protected readonly matches = computed(
     () => this.typedText().trim() === this.store.question()?.name,
@@ -122,6 +149,7 @@ export class ConfirmDanger {
       this.store.question();
       untracked(() => {
         this.typedText.set('');
+        this.optionOn.set(false);
         this.error.set(null);
         this.busy.set(false);
       });
@@ -135,6 +163,11 @@ export class ConfirmDanger {
     });
   }
 
+  /** The server refused because of a foreign key (MySQL 1451/1701, PostgreSQL 0A000/2BP01). */
+  protected isForeignKeyError(e: DbError): boolean {
+    return /foreign key/i.test(e.message);
+  }
+
   protected cancel(): void {
     this.dialog()?.nativeElement.close();
     this.store.question()?.done(false);
@@ -145,7 +178,7 @@ export class ConfirmDanger {
     if (!q || !this.matches() || this.busy()) return;
     this.busy.set(true);
     this.error.set(null);
-    const result = await q.run();
+    const result = await q.run(this.optionOn());
     this.busy.set(false);
     if (!result.ok) {
       this.error.set(result.error);

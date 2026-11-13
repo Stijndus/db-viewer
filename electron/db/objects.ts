@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { qualifiedName } from '../../shared/dialect';
 import type { DbType, ObjectAction, ObjectKind, RoutineParam } from '../../shared/models';
-import { actionSql, canDropContainer } from '../../shared/object-sql';
+import { actionStatements, canCreateContainer, canDropContainer } from '../../shared/object-sql';
 import { AppError } from '../ipc/errors';
 import { refuseReadOnly } from './common';
 import type { DbSession } from './driver';
@@ -154,6 +154,9 @@ export async function runObjectAction(
   action: ObjectAction,
 ): Promise<void> {
   refuseReadOnly(readOnly);
+  if (action.action === 'create-container' && !canCreateContainer(type)) {
+    throw new AppError('NOT_SUPPORTED', 'SQLite heeft één database per bestand.');
+  }
   if (action.action === 'drop-container' && !canDropContainer(type)) {
     throw new AppError('NOT_SUPPORTED', 'Dit kan niet bij dit soort database.');
   }
@@ -167,13 +170,15 @@ export async function runObjectAction(
   }
   const tab = `manage-${randomUUID()}`;
   try {
+    // With foreign key checks off (MySQL) the SET runs on this connection only, which is closed
+    // afterwards; turning them back on is still done in case it is reused.
     const result = await session.runScript(tab, {
-      statements: [actionSql(type, action)],
+      statements: actionStatements(type, action),
       maxRows: 1,
     });
-    const first = result.results[0];
-    if (first?.kind === 'error')
-      throw new AppError(first.error.code, first.error.message, first.error.hint);
+    const failed = result.results.find((r) => r.kind === 'error');
+    if (failed?.kind === 'error')
+      throw new AppError(failed.error.code, failed.error.message, failed.error.hint);
   } finally {
     await session.closeEditor(tab).catch(() => undefined);
   }

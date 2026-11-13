@@ -26,6 +26,8 @@ interface Server {
   cleanup: string[];
   /** A second container to drop, or null when the dialect cannot. */
   container: { create: string; name: string } | null;
+  /** Checks emptying and dropping past a foreign key ("force"). */
+  foreignKeys?: boolean;
 }
 
 const servers: Server[] = [
@@ -47,8 +49,12 @@ const servers: Server[] = [
       'DROP PROCEDURE IF EXISTS ctx_p',
       'DROP FUNCTION IF EXISTS ctx_f',
       'DROP DATABASE IF EXISTS ctx_weg',
+      'DROP DATABASE IF EXISTS ctx_nieuw',
+      'DROP TABLE IF EXISTS ctx_child',
+      'DROP TABLE IF EXISTS ctx_parent',
     ],
     container: { create: 'CREATE DATABASE ctx_weg', name: 'ctx_weg' },
+    foreignKeys: true,
   },
   {
     type: 'postgres',
@@ -68,11 +74,15 @@ const servers: Server[] = [
       'DROP PROCEDURE IF EXISTS ctx_p',
       'DROP FUNCTION IF EXISTS ctx_f',
       'DROP SCHEMA IF EXISTS ctx_weg CASCADE',
+      'DROP SCHEMA IF EXISTS ctx_nieuw CASCADE',
+      'DROP TABLE IF EXISTS ctx_child',
+      'DROP TABLE IF EXISTS ctx_parent',
     ],
     container: {
       create: 'CREATE SCHEMA ctx_weg; CREATE TABLE ctx_weg.x (id int)',
       name: 'ctx_weg',
     },
+    foreignKeys: true,
   },
   {
     type: 'mssql',
@@ -91,6 +101,7 @@ const servers: Server[] = [
       'DROP TABLE IF EXISTS dbo.ctx_t',
       'DROP PROCEDURE IF EXISTS dbo.ctx_p',
       'DROP FUNCTION IF EXISTS dbo.ctx_f',
+      'DROP SCHEMA IF EXISTS ctx_nieuw',
     ],
     container: null,
   },
@@ -341,6 +352,63 @@ for (const server of servers) {
           name: 'bestaat_niet',
         }),
       ).rejects.toThrow(/bestaat_niet|unknown table|does not exist|no such table/i);
+    });
+
+    it.runIf(server.foreignKeys)('gets past a foreign key only when asked', async () => {
+      await run([
+        'CREATE TABLE ctx_parent (id int PRIMARY KEY)',
+        'CREATE TABLE ctx_child (id int PRIMARY KEY, parent_id int REFERENCES ctx_parent (id))',
+        ...(server.type === 'mysql'
+          ? ['ALTER TABLE ctx_child ADD FOREIGN KEY (parent_id) REFERENCES ctx_parent (id)']
+          : []),
+        'INSERT INTO ctx_parent VALUES (1)',
+        'INSERT INTO ctx_child VALUES (1, 1)',
+      ]);
+      const truncate = { action: 'truncate', database: server.schema, name: 'ctx_parent' } as const;
+      await expect(runObjectAction(session, server.type, false, truncate)).rejects.toThrow(
+        /foreign key/i,
+      );
+      await runObjectAction(session, server.type, false, { ...truncate, force: true });
+      const count = async (table: string) => {
+        const [r] = await run([`SELECT COUNT(*) AS n FROM ${table}`]);
+        return r?.kind === 'rows' ? Number(r.rows[0]?.[0]) : -1;
+      };
+      expect(await count('ctx_parent')).toBe(0);
+      // MySQL leaves the child as is; PostgreSQL's CASCADE empties it too.
+      expect(await count('ctx_child')).toBe(server.type === 'mysql' ? 1 : 0);
+
+      const drop = {
+        action: 'drop',
+        database: server.schema,
+        kind: 'table',
+        name: 'ctx_parent',
+      } as const;
+      await expect(runObjectAction(session, server.type, false, drop)).rejects.toThrow(
+        /foreign key|depend/i,
+      );
+      await runObjectAction(session, server.type, false, { ...drop, force: true });
+      expect(await names()).not.toContain('ctx_parent');
+      expect(await names()).toContain('ctx_child');
+      // Checks are on again for the next statements.
+      if (server.type === 'mysql') {
+        const [r] = await run(['SELECT @@FOREIGN_KEY_CHECKS']);
+        expect(r?.kind === 'rows' && Number(r.rows[0]?.[0])).toBe(1);
+      }
+      await run(['DROP TABLE ctx_child']);
+    });
+
+    it.runIf(server.type !== 'sqlite')('creates a database or schema', async () => {
+      await runObjectAction(session, server.type, false, {
+        action: 'create-container',
+        database: 'ctx_nieuw',
+      });
+      expect((await session.listDatabases()).map((d) => d.name)).toContain('ctx_nieuw');
+      await expect(
+        runObjectAction(session, server.type, false, {
+          action: 'create-container',
+          database: 'ctx_nieuw',
+        }),
+      ).rejects.toThrow(/exists|bestaat|already/i);
     });
 
     it.runIf(server.container)('drops a whole database or schema', async () => {

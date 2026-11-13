@@ -10,12 +10,15 @@ import type {
 import {
   actionSql,
   callTemplate,
+  canCreateContainer,
   canDropContainer,
+  forceOption,
   insertTemplate,
   selectSql,
 } from '../../../../../shared/object-sql';
 import { ConfirmDangerStore } from '../../../core/confirm-danger/confirm-danger';
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
+import { PromptStore } from '../../../core/prompt/prompt';
 import type { MenuAction, MenuEntry } from '../../../core/context-menu/context-menu.store';
 import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
@@ -45,6 +48,7 @@ export class TreeMenu {
   private readonly transfer = inject(TransferStore);
   private readonly danger = inject(ConfirmDangerStore);
   private readonly keys = inject(KeybindingsStore);
+  private readonly prompt = inject(PromptStore);
 
   /** The connection itself (the tree's header). */
   forConnection(conn: ConnectionProfile): MenuEntry[] {
@@ -53,7 +57,10 @@ export class TreeMenu {
       { label: 'Vernieuwen', run: () => void this.schema.refresh(conn.id) },
       ...(conn.readOnly
         ? []
-        : [{ label: 'SQL-bestand importeren…', run: () => this.transfer.openImport(conn.id) }]),
+        : [
+            ...this.createEntry(conn),
+            { label: 'SQL-bestand importeren…', run: () => this.transfer.openImport(conn.id) },
+          ]),
       'separator',
       {
         label: 'Verbinding bewerken…',
@@ -72,6 +79,7 @@ export class TreeMenu {
         run: () => this.ws.newSql(conn.id, { database }),
       },
       { label: 'Vernieuwen', run: () => void this.schema.refresh(conn.id) },
+      ...(conn.readOnly ? [] : this.createEntry(conn)),
       'separator',
       {
         label: 'Exporteren…',
@@ -255,6 +263,55 @@ export class TreeMenu {
     ];
   }
 
+  /** "Nieuwe database…" (or schema), where the dialect has more than one. */
+  private createEntry(conn: ConnectionProfile): MenuAction[] {
+    if (!canCreateContainer(conn.type)) return [];
+    const container = DIALECTS[conn.type].container;
+    return [
+      {
+        label: container === 'schema' ? 'Nieuw schema…' : 'Nieuwe database…',
+        run: () => void this.createContainer(conn),
+      },
+    ];
+  }
+
+  /** Asks for a name, creates the database or schema and shows it in the tree. */
+  async createContainer(conn: ConnectionProfile): Promise<void> {
+    const container = DIALECTS[conn.type].container;
+    const word = container === 'schema' ? 'Schema' : 'Database';
+    let value = '';
+    for (;;) {
+      const name = (
+        await this.prompt.ask({
+          title: container === 'schema' ? 'Nieuw schema' : 'Nieuwe database',
+          label: 'Naam',
+          value,
+          hint:
+            conn.type === 'mysql'
+              ? 'Met de standaard tekenset en collatie van de server.'
+              : `Een leeg schema in de huidige database.`,
+          confirm: `${word} aanmaken`,
+        })
+      )?.trim();
+      if (!name) return;
+      const result = await this.api.objectAction(conn.id, {
+        action: 'create-container',
+        database: name,
+      });
+      if (result.ok) {
+        await this.schema.refresh(conn.id);
+        return;
+      }
+      // Ask again with the name kept, so a typo or taken name is quickly fixed.
+      alert(
+        result.error.hint
+          ? `${result.error.message}\n\n${result.error.hint}`
+          : result.error.message,
+      );
+      value = name;
+    }
+  }
+
   /** Asks (name typed over) and empties the table; its open tab shows the empty table. */
   emptyTable(conn: ConnectionProfile, database: string, name: string): Promise<void> {
     return this.confirm(
@@ -276,16 +333,20 @@ export class TreeMenu {
   /** Asks with the name typed over, runs the action, then refreshes the tree. */
   private async confirm(
     conn: ConnectionProfile,
-    action: ObjectAction,
+    action: Exclude<ObjectAction, { action: 'create-container' }>,
     texts: { title: string; message: string; confirm: string; after: () => void },
   ): Promise<void> {
+    const option = forceOption(conn.type, action);
     const ok = await this.danger.ask({
       title: texts.title,
       message: texts.message,
       sql: actionSql(conn.type, action),
-      name: action.action === 'drop-container' ? action.database : action.name,
+      ...(option && {
+        option: { ...option, sql: actionSql(conn.type, { ...action, force: true }) },
+      }),
+      name: 'name' in action ? action.name : action.database,
       confirm: texts.confirm,
-      run: () => this.api.objectAction(conn.id, action),
+      run: (force) => this.api.objectAction(conn.id, force ? { ...action, force } : action),
     });
     if (!ok) return;
     texts.after();

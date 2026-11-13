@@ -12,6 +12,9 @@ GRANT ALL ON app_dev.* TO 'viewer'@'localhost';
 -- The context-menu test creates and drops this database.
 GRANT ALL ON ctx_weg.* TO 'viewer'@'%';
 GRANT ALL ON ctx_weg.* TO 'viewer'@'localhost';
+-- …and create one from the tree ("Nieuwe database…").
+GRANT ALL ON ctx_nieuw.* TO 'viewer'@'%';
+GRANT ALL ON ctx_nieuw.* TO 'viewer'@'localhost';
 FLUSH PRIVILEGES;
 
 CREATE TABLE IF NOT EXISTS app_dev.orders (

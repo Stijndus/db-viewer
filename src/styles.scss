@@ -2508,3 +2508,14 @@ input.input-sm[type='number'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.danger-option {
+  align-items: flex-start;
+}
+.danger-option input {
+  margin-top: 2px;
+}
+.danger-option-hint {
+  display: block;
+  margin-top: 2px;
+}

@@ -124,10 +124,15 @@ export interface RoutineParam {
 }
 
 /** A schema change from the tree's context menu. Refused on read-only connections. */
+/**
+ * What the tree's context menu can change. `force` gets past foreign keys: MySQL runs it with
+ * FOREIGN_KEY_CHECKS = 0, PostgreSQL with CASCADE (see `forceOption`).
+ */
 export type ObjectAction =
-  | { action: 'truncate'; database: string; name: string }
-  | { action: 'drop'; database: string; kind: ObjectKind; name: string }
-  | { action: 'drop-container'; database: string };
+  | { action: 'truncate'; database: string; name: string; force?: boolean }
+  | { action: 'drop'; database: string; kind: ObjectKind; name: string; force?: boolean }
+  | { action: 'drop-container'; database: string; force?: boolean }
+  | { action: 'create-container'; database: string };
 
 export interface SchemaObject {
   name: string;

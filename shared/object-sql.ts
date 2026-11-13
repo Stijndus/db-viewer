@@ -17,21 +17,89 @@ export function canDropContainer(type: DbType): boolean {
   return type === 'mysql' || type === 'postgres';
 }
 
-/** The statement an action runs. */
-export function actionSql(type: DbType, action: ObjectAction): string {
+/** A new database (MySQL) or schema (PostgreSQL, SQL Server); SQLite has one file per database. */
+export function canCreateContainer(type: DbType): boolean {
+  return type !== 'sqlite';
+}
+
+/**
+ * The checkbox that gets an action past foreign keys, or null where there is none: MySQL turns
+ * the checks off for that one statement; PostgreSQL has no such switch, so it uses CASCADE, which
+ * goes further (it also empties or drops what depends on it) and says so. SQLite does not check
+ * foreign keys here, and SQL Server can only drop the constraints themselves.
+ */
+export function forceOption(
+  type: DbType,
+  action: ObjectAction,
+): { label: string; hint: string } | null {
+  if (action.action === 'create-container') return null;
+  if (type === 'mysql') {
+    return {
+      label: 'Foreign key checks uitzetten',
+      hint: 'Voert het uit met FOREIGN_KEY_CHECKS = 0, ook als andere tabellen hiernaar verwijzen. Die verwijzingen kloppen daarna niet meer.',
+    };
+  }
+  if (type === 'postgres' && action.action === 'truncate') {
+    return {
+      label: 'Ook de tabellen die hiernaar verwijzen leegmaken (CASCADE)',
+      hint: 'PostgreSQL kan foreign keys niet uitzetten. Met CASCADE worden ook alle tabellen met een foreign key naar deze tabel leeggemaakt.',
+    };
+  }
+  if (
+    type === 'postgres' &&
+    action.action === 'drop' &&
+    (action.kind === 'table' || action.kind === 'view')
+  ) {
+    return {
+      label: 'Ook wat hiervan afhangt verwijderen (CASCADE)',
+      hint: 'PostgreSQL kan foreign keys niet uitzetten. Met CASCADE verdwijnen ook de foreign keys van andere tabellen naar deze tabel, en views die ervan afhangen; de andere tabellen en hun rijen blijven.',
+    };
+  }
+  return null;
+}
+
+/** The statements an action runs, in order. */
+export function actionStatements(type: DbType, action: ObjectAction): string[] {
+  const force = action.action !== 'create-container' && action.force === true;
+  const cascade = force && type === 'postgres' ? ' CASCADE' : '';
+  let main: string;
   switch (action.action) {
     case 'truncate': {
       const table = qualifiedName(action.database, action.name, type);
       // SQLite has no TRUNCATE; DELETE without WHERE uses its fast "truncate optimization".
-      return type === 'sqlite' ? `DELETE FROM ${table}` : `TRUNCATE TABLE ${table}`;
+      main = type === 'sqlite' ? `DELETE FROM ${table}` : `TRUNCATE TABLE ${table}${cascade}`;
+      break;
     }
     case 'drop':
-      return `DROP ${DROP_KEYWORD[action.kind]} ${qualifiedName(action.database, action.name, type)}`;
+      main = `DROP ${DROP_KEYWORD[action.kind]} ${qualifiedName(action.database, action.name, type)}${
+        action.kind === 'table' || action.kind === 'view' ? cascade : ''
+      }`;
+      break;
     case 'drop-container':
-      if (type === 'mysql') return `DROP DATABASE ${quoteIdent(action.database, type)}`;
-      if (type === 'postgres') return `DROP SCHEMA ${quoteIdent(action.database, type)} CASCADE`;
-      throw new Error(`Een ${type === 'mssql' ? 'schema' : 'database'} verwijderen kan hier niet.`);
+      if (type === 'mysql') main = `DROP DATABASE ${quoteIdent(action.database, type)}`;
+      else if (type === 'postgres')
+        main = `DROP SCHEMA ${quoteIdent(action.database, type)} CASCADE`;
+      else
+        throw new Error(
+          `Een ${type === 'mssql' ? 'schema' : 'database'} verwijderen kan hier niet.`,
+        );
+      break;
+    case 'create-container':
+      if (type === 'mysql') main = `CREATE DATABASE ${quoteIdent(action.database, type)}`;
+      else if (type === 'postgres' || type === 'mssql')
+        main = `CREATE SCHEMA ${quoteIdent(action.database, type)}`;
+      else throw new Error('SQLite heeft één database per bestand.');
+      break;
   }
+  return force && type === 'mysql'
+    ? ['SET FOREIGN_KEY_CHECKS = 0', main, 'SET FOREIGN_KEY_CHECKS = 1']
+    : [main];
+}
+
+/** The statements of an action as shown before it runs. */
+export function actionSql(type: DbType, action: ObjectAction): string {
+  const statements = actionStatements(type, action);
+  return statements.length === 1 ? statements[0]! : statements.join(';\n') + ';';
 }
 
 /** `SELECT * … LIMIT 1000`, or `SELECT TOP (1000) *` for SQL Server. */

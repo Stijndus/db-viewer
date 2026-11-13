@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import type { DbApi } from '../../../../../shared/ipc-contract';
 import type { ConnectionProfile, ObjectAction } from '../../../../../shared/models';
 import { ConfirmDangerStore } from '../../../core/confirm-danger/confirm-danger';
+import { PromptStore } from '../../../core/prompt/prompt';
 import {
   isSubmenu,
   type MenuAction,
@@ -101,7 +102,7 @@ describe('TreeMenu', () => {
       ...labels(menu.forObject(readOnly, 'app_dev', table)),
       ...labels(menu.forObject(readOnly, 'app_dev', procedure)),
     ];
-    expect(all.filter((l) => /verwijderen…|leegmaken|importeren/i.test(l))).toEqual([]);
+    expect(all.filter((l) => /verwijderen…|leegmaken|importeren|nieuwe? (database|schema)/i.test(l))).toEqual([]);
   });
 
   it('only drops a database where the dialect can', async () => {
@@ -161,7 +162,8 @@ describe('TreeMenu', () => {
     });
     expect(actions).toEqual([]);
 
-    const result = await question.run();
+    expect(question.option?.label).toBe('Foreign key checks uitzetten');
+    const result = await question.run(false);
     expect(result.ok).toBe(true);
     question.done(true);
     await vi.waitFor(() => expect(ws.tabs()).toHaveLength(0));
@@ -181,5 +183,51 @@ describe('TreeMenu', () => {
       `Invoegen in ${tab.title}`,
     ).run();
     expect(sql.insertRequest()).toEqual({ tabId: tab.id, text: '`order id`' });
+  });
+
+  it('offers to turn foreign key checks off, and runs with them off when chosen', async () => {
+    const actions: ObjectAction[] = [];
+    const { menu, danger } = await setup({
+      objectAction: (_id, action) => {
+        actions.push(action);
+        return Promise.resolve({ ok: true, data: undefined });
+      },
+    });
+    void menu.emptyTable(PROFILE, 'app_dev', 'customers');
+    const question = danger.question()!;
+    expect(question.sql).toBe('TRUNCATE TABLE `app_dev`.`customers`');
+    expect(question.option?.sql).toBe(
+      'SET FOREIGN_KEY_CHECKS = 0;\nTRUNCATE TABLE `app_dev`.`customers`;\nSET FOREIGN_KEY_CHECKS = 1;',
+    );
+    await question.run(true);
+    question.done(true);
+    expect(actions).toEqual([
+      { action: 'truncate', database: 'app_dev', name: 'customers', force: true },
+    ]);
+    // Nothing to offer where it does not apply.
+    void menu.emptyTable(as({ type: 'sqlite' }), 'main', 'customers');
+    expect(danger.question()?.option).toBeUndefined();
+  });
+
+  it('creates a database from the connection or a database, asking for the name', async () => {
+    const actions: ObjectAction[] = [];
+    const { menu, schema } = await setup({
+      objectAction: (_id, action) => {
+        actions.push(action);
+        return Promise.resolve({ ok: true, data: undefined });
+      },
+    });
+    const prompt = TestBed.inject(PromptStore);
+    const refresh = vi.spyOn(schema, 'refresh');
+    expect(labels(menu.forConnection(PROFILE))).toContain('Nieuwe database…');
+    expect(labels(menu.forDatabase(PROFILE, 'app_dev'))).toContain('Nieuwe database…');
+    expect(labels(menu.forConnection(as({ type: 'postgres' })))).toContain('Nieuw schema…');
+    expect(labels(menu.forConnection(as({ type: 'sqlite' }))).join()).not.toMatch(/Nieuwe? (database|schema)/);
+
+    find(menu.forConnection(PROFILE), 'Nieuwe database…').run();
+    expect(prompt.question()?.confirm).toBe('Database aanmaken');
+    prompt.question()!.answer('  crm_test ');
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledWith(ID));
+    expect(actions).toEqual([{ action: 'create-container', database: 'crm_test' }]);
   });
 });

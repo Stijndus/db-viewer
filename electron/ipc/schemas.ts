@@ -80,14 +80,25 @@ export const objectKindSchema = z.enum(['table', 'view', 'procedure', 'function'
 export const routineKindSchema = z.enum(['procedure', 'function']);
 
 export const objectActionSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('truncate'), database: identifierSchema, name: identifierSchema }),
+  z.object({
+    action: z.literal('truncate'),
+    database: identifierSchema,
+    name: identifierSchema,
+    force: z.boolean().optional(),
+  }),
   z.object({
     action: z.literal('drop'),
     database: identifierSchema,
     kind: objectKindSchema,
     name: identifierSchema,
+    force: z.boolean().optional(),
   }),
-  z.object({ action: z.literal('drop-container'), database: identifierSchema }),
+  z.object({
+    action: z.literal('drop-container'),
+    database: identifierSchema,
+    force: z.boolean().optional(),
+  }),
+  z.object({ action: z.literal('create-container'), database: identifierSchema }),
 ]);
 
 export const whereSchema = z.string().max(10_000, 'Filter is langer dan 10.000 tekens').optional();
