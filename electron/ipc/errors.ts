@@ -18,6 +18,11 @@ interface KnownError {
   hint?: string;
   /** Use the server's own message as hint: it names the exact spot in the user's SQL. */
   serverHint?: boolean;
+  /**
+   * Put the server's own message before the hint. For a refused login it says which user@host
+   * the server saw and whether a password came along, which points straight at the cause.
+   */
+  withServerMessage?: boolean;
 }
 
 /**
@@ -38,7 +43,8 @@ const KNOWN: Record<string, KnownError> = {
   ECONNRESET: { message: 'Verbinding onverwacht verbroken.', hint: 'Vereist de server SSL?' },
   ER_ACCESS_DENIED_ERROR: {
     message: 'Inloggen mislukt.',
-    hint: "Controleer gebruiker, wachtwoord en of de gebruiker vanaf deze host mag inloggen (user@'%').",
+    hint: "Controleer gebruiker, wachtwoord en of de gebruiker vanaf deze host mag inloggen (user@'%'). Via een SSH-tunnel komt de verbinding van de server zelf (localhost of 127.0.0.1).",
+    withServerMessage: true,
   },
   ER_BAD_DB_ERROR: { message: 'Database bestaat niet.', hint: 'Controleer de databasenaam.' },
   ER_DBACCESS_DENIED_ERROR: {
@@ -221,7 +227,12 @@ export function toDbError(err: unknown): DbError {
   const known = code ? KNOWN[code] : undefined;
   if (code && known) {
     const serverMessage = (err as { sqlMessage?: unknown }).sqlMessage;
-    const hint = known.serverHint && typeof serverMessage === 'string' ? serverMessage : known.hint;
+    const hint =
+      known.serverHint && typeof serverMessage === 'string'
+        ? serverMessage
+        : known.withServerMessage && typeof serverMessage === 'string' && serverMessage
+          ? `Server: ${serverMessage.replace(/\.?$/, '.')} ${known.hint ?? ''}`.trim()
+          : known.hint;
     return hint === undefined
       ? { code, message: known.message }
       : { code, message: known.message, hint };

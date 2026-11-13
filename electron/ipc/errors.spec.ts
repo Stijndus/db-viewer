@@ -19,6 +19,16 @@ describe('toDbError', () => {
     expect(result.hint).toBeTruthy();
   });
 
+  it('shows what the server saw when a login is refused', () => {
+    const err = Object.assign(new Error('x'), {
+      code: 'ER_ACCESS_DENIED_ERROR',
+      sqlMessage: "Access denied for user 'dbadmin'@'localhost' (using password: NO)",
+    });
+    expect(toDbError(err).hint).toMatch(
+      /^Server: Access denied for user 'dbadmin'@'localhost' \(using password: NO\)\. Controleer/,
+    );
+  });
+
   it('keeps AppError code, message and hint', () => {
     expect(toDbError(new AppError('NOT_FOUND', 'Weg.', 'Kijk elders.'))).toEqual({
       code: 'NOT_FOUND',
