@@ -221,4 +221,27 @@ describe('WorkspaceStore', () => {
     ws.switchTo(OTHER);
     await vi.waitFor(() => expect(connections.activeId()).toBe(OTHER));
   });
+
+  it('closes a connection from the switch bar and goes on to the next one', async () => {
+    const { connections, ws } = await setup();
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    connections.connections.update((all) => [...all, { ...PROFILE, id: OTHER, name: 'productie' }]);
+    await connections.connect(OTHER);
+    connections.activeId.set(ID);
+
+    // Not the shown one: stays where you are.
+    ws.disconnect(OTHER);
+    await vi.waitFor(() => expect(connections.statusOf(OTHER)).toBe('idle'));
+    expect(connections.activeId()).toBe(ID);
+
+    await connections.connect(OTHER);
+    connections.activeId.set(ID);
+    ws.disconnect(ID);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(OTHER));
+    expect(connections.open().map((c) => c.name)).toEqual(['productie']);
+
+    // The last one: back to the overview.
+    ws.disconnect(OTHER);
+    await vi.waitFor(() => expect(connections.activeId()).toBeNull());
+  });
 });

@@ -19,26 +19,51 @@
       <nav class="conn-switch" aria-label="Open verbindingen">
         @for (c of store.open(); track c.id) {
           @let current = c.id === store.activeId();
-          <button
-            type="button"
+          <div
             class="conn-chip"
             [class.active]="current"
-            [attr.aria-current]="current ? 'page' : null"
-            [title]="
-              current
-                ? c.name + ' (actief)'
-                : 'Naar ' + c.name + ' (' + keys.keyLabel('connections.next') + ')'
-            "
-            (click)="ws.switchTo(c.id)"
+            (auxclick)="$event.button === 1 && ws.disconnect(c.id)"
           >
-            <span [class]="'conn-chip-color color-' + c.color" aria-hidden="true"></span>
-            <span class="conn-chip-name"
-              >{{ c.name }}{{ current && c.database ? ' · ' + location(c) : '' }}</span
+            <button
+              type="button"
+              class="conn-chip-main"
+              [attr.aria-current]="current ? 'page' : null"
+              [title]="
+                current
+                  ? c.name + ' (actief)'
+                  : 'Naar ' + c.name + ' (' + keys.keyLabel('connections.next') + ')'
+              "
+              (click)="ws.switchTo(c.id)"
             >
-            @if (store.statusOf(c.id) === 'connecting') {
-              <span class="muted small">verbinden…</span>
-            }
-          </button>
+              <span [class]="'conn-chip-color color-' + c.color" aria-hidden="true"></span>
+              <span class="conn-chip-name"
+                >{{ c.name }}{{ current && c.database ? ' · ' + location(c) : '' }}</span
+              >
+              @if (store.statusOf(c.id) === 'connecting') {
+                <span class="muted small">verbinden…</span>
+              }
+            </button>
+            <button
+              type="button"
+              class="conn-chip-close"
+              [attr.aria-label]="'Verbinding ' + c.name + ' verbreken'"
+              [title]="'Verbinding ' + c.name + ' verbreken'"
+              (click)="ws.disconnect(c.id)"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
         }
       </nav>
     }

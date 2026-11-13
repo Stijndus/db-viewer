@@ -204,7 +204,17 @@ export class WorkspaceStore {
     if (!this.confirmLeave(connectionId)) return;
     if (!this.transfer.confirmStopImports(connectionId)) return;
     this.forgetDirty(connectionId);
-    void this.connections.disconnect(connectionId);
+    // Closing the shown one goes on to a neighbour in the switch bar, like closing a tab.
+    const open = this.connections
+      .open()
+      .filter((c) => this.connections.statusOf(c.id) === 'connected');
+    const at = open.findIndex((c) => c.id === connectionId);
+    const next =
+      this.connections.activeId() === connectionId ? (open[at + 1] ?? open[at - 1]) : undefined;
+    void this.connections.disconnect(connectionId).then(() => {
+      if (next && this.connections.statusOf(next.id) === 'connected')
+        this.connections.activeId.set(next.id);
+    });
   }
 
   /** Back to the connection list (the connection stays open) after the same check. */
