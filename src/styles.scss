@@ -508,6 +508,19 @@ app-connection-list {
 .card-error {
   border-color: var(--err-border);
 }
+/* A connection's colour as a bar along the left edge, like in the list. */
+.card-conn {
+  position: relative;
+  overflow: hidden;
+  padding-left: 24px;
+}
+.card-color {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+}
 .card-head {
   display: flex;
   align-items: center;

@@ -45,7 +45,8 @@
       @for (c of store.connections(); track c.id) {
         @let status = store.statusOf(c.id);
         @let error = store.errors()[c.id];
-        <article class="card" [class.card-error]="status === 'error'">
+        <article class="card card-conn" [class.card-error]="status === 'error'">
+          <span [class]="'card-color color-' + c.color" aria-hidden="true"></span>
           <div class="card-head">
             <span class="row-tight"
               ><span class="badge" [attr.data-type]="c.type">{{ dialects[c.type].label }}</span>
