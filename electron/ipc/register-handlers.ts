@@ -63,8 +63,8 @@ export interface HandlerDeps {
   /** The OS open-file dialog (Electron's dialog.showOpenDialog on the main window). */
   pickSaveFile(options: SaveDialogOptions): Promise<{ canceled: boolean; filePath?: string }>;
   showInFolder(file: string): void;
-  /** Puts text on the system clipboard (export to clipboard). */
-  writeClipboard(text: string): void;
+  /** Puts text on the system clipboard (export to clipboard), with an HTML table when given. */
+  writeClipboard(text: string, html?: string): void;
   readClipboard(): string | Promise<string>;
   documentsDir?: string;
   setAppearance(background: string): void;
@@ -233,8 +233,14 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
     const controller = new AbortController();
     jobs.set(jobId, controller);
     const report = (p: TransferProgress) => deps.send(TRANSFER_EVENT, p);
-    void exportData(session, profile.type, request, jobId, report, controller.signal, (text) =>
-      deps.writeClipboard(text),
+    void exportData(
+      session,
+      profile.type,
+      request,
+      jobId,
+      report,
+      controller.signal,
+      (text, html) => deps.writeClipboard(text, html),
     )
       .then((p) => {
         if (p.phase === 'done' && !p.clipboard) written.add(request.file);

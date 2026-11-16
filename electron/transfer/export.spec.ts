@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { ExportRequest, TransferProgress } from '../../shared/models';
 import type { DbSession, RowBatch, RowSource } from '../db/driver';
 import { extractEntry, listArchive } from './archive';
-import { csvField, exportData, keyWhere, markdownCell, sqlLiteral } from './export';
+import { csvField, exportData, htmlCell, keyWhere, markdownCell, sqlLiteral } from './export';
 
 const COLUMNS = ['id', 'naam', 'bedrag', 'leeg', 'bin'];
 const ROWS: unknown[][] = [
@@ -241,6 +241,7 @@ describe('export', () => {
   describe('to the clipboard', () => {
     async function copy(request: Omit<ExportRequest, 'file'>, batches?: unknown[][][]) {
       let clipboard: string | null = null;
+      let html: string | undefined;
       const result = await exportData(
         fakeSession(batches).session,
         'mysql',
@@ -248,9 +249,12 @@ describe('export', () => {
         'job',
         () => {},
         new AbortController().signal,
-        (text) => (clipboard = text),
+        (text, table) => {
+          clipboard = text;
+          html = table;
+        },
       );
-      return { result, clipboard: clipboard as string | null };
+      return { result, clipboard: clipboard as string | null, html };
     }
 
     it('puts tab-separated rows on the clipboard, no file', async () => {
@@ -263,6 +267,39 @@ describe('export', () => {
       expect(result.file).toBeUndefined();
       expect(clipboard!.split('\r\n')[0]).toBe('id\tnaam\tbedrag\tleeg\tbin');
       expect(clipboard!.split('\r\n')[1]).toBe('1\tgewoon\t12.50\t\t0xdead');
+    });
+
+    it('adds a table to CSV, so Excel pastes cells', async () => {
+      const { clipboard, html } = await copy({
+        source: table,
+        format: 'csv',
+        csv: { delimiter: ';', header: true, bom: false },
+      });
+      expect(clipboard!.split('\r\n')[0]).toBe('id;naam;bedrag;leeg;bin');
+      expect(html).toContain(
+        '<thead><tr><th>id</th><th>naam</th><th>bedrag</th><th>leeg</th><th>bin</th></tr></thead>',
+      );
+      expect(html).toContain(
+        '<tr><td x:num="1">1</td><td>gewoon</td><td x:num="12.50">12.50</td><td></td><td>0xdead</td></tr>',
+      );
+      expect(html).toContain('<td>regel<br>een</td>');
+      expect(html).toMatch(
+        /^<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">/,
+      );
+      // Other formats stay text only.
+      expect((await copy({ source: table, format: 'json' })).html).toBeUndefined();
+    });
+
+    it('keeps codes and long numbers as text in Excel, and escapes HTML', () => {
+      expect(htmlCell('00123')).toBe(`<td style="mso-number-format:'\\@'">00123</td>`);
+      expect(htmlCell('+31612345678')).toContain('mso-number-format');
+      expect(htmlCell('12345678901234567890')).toContain('mso-number-format');
+      expect(htmlCell('0.5')).toBe('<td x:num="0.5">0.5</td>');
+      expect(htmlCell('-42')).toBe('<td x:num="-42">-42</td>');
+      expect(htmlCell('1.2.3')).toBe('<td>1.2.3</td>');
+      expect(htmlCell('42', 'th')).toBe('<th>42</th>');
+      expect(htmlCell('<b>"a" & b</b>')).toBe('<td>&lt;b&gt;&quot;a&quot; &amp; b&lt;/b&gt;</td>');
+      expect(htmlCell(null)).toBe('<td></td>');
     });
 
     it('copies JSON, SQL and Markdown too', async () => {

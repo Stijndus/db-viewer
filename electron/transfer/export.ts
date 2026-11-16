@@ -46,6 +46,36 @@ export function csvField(value: unknown, delimiter: string): string {
   return text;
 }
 
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * A table cell for the clipboard's HTML. Excel turns "00123" into 123 and rounds numbers past
+ * 15 digits; those cells are marked as text so codes, phone numbers and IDs stay as they are.
+ */
+export function htmlCell(value: unknown, tag: 'td' | 'th' = 'td'): string {
+  const text = asText(value);
+  if (text === null) return `<${tag}></${tag}>`;
+  const keepAsText = /^0\d/.test(text) || /^[+-]?\d{16,}$/.test(text) || /^\+\d/.test(text);
+  // A number as Excel writes it in its own HTML: x:num is read the same in every locale, so 1.50
+  // stays 1.5 in a Dutch Excel (where "1.50" would be read with "." as thousands separator).
+  const number = !keepAsText && tag === 'td' && /^-?\d+(\.\d+)?$/.test(text);
+  const style = keepAsText ? ` style="mso-number-format:'\\@'"` : number ? ` x:num="${text}"` : '';
+  return `<${tag}${style}>${escapeHtml(text).replace(/\r?\n/g, '<br>')}</${tag}>`;
+}
+
+/** The rows as an HTML table: what Excel, Word and Outlook paste as real cells. */
+export function htmlTable(columns: string[] | null, rows: string[]): string {
+  const head = columns
+    ? `<thead><tr>${columns.map((c) => htmlCell(c, 'th')).join('')}</tr></thead>`
+    : '';
+  return (
+    '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><table>' +
+    head +
+    `<tbody>${rows.join('')}</tbody></table></body></html>`
+  );
+}
+
 /** JSON keeps numbers that are numbers; big integers and decimals stay exact as strings. */
 export function jsonValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
@@ -299,7 +329,7 @@ export async function exportData(
   jobId: string,
   report: (progress: TransferProgress) => void,
   signal: AbortSignal,
-  writeClipboard: (text: string) => void = () => undefined,
+  writeClipboard: (text: string, html?: string) => void = () => undefined,
 ): Promise<TransferProgress> {
   const toClipboard = request.destination === 'clipboard';
   const progress: TransferProgress = {
@@ -335,6 +365,8 @@ export async function exportData(
   }
 
   const memory = toClipboard ? memoryOutput() : null;
+  const html =
+    toClipboard && request.format === 'csv' ? { columns: null, rows: [] as string[] } : null;
   const out = memory ?? (await openOutput(request, innerFileName(request)));
   let last = 0;
   const tick = (force = false) => {
@@ -355,7 +387,16 @@ export async function exportData(
     if (format === 'xlsx')
       await writeXlsx(session, source as RowSource, out.stream, request, progress, tick, signal);
     else if (format === 'csv')
-      await writeCsv(session, source as RowSource, out.stream, request, progress, tick, signal);
+      await writeCsv(
+        session,
+        source as RowSource,
+        out.stream,
+        request,
+        progress,
+        tick,
+        signal,
+        html ?? undefined,
+      );
     else if (format === 'json')
       await writeJson(session, source as RowSource, out.stream, request, progress, tick, signal);
     else if (format === 'markdown')
@@ -366,7 +407,7 @@ export async function exportData(
     if (memory) {
       // Statements written outside a batch (SQL header, DDL) can still pass the limit at the end.
       if (out.written() > CLIPBOARD_MAX_BYTES) throw tooLargeForClipboard();
-      writeClipboard(memory.text());
+      writeClipboard(memory.text(), html ? htmlTable(html.columns, html.rows) : undefined);
     }
     progress.phase = 'done';
   } catch (err) {
@@ -440,6 +481,8 @@ async function writeCsv(
   progress: TransferProgress,
   tick: Tick,
   signal: AbortSignal,
+  /** For the clipboard: the same rows as an HTML table, so Excel pastes them as cells. */
+  html?: { columns: string[] | null; rows: string[] },
 ) {
   const { delimiter, header, bom } = request.csv ?? { delimiter: ',', header: true, bom: false };
   let first = true;
@@ -453,6 +496,10 @@ async function writeCsv(
       first = false;
       for (const row of rows)
         text += row.map((v) => csvField(v, delimiter)).join(delimiter) + '\r\n';
+      if (html) {
+        if (header && html.columns === null) html.columns = columns;
+        for (const row of rows) html.rows.push(`<tr>${row.map((v) => htmlCell(v)).join('')}</tr>`);
+      }
       await write(out, text);
       progress.statements += rows.length;
       tick();

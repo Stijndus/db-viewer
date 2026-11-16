@@ -2,6 +2,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  ClipboardItem,
   dialog,
   Menu,
   safeStorage,
@@ -247,7 +248,15 @@ function startApp(): void {
       pickSaveFile: (options) =>
         mainWindow ? dialog.showSaveDialog(mainWindow, options) : dialog.showSaveDialog(options),
       showInFolder: (file) => shell.showItemInFolder(file),
-      writeClipboard: (text) => clipboard.writeText(text),
+      writeClipboard: (text, html) => {
+        // With a table, both: Excel, Word and Outlook take the table, plain editors the text.
+        const written = html
+          ? clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })])
+          : clipboard.writeText(text);
+        void Promise.resolve(written).catch((err: unknown) =>
+          console.error('Klembord schrijven mislukt', err),
+        );
+      },
       readClipboard: () => clipboard.readText(),
       documentsDir: app.getPath('documents'),
       setAppearance: (background) => {
