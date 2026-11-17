@@ -58,6 +58,7 @@ function browserFallback(): DbApi {
     readClipboard: fail,
     pickCellFile: fail,
     saveCellToFile: fail,
+    readCellText: fail,
     setAppearance: async () => ({ ok: true, data: undefined }),
     zoom: async () => ({ ok: true, data: 1 }),
     onZoom: () => () => undefined,

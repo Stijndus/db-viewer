@@ -189,6 +189,7 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     readClipboard: () => ok(''),
     pickCellFile: () => ok(null),
     saveCellToFile: () => ok(null),
+    readCellText: () => ok(null),
     setAppearance: () => ok(undefined),
     zoom: () => ok(1),
     onZoom: () => () => undefined,

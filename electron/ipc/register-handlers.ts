@@ -15,6 +15,8 @@ import { qualifiedName, quoteIdent, stringLiteral } from '../../shared/dialect';
 import {
   CELL_FILE_MAX_BYTES,
   type CellFile,
+  CELL_TEXT_MAX_CHARS,
+  type CellKey,
   type CellSaveRequest,
   type DbType,
   type ExportRequest,
@@ -30,6 +32,7 @@ import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
 import { AppError, toDbError } from './errors';
 import {
+  cellKeySchema,
   cellSaveRequestSchema,
   changeSetSchema,
   connectionInputSchema,
@@ -310,6 +313,27 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
     return saved.filePath;
   });
 
+  handle(IPC.readCellText, async (rawId, rawCell) => {
+    const id = idSchema.parse(rawId);
+    const cell = cellKeySchema.parse(rawCell);
+    const profile = await store.get(id);
+    const value = await cellValue(manager.session(id), profile.type, cell);
+    if (value === null) return null;
+    if (Buffer.isBuffer(value))
+      throw new AppError(
+        'NOT_SUPPORTED',
+        'Dit is een binaire waarde.',
+        'Gebruik "Waarde opslaan als bestand".',
+      );
+    if (value.length > CELL_TEXT_MAX_CHARS)
+      throw new AppError(
+        'TOO_LARGE',
+        `De waarde is te groot voor de editor (${value.length.toLocaleString('nl-NL')} tekens).`,
+        'Gebruik "Waarde opslaan als bestand".',
+      );
+    return value;
+  });
+
   handle(IPC.cancelTransfer, (rawJob) => {
     jobs.get(jobIdSchema.parse(rawJob))?.abort();
   });
@@ -441,11 +465,12 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
 }
 
 /** A cell's complete value, fetched again by primary key: bytes as they are, text as UTF-8. */
-async function cellContent(
+/** A cell's whole value by key: text, bytes for binary columns, null for NULL. */
+async function cellValue(
   session: DbSession,
   dialect: DbType,
-  request: Extract<CellSaveRequest, { kind: 'key' }>,
-): Promise<Buffer> {
+  request: CellKey,
+): Promise<string | Buffer | null> {
   const where = request.keyColumns
     .map((c, i) => {
       const v = request.keyValues[i] ?? null;
@@ -459,9 +484,19 @@ async function cellContent(
   if (row === undefined)
     throw new AppError('ROW_NOT_FOUND', 'De rij bestaat niet meer.', 'Vernieuw de data.');
   const value = Array.isArray(row) ? row[0] : (row as Record<string, unknown>)['v'];
-  if (value === null || value === undefined) return Buffer.alloc(0);
+  if (value === null || value === undefined) return null;
   if (Buffer.isBuffer(value)) return value;
   if (value instanceof Uint8Array) return Buffer.from(value);
-  if (value instanceof Date) return Buffer.from(value.toISOString());
-  return Buffer.from(typeof value === 'string' ? value : JSON.stringify(value), 'utf8');
+  if (value instanceof Date) return value.toISOString();
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+async function cellContent(
+  session: DbSession,
+  dialect: DbType,
+  request: Extract<CellSaveRequest, { kind: 'key' }>,
+): Promise<Buffer> {
+  const value = await cellValue(session, dialect, request);
+  if (value === null) return Buffer.alloc(0);
+  return Buffer.isBuffer(value) ? value : Buffer.from(value, 'utf8');
 }

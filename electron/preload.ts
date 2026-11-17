@@ -54,6 +54,7 @@ const api: DbApi = {
   readClipboard: () => ipcRenderer.invoke(IPC.readClipboard),
   pickCellFile: () => ipcRenderer.invoke(IPC.pickCellFile),
   saveCellToFile: (id, request) => ipcRenderer.invoke(IPC.saveCellToFile, id, request),
+  readCellText: (id, cell) => ipcRenderer.invoke(IPC.readCellText, id, cell),
   setAppearance: (appearance) => ipcRenderer.invoke(IPC.setAppearance, appearance),
   zoom: (action) => ipcRenderer.invoke(IPC.zoom, action),
   onZoom: (listener) => {

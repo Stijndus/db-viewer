@@ -393,3 +393,166 @@ describe('TableData editing', () => {
     expect(el.querySelector('.dg-row')).not.toBeNull();
   });
 });
+
+describe('TableData grid extras', () => {
+  const EXTRA_COLUMNS: ColumnInfo[] = [
+    COLUMNS[0]!,
+    { ...COLUMNS[1]!, name: 'note', type: 'text', key: '' as ColumnInfo['key'] },
+    { ...COLUMNS[1]!, name: 'data', type: 'json', key: '' as ColumnInfo['key'] },
+    { ...COLUMNS[1]!, name: 'seen_at', type: 'datetime', key: '' as ColumnInfo['key'] },
+  ];
+  const LONG = 'x'.repeat(2000);
+
+  async function extras(overrides: Partial<DbApi> = {}) {
+    localStorage.clear();
+    // jsdom has no <dialog> methods, and CodeMirror measures text it cannot lay out.
+    HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+      this.open = true;
+    };
+    HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+      this.open = false;
+    };
+    Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList;
+    Range.prototype.getBoundingClientRect ??= () => new DOMRect();
+    const reads: unknown[] = [];
+    const ctx = await setup({
+      readRows: () =>
+        Promise.resolve({
+          ok: true,
+          data: {
+            columns: ['id', 'note', 'data', 'seen_at'],
+            rows: [
+              ['1', 'kort', '{"a":1,"b":[1,2]}', null],
+              ['2', { kind: 'truncated', text: LONG, length: 5000 }, null, '2026-01-02 03:04:05'],
+            ],
+            hasMore: false,
+            durationMs: 1,
+          },
+        }),
+      readCellText: (_id, cell) => {
+        reads.push(cell);
+        return Promise.resolve({ ok: true, data: 'y'.repeat(5000) });
+      },
+      applyChanges: () =>
+        Promise.resolve({ ok: true, data: { deleted: 0, updated: 1, inserted: 0 } }),
+      ...overrides,
+    });
+    ctx.fixture.componentInstance.columns.set({ status: 'loaded', data: EXTRA_COLUMNS });
+    ctx.fixture.componentInstance.object.set({
+      connectionId: PROFILE.id,
+      database: 'app_dev',
+      name: 'notes',
+      kind: 'table',
+    });
+    await ctx.settle();
+    await ctx.settle();
+    const cell = (row: number, col: number) =>
+      ctx.el.querySelectorAll('.dg-row')[row]!.querySelectorAll<HTMLElement>('.dg-cell')[col]!;
+    const dbl = async (row: number, col: number) => {
+      cell(row, col).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await ctx.settle();
+      await new Promise((r) => setTimeout(r));
+      await ctx.settle();
+    };
+    return { ...ctx, cell, dbl, reads };
+  }
+
+  it('colours values by their type, NULL keeps its own look', async () => {
+    const { cell } = await extras();
+    expect(cell(0, 0).classList).toContain('t-number');
+    expect(cell(0, 1).classList).toContain('t-text');
+    expect(cell(0, 2).classList).toContain('t-json');
+    expect(cell(1, 3).classList).toContain('t-datetime');
+    expect(cell(0, 3).classList).toContain('is-null');
+    expect(cell(0, 3).classList).not.toContain('t-datetime');
+  });
+
+  it('fills in the current time when a NULL date is double-clicked', async () => {
+    const { el, dbl, cell, settle } = await extras();
+    await dbl(0, 3);
+    const input = el.querySelector<HTMLInputElement>('.dg-input')!;
+    expect(input.value).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
+    expect(input.value.slice(0, 4)).toBe(String(new Date().getFullYear()));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle();
+    expect(cell(0, 3).classList).toContain('edited');
+    // A date that has a value is edited as it is.
+    await dbl(1, 3);
+    expect(el.querySelector<HTMLInputElement>('.dg-input')!.value).toBe('2026-01-02 03:04:05');
+  });
+
+  it('opens JSON in the cell editor, indented, and saves nothing when unchanged', async () => {
+    const { el, dbl, cell } = await extras();
+    await dbl(0, 2);
+    const dialog = el.querySelector('app-cell-editor dialog')!;
+    expect(dialog).not.toBeNull();
+    expect(dialog.textContent).toContain('Geldige JSON');
+    expect(el.querySelector('.cm-content')?.textContent).toContain('"a": 1');
+    const apply = Array.from(dialog.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Toepassen',
+    )!;
+    apply.click();
+    await new Promise((r) => setTimeout(r));
+    expect(el.querySelector('app-cell-editor')).toBeNull();
+    expect(cell(0, 2).classList).not.toContain('edited');
+  });
+
+  it('loads a cut-off value in full by key before editing it', async () => {
+    const { el, dbl, reads } = await extras();
+    await dbl(1, 1);
+    await vi.waitFor(() => expect(el.querySelector('app-cell-editor dialog')).not.toBeNull());
+    expect(reads).toEqual([
+      { database: 'app_dev', table: 'notes', keyColumns: ['id'], keyValues: ['2'], column: 'note' },
+    ]);
+    expect(el.querySelector('.ce-status')?.textContent).toContain('5.000 tekens');
+    expect(el.querySelector('.ce-status')?.textContent).not.toContain('Ingekort');
+  });
+
+  it('resizes a column by dragging its border and remembers it per table', async () => {
+    const { el, settle } = await extras();
+    const head = () => el.querySelector<HTMLElement>('.dg-head')!.style.gridTemplateColumns;
+    const before = head().split(' ');
+    const handle = el.querySelectorAll<HTMLElement>('.dg-resize')[1]!;
+    handle.dispatchEvent(
+      new PointerEvent('pointerdown', { button: 0, clientX: 100, bubbles: true }),
+    );
+    handle.dispatchEvent(new PointerEvent('pointermove', { clientX: 160, bubbles: true }));
+    handle.dispatchEvent(new PointerEvent('pointerup', { clientX: 160, bubbles: true }));
+    await settle();
+    const after = head().split(' ');
+    expect(parseInt(after[2]!)).toBe(parseInt(before[2]!) + 60);
+    const stored = JSON.parse(localStorage.getItem('dbv.columnWidths')!) as Record<string, unknown>;
+    expect(stored[`${PROFILE.id}/app_dev/notes`]).toEqual({ note: parseInt(before[2]!) + 60 });
+
+    // Double-click fits the column to its content.
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    expect(parseInt(head().split(' ')[2]!)).not.toBe(parseInt(after[2]!));
+  });
+
+  it('marks the rows of the selection and selects by dragging, like Explorer', async () => {
+    const { el, cell, settle } = await extras();
+    const rows = () =>
+      Array.from(el.querySelectorAll('.dg-row')).map((r) => r.classList.contains('row-active'));
+    cell(0, 1).dispatchEvent(new MouseEvent('mousedown', { button: 0, buttons: 1, bubbles: true }));
+    await settle();
+    expect(rows()).toEqual([true, false]);
+    // jsdom lays nothing out: the body starts at 0,0; row 2 is at y 30–60, column 2 after
+    // the row numbers (64) and the first two columns.
+    const widths = el
+      .querySelector<HTMLElement>('.dg-head')!
+      .style.gridTemplateColumns.split(' ')
+      .map((w) => parseInt(w));
+    const x = widths[0]! + widths[1]! + widths[2]! + 5;
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: 45, buttons: 1 }));
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    await settle();
+    expect(rows()).toEqual([true, true]);
+    const inRange = Array.from(el.querySelectorAll('.dg-cell.in-range, .dg-cell.selected')).length;
+    expect(inRange).toBe(4); // 2 rows × 2 columns
+    // After the button is up, moving no longer changes anything.
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 1, clientY: 1, buttons: 0 }));
+    await settle();
+    expect(rows()).toEqual([true, true]);
+  });
+});

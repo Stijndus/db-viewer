@@ -28,6 +28,16 @@ const PAIRS: [Token, Token, number][] = [
   ['syn-special', 'bg', 4.5],
   ['syn-comment', 'bg', 3.5],
   ['syn-keyword', 'editor-active-line', 4.5],
+  // The selected row's number.
+  ['accent-text', 'panel', 4.5],
+  // Values in the data grid have the colour of their type, also on striped and selected rows.
+  ...(['syn-keyword', 'syn-string', 'syn-number', 'syn-type', 'syn-special'] as const).flatMap(
+    (t) => [
+      [t, 'row-alt', 4.5] as [Token, Token, number],
+      [t, 'accent-soft', 4] as [Token, Token, number],
+      [t, 'hover', 4.5] as [Token, Token, number],
+    ],
+  ),
   ['text', 'editor-selection', 4.5],
   ['editor-gutter-text', 'editor-gutter', 3],
 ];

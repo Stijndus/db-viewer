@@ -19,6 +19,8 @@ import { ContextMenuStore, type MenuEntry } from '../../../core/context-menu/con
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { COPY_FORMAT_LABELS, formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
 import { DB_API } from '../../../core/db-api';
+import { CellEditor, looksLikeJson, type CellEditorRequest } from './cell-editor';
+import { nowFor, typeCategory } from './column-types';
 
 export interface GridColumn {
   name: string;
@@ -85,7 +87,74 @@ interface CellView {
 }
 
 export const ROW_HEIGHT = 30;
+/** Height of the sticky column header, for scrolling while dragging past the top. */
+const HEADER_HEIGHT = 44;
 const NUM_WIDTH = 64;
+/** Some non-NULL values in the first rows, and all of them JSON objects or arrays. */
+function holdsJson(rows: GridCell[][], col: number): boolean {
+  let seen = 0;
+  for (const row of rows.slice(0, 50)) {
+    const cell = row[col];
+    if (cell === null || cell === undefined) continue;
+    const text = typeof cell === 'string' ? cell : cell.kind === 'truncated' ? null : undefined;
+    if (text === undefined) return false;
+    if (text === null) continue; // cut off: cannot tell
+    if (!looksLikeJson(text)) return false;
+    seen++;
+  }
+  return seen > 0;
+}
+
+const MIN_COL_WIDTH = 40;
+const MAX_COL_WIDTH = 2000;
+/** Padding left and right of a value, plus the border: what a fitted column adds to the text. */
+const CELL_PADDING = 22;
+const WIDTHS_KEY = 'dbv.columnWidths';
+/** Tables whose widths are remembered; the least recently changed are forgotten first. */
+const WIDTHS_MAX_TABLES = 300;
+
+function loadWidths(): Record<string, Record<string, number>> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(WIDTHS_KEY) ?? '{}') as unknown;
+    return raw && typeof raw === 'object' ? (raw as Record<string, Record<string, number>>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function storeWidths(key: string, widths: Record<string, number>): void {
+  try {
+    const { [key]: _, ...rest } = loadWidths();
+    const all = Object.keys(widths).length ? { ...rest, [key]: widths } : rest;
+    const keys = Object.keys(all);
+    for (const old of keys.slice(0, Math.max(0, keys.length - WIDTHS_MAX_TABLES))) delete all[old];
+    localStorage.setItem(WIDTHS_KEY, JSON.stringify(all));
+  } catch {
+    // Not remembered: the widths stay until the grid closes.
+  }
+}
+
+/** Measures text in the grid's fonts (cells, column name, column type) with a canvas. */
+function textMeasurer(
+  grid: HTMLElement,
+): (text: string, kind: 'cell' | 'header' | 'type') => number {
+  const context = document.createElement('canvas').getContext('2d');
+  const fontOf = (selector: string, fallback: string) => {
+    const el = grid.querySelector(selector);
+    return el ? getComputedStyle(el).font : fallback;
+  };
+  const fonts = {
+    cell: fontOf('.dg-cell', '12.5px monospace'),
+    header: fontOf('.dg-th-name .tl', '600 13px sans-serif'),
+    type: fontOf('.dg-th-type', '11px monospace'),
+  };
+  return (text, kind) => {
+    if (!context) return text.length * 8;
+    context.font = fonts[kind];
+    return context.measureText(text).width;
+  };
+}
+
 /** Rows rendered above and below the visible area, so fast scrolling doesn't show gaps. */
 const OVERSCAN = 12;
 
@@ -96,6 +165,7 @@ const OVERSCAN = 12;
 @Component({
   selector: 'app-data-grid',
   templateUrl: './data-grid.html',
+  imports: [CellEditor],
 })
 export class DataGrid {
   readonly columns = input.required<GridColumn[]>();
@@ -123,6 +193,18 @@ export class DataGrid {
   /** Extra menu items from the owner, built when the menu opens. */
   readonly menuSections = input<((selection: GridSelection) => GridMenuSections) | null>(null);
   readonly selectionChange = output<{ row: number; col: number } | null>();
+  /**
+   * Where column widths set by the user are remembered (e.g. the table); without one they last
+   * as long as the grid.
+   */
+  readonly widthKey = input<string | null>(null);
+  /**
+   * Loads the whole value of a cut-off cell for the cell editor (table data, by key). Without it
+   * a cut-off value is shown in the editor, not edited.
+   */
+  readonly loadFullValue = input<((row: number, col: number) => Promise<string | null>) | null>(
+    null,
+  );
 
   protected readonly rowHeight = ROW_HEIGHT;
   private readonly destroyRef = inject(DestroyRef);
@@ -145,21 +227,44 @@ export class DataGrid {
     };
   });
   private readonly contextMenu = inject(ContextMenuStore);
-  private readonly keys = inject(KeybindingsStore);
+  protected readonly keys = inject(KeybindingsStore);
   private readonly api = inject(DB_API);
   protected readonly editing = signal<Editing | null>(null);
   private readonly editor = viewChild<ElementRef<HTMLInputElement>>('editor');
   private readonly injector = inject(Injector);
 
+  /** Widths the user dragged or fitted, by column name, over the starting widths. */
+  private readonly customWidths = signal<Record<string, number>>({});
+  protected readonly widths = computed(() => {
+    const custom = this.customWidths();
+    return this.columns().map((c) => custom[c.name] ?? c.width);
+  });
   protected readonly template = computed(
     () =>
       `${NUM_WIDTH}px ` +
-      this.columns()
-        .map((c) => `${c.width}px`)
+      this.widths()
+        .map((w) => `${w}px`)
         .join(' '),
   );
   protected readonly totalWidth = computed(
-    () => NUM_WIDTH + this.columns().reduce((sum, c) => sum + c.width, 0),
+    () => NUM_WIDTH + this.widths().reduce((sum, w) => sum + w, 0),
+  );
+
+  /** Per column what kind of value it holds: colours the values, fills in the current time. */
+  protected readonly categories = computed(() => {
+    const rows = this.rows();
+    return this.columns().map((c, i) => {
+      const category = typeCategory(c.type);
+      // MariaDB reports a JSON column as LONGTEXT (with a JSON_VALID check): a text column whose
+      // values on this page are all JSON objects or arrays is shown as JSON.
+      return category === 'text' && /text|clob/i.test(c.type) && holdsJson(rows, i)
+        ? 'json'
+        : category;
+    });
+  });
+  /** Columns declared JSON: only valid JSON can be applied to them. */
+  private readonly declaredJson = computed(() =>
+    this.columns().map((c) => typeCategory(c.type) === 'json'),
   );
 
   private readonly first = computed(() =>
@@ -176,15 +281,18 @@ export class DataGrid {
     );
     const marks = this.rowMarks();
     const edited = this.editedCells();
+    const categories = this.categories();
     const out: { index: number; mark: RowMark; cells: (CellView & { edited: boolean })[] }[] = [];
     for (let i = first; i < last; i++) {
       out.push({
         index: i,
         mark: marks[i] ?? null,
-        cells: (rows[i] ?? []).map((cell, c) => ({
-          ...viewOf(cell),
-          edited: edited.has(`${i}:${c}`),
-        })),
+        cells: (rows[i] ?? []).map((cell, c) => {
+          const view = viewOf(cell);
+          // A plain value gets the colour of its type; NULL, '' and binary keep their own look.
+          const cls = view.cls === '' ? `t-${categories[c] ?? 'other'}` : view.cls;
+          return { ...view, cls, edited: edited.has(`${i}:${c}`) };
+        }),
       });
     }
     return out;
@@ -192,6 +300,11 @@ export class DataGrid {
 
   constructor() {
     this.registerCommands();
+    // The remembered widths of this table.
+    effect(() => {
+      const key = this.widthKey();
+      untracked(() => this.customWidths.set(key ? (loadWidths()[key] ?? {}) : {}));
+    });
     // A new page starts at the top with nothing selected. Without a page key, new rows do.
     effect(() => {
       const key = this.pageKey();
@@ -238,6 +351,92 @@ export class DataGrid {
     if (editing && (editing.row !== row || editing.col !== col)) this.commit();
     this.setSelected(row, col, Boolean(event?.shiftKey) && event?.button !== 2);
     if (!this.editing()) this.scroller().nativeElement.focus({ preventScroll: true });
+    if (event?.button === 0 && !this.editing()) this.startDrag('cells', event);
+  }
+
+  /** Rows of the selected block: shown like a hovered row, so the row is clearly selected. */
+  protected rowActive(row: number): boolean {
+    const r = this.range();
+    return !!r && row >= r.top && row <= r.bottom;
+  }
+
+  // ── Drag to select (like Explorer): cells from a cell, whole rows from a row number ──
+  private drag: { mode: 'cells' | 'rows'; stop: () => void } | null = null;
+
+  private startDrag(mode: 'cells' | 'rows', event: MouseEvent): void {
+    this.drag?.stop();
+    const scroller = this.scroller().nativeElement;
+    let lastY = event.clientY;
+    let lastX = event.clientX;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const extendTo = () => {
+      const target = this.cellAt(lastX, lastY);
+      if (!target) return;
+      const s = this.selected();
+      if (mode === 'rows') {
+        const last = this.columns().length - 1;
+        if (s && s.row === target.row && s.col === last) return;
+        this.selected.set({ row: target.row, col: last });
+        this.selectionChange.emit({ row: target.row, col: last });
+      } else if (!s || s.row !== target.row || s.col !== target.col) {
+        this.setSelected(target.row, target.col, true);
+      }
+    };
+    // Past the top or bottom edge: keep scrolling, faster the further out.
+    const autoScroll = () => {
+      const box = scroller.getBoundingClientRect();
+      const top = box.top + HEADER_HEIGHT;
+      const dy = lastY < top ? lastY - top : lastY > box.bottom ? lastY - box.bottom : 0;
+      const dx = lastX < box.left ? lastX - box.left : lastX > box.right ? lastX - box.right : 0;
+      if (dy === 0 && dx === 0) {
+        if (timer) clearInterval(timer);
+        timer = null;
+        return;
+      }
+      timer ??= setInterval(() => {
+        scroller.scrollTop += clamp(dy, -40, 40);
+        scroller.scrollLeft += clamp(dx, -40, 40);
+        this.onScroll();
+        extendTo();
+        autoScroll();
+      }, 30);
+    };
+    const move = (e: MouseEvent) => {
+      if ((e.buttons & 1) === 0) return stop();
+      lastX = e.clientX;
+      lastY = e.clientY;
+      extendTo();
+      autoScroll();
+    };
+    const stop = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', stop);
+      if (timer) clearInterval(timer);
+      document.body.classList.remove('grid-dragging');
+      this.drag = null;
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', stop);
+    document.body.classList.add('grid-dragging');
+    this.drag = { mode, stop };
+  }
+
+  /** The cell under a point of the window (clamped to the grid), for dragging. */
+  private cellAt(x: number, y: number): { row: number; col: number } | null {
+    const rows = this.rows().length;
+    const widths = this.widths();
+    if (!rows || !widths.length) return null;
+    const body = this.scroller().nativeElement.querySelector('.dg-body');
+    if (!body) return null;
+    const box = body.getBoundingClientRect();
+    const row = clamp(Math.floor((y - box.top) / ROW_HEIGHT), 0, rows - 1);
+    let left = box.left + NUM_WIDTH;
+    let col = 0;
+    for (; col < widths.length - 1; col++) {
+      if (x < left + widths[col]!) break;
+      left += widths[col]!;
+    }
+    return { row, col };
   }
 
   /** Selects a cell from outside (e.g. a freshly added row) and scrolls it into view. */
@@ -320,7 +519,165 @@ export class DataGrid {
     this.copied.emit(`Geplakt in ${n} ${n === 1 ? 'cel' : 'cellen'}`);
   }
 
-  protected startEdit(row: number, col: number, initial?: string): void {
+  // ── Column widths (like Excel: drag the border, double-click to fit) ──
+  protected widthOf(col: number): number {
+    return this.widths()[col] ?? MIN_COL_WIDTH;
+  }
+
+  protected startResize(event: PointerEvent, col: number): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const name = this.columns()[col]?.name;
+    if (name === undefined) return;
+    const handle = event.target as HTMLElement;
+    handle.setPointerCapture?.(event.pointerId);
+    const startX = event.clientX;
+    const start = this.widthOf(col);
+    document.body.classList.add('col-resizing');
+    const move = (e: PointerEvent) => this.setWidth(name, start + e.clientX - startX, false);
+    const end = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      document.body.classList.remove('col-resizing');
+      this.saveWidths();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+
+  /** Double-click on a border: as wide as the longest value on this page (or the header). */
+  autofit(col: number): void {
+    const column = this.columns()[col];
+    if (!column) return;
+    const measure = textMeasurer(this.scroller().nativeElement);
+    // Header: name (bold, with key icon and sort arrow) and the type below it.
+    let widest = Math.max(
+      measure(column.name, 'header') + (column.primary ? 16 : 0) + (column.sort ? 14 : 0),
+      measure(column.type, 'type'),
+    );
+    for (const row of this.rows()) {
+      const text = viewOf(row[col] ?? null).text;
+      widest = Math.max(widest, measure(text.length > 300 ? text.slice(0, 300) : text, 'cell'));
+    }
+    this.setWidth(column.name, Math.ceil(widest) + CELL_PADDING, true);
+  }
+
+  /** Back to the starting widths (menu). */
+  resetWidths(): void {
+    this.customWidths.set({});
+    this.saveWidths();
+  }
+
+  private setWidth(name: string, width: number, save: boolean): void {
+    const w = clamp(Math.round(width), MIN_COL_WIDTH, MAX_COL_WIDTH);
+    this.customWidths.update((all) => ({ ...all, [name]: w }));
+    if (save) this.saveWidths();
+  }
+
+  private saveWidths(): void {
+    const key = this.widthKey();
+    if (key) storeWidths(key, this.customWidths());
+  }
+
+  /**
+   * Double-click: edit. On an empty (NULL) date or time it starts with the current time, as in
+   * HeidiSQL: Enter or clicking away keeps it, Esc leaves the cell NULL. JSON and long or
+   * multi-line text open in the cell editor.
+   */
+  protected onCellDblclick(row: number, col: number): void {
+    const cell = this.rows()[row]?.[col];
+    const now = cell === null ? nowFor(this.categories()[col] ?? 'other') : null;
+    if (now !== null) this.startEdit(row, col, now, true);
+    else if (this.wantsPopup(row, col)) void this.openPopup(row, col);
+    else this.startEdit(row, col);
+  }
+
+  /** Values that do not fit a one-line editor: JSON, several lines, long or cut-off text. */
+  private wantsPopup(row: number, col: number): boolean {
+    const cell = this.rows()[row]?.[col] ?? null;
+    if (cell !== null && typeof cell === 'object' && cell.kind === 'truncated') return true;
+    if (typeof cell !== 'string') return this.categories()[col] === 'json' && cell === null;
+    return (
+      this.categories()[col] === 'json' ||
+      cell.includes('\n') ||
+      cell.length > 120 ||
+      looksLikeJson(cell)
+    );
+  }
+
+  // ── Cell editor (popup) ────────────────────────────────────────────
+  protected readonly popup = signal<{
+    row: number;
+    col: number;
+    request: CellEditorRequest;
+  } | null>(null);
+
+  /** Opens the cell editor for a cell; with `draft`, starting from what was typed inline. */
+  async openPopup(row: number, col: number, draft?: string): Promise<void> {
+    const column = this.columns()[col];
+    const cell = this.rows()[row]?.[col] ?? null;
+    if (!column) return;
+    if (cell !== null && typeof cell === 'object' && cell.kind === 'binary') {
+      this.copied.emit(
+        'Binaire waarden kun je niet als tekst bewerken; gebruik Waarde opslaan als bestand.',
+      );
+      return;
+    }
+    this.setSelected(row, col);
+    let value: string | null;
+    let partOf: number | undefined;
+    let editable = this.editable() && this.rowMarks()[row] !== 'deleted';
+    if (draft !== undefined) value = draft;
+    else if (cell === null) value = null;
+    else if (typeof cell === 'string') value = cell;
+    else if (cell.kind === 'default') value = '';
+    else if (cell.kind === 'sql') value = cell.sql;
+    else if (cell.kind === 'truncated') {
+      const load = this.loadFullValue();
+      const full = load ? await load(row, col).catch(() => undefined) : undefined;
+      if (full !== undefined) value = full;
+      else {
+        value = cell.text;
+        partOf = cell.length;
+        editable = false;
+      }
+    } else value = null;
+    this.popup.set({
+      row,
+      col,
+      request: {
+        column: column.name,
+        type: column.type,
+        value,
+        jsonColumn: this.declaredJson()[col] ?? false,
+        readOnly: !editable,
+        ...(partOf !== undefined && { partOf }),
+      },
+    });
+  }
+
+  /** From the inline editor's "…" button: on in the cell editor with what was typed. */
+  protected expandEditor(): void {
+    const e = this.editing();
+    if (!e) return;
+    this.editing.set(null);
+    void this.openPopup(e.row, e.col, e.draft);
+  }
+
+  protected onPopupSaved(value: string | null): void {
+    const p = this.popup();
+    if (p) this.cellEdited.emit({ row: p.row, col: p.col, value });
+  }
+
+  protected onPopupClosed(): void {
+    this.popup.set(null);
+    this.scroller().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected startEdit(row: number, col: number, initial?: string, selectAll = false): void {
     if (!this.canEdit(row, col)) return;
     const cell = this.rows()[row]?.[col] ?? null;
     const current = typeof cell === 'string' ? cell : '';
@@ -331,7 +688,7 @@ export class DataGrid {
         const input = this.editor()?.nativeElement;
         if (!input) return;
         input.focus();
-        if (initial === undefined) input.select();
+        if (initial === undefined || selectAll) input.select();
         else input.setSelectionRange(input.value.length, input.value.length);
       },
       { injector: this.injector },
@@ -417,6 +774,7 @@ export class DataGrid {
     this.selected.set({ row, col: last });
     this.selectionChange.emit({ row, col: last });
     this.scroller().nativeElement.focus({ preventScroll: true });
+    if (event.button === 0) this.startDrag('rows', event);
   }
 
   /** Ctrl+A: every cell on this page. */
@@ -463,6 +821,18 @@ export class DataGrid {
       ...(this.editable()
         ? [{ label: 'Plakken', shortcut: key('data.paste'), run: () => void this.paste() }]
         : []),
+      ...(cells === 1
+        ? [
+            {
+              label:
+                this.editable() && this.rowMarks()[sel.row] !== 'deleted'
+                  ? 'Bewerken in venster…'
+                  : 'Bekijken in venster…',
+              shortcut: key('data.editPopup'),
+              run: () => void this.openPopup(sel.row, sel.col),
+            },
+          ]
+        : []),
       ...(extra.values ?? []),
       ...(url ? [{ label: 'URL openen', run: () => void window.open(url, '_blank') }] : []),
       'separator',
@@ -478,6 +848,9 @@ export class DataGrid {
       },
       ...(extra.tail ?? []),
       { label: 'Alles selecteren', shortcut: key('data.selectAll'), run: () => this.selectAll() },
+      ...(Object.keys(this.customWidths()).length
+        ? [{ label: 'Kolombreedtes herstellen', run: () => this.resetWidths() }]
+        : []),
     ];
     this.contextMenu.open(event, 'Acties voor de selectie', items);
   }
@@ -567,6 +940,12 @@ export class DataGrid {
     on('data.find', () => this.openFind());
     on('data.selectAll', () => this.selectAll());
     on('data.exportRows', () => (this.selected() ? this.emitExport(true) : false));
+    on('data.editPopup', () => {
+      const s = this.selected();
+      if (!s) return false;
+      void this.openPopup(s.row, s.col);
+      return true;
+    });
   }
 
   private copySelection(): void {

@@ -1182,6 +1182,40 @@ app-data-grid {
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
+.dg-thw {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.dg-thw > .dg-th {
+  flex: 1;
+}
+/* The border between two headers: drag to resize, double-click to fit (like Excel). */
+.dg-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+.dg-resize:hover,
+.col-resizing .dg-resize:active {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--accent) 3px,
+    var(--accent) 5px,
+    transparent 5px
+  );
+}
+body.col-resizing,
+body.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
 .dg-th {
   height: 44px;
   display: flex;
@@ -1250,6 +1284,18 @@ app-data-grid {
 .dg-row:hover {
   background: var(--hover);
 }
+/* The row(s) of the selected cells: like a hovered row, with the row number marked. */
+.dg-row.row-active {
+  background: var(--hover);
+}
+.dg-row.row-active .dg-num {
+  color: var(--accent-text);
+  font-weight: 600;
+  box-shadow: inset -2px 0 0 var(--accent);
+}
+body.grid-dragging {
+  cursor: cell;
+}
 .dg-num {
   position: sticky;
   left: 0;
@@ -1312,6 +1358,26 @@ app-data-grid {
 }
 .dg-cell.is-binary {
   color: var(--syn-type);
+}
+/* Values in the colour of their type, as in HeidiSQL; the theme's syntax colours. */
+.dg-cell.t-number,
+.dg-cell.t-bool {
+  color: var(--syn-number);
+}
+.dg-cell.t-text {
+  color: var(--syn-string);
+}
+.dg-cell.t-date,
+.dg-cell.t-datetime,
+.dg-cell.t-time,
+.dg-cell.t-year {
+  color: var(--syn-keyword);
+}
+.dg-cell.t-json {
+  color: var(--syn-type);
+}
+.dg-cell.t-enum {
+  color: var(--syn-special);
 }
 .dg-cell.is-truncated::after {
   content: ' …';
@@ -2551,4 +2617,74 @@ input.input-sm[type='number'] {
 .danger-option-hint {
   display: block;
   margin-top: 2px;
+}
+
+/* Cell editor: a large editor for one value (JSON, long text). */
+.dialog.cell-editor {
+  width: min(960px, calc(100vw - 48px));
+  height: min(720px, calc(100vh - 48px));
+}
+.cell-editor .dialog-head {
+  gap: 16px;
+  padding: 14px 20px 12px;
+}
+.cell-editor .dialog-head h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+}
+.ce-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ce-tools .check {
+  margin-left: 8px;
+}
+.ce-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+}
+.ce-editor {
+  flex: 1;
+  min-height: 0;
+}
+.ce-editor[hidden] {
+  display: none;
+}
+.ce-editor .cm-editor {
+  height: 100%;
+}
+.ce-null {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-family: var(--mono);
+  font-style: italic;
+}
+.ce-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 6px 20px;
+}
+.ce-status .push {
+  flex: 1;
+}
+.cell-editor .dialog-foot {
+  padding: 12px 20px;
 }

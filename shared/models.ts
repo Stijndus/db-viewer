@@ -397,6 +397,18 @@ export interface CellFile {
 export const CELL_FILE_MAX_BYTES = 16 * 1024 * 1024;
 
 /** "Save value to file": fetched again by primary key (complete), or the value as shown. */
+/** One cell of a table row, found by its primary key: to read its whole value. */
+export interface CellKey {
+  database: string;
+  table: string;
+  keyColumns: string[];
+  keyValues: (string | null)[];
+  column: string;
+}
+
+/** Longest value the cell editor loads in full; past this it shows the start. */
+export const CELL_TEXT_MAX_CHARS = 5_000_000;
+
 export type CellSaveRequest =
   | {
       kind: 'key';

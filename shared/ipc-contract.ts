@@ -1,6 +1,7 @@
 import type { ApplyResult, ChangeSet } from './changes';
 import type {
   CellFile,
+  CellKey,
   CellSaveRequest,
   ColumnInfo,
   ConnectResult,
@@ -64,6 +65,7 @@ export const IPC = {
   readClipboard: 'clipboard:read',
   pickCellFile: 'cell:pick-file',
   saveCellToFile: 'cell:save-file',
+  readCellText: 'cell:read-text',
   setAppearance: 'app:appearance',
   zoom: 'app:zoom',
   pickDatabaseFile: 'dialog:database-file',
@@ -195,6 +197,11 @@ export interface DbApi {
   pickCellFile(): Promise<Result<CellFile | null>>;
   /** Saves a cell's value as a file (save dialog); the file, or null when cancelled. */
   saveCellToFile(connectionId: string, request: CellSaveRequest): Promise<Result<string | null>>;
+  /**
+   * The whole value of a cell as text, for the cell editor: null for NULL. Refuses binary values
+   * and values over CELL_TEXT_MAX_CHARS.
+   */
+  readCellText(connectionId: string, cell: CellKey): Promise<Result<string | null>>;
   onTransfer(listener: (progress: TransferProgress) => void): () => void;
 
   /** What the command line asked to open at start; null when nothing (asked once). */

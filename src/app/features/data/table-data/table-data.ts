@@ -769,6 +769,36 @@ export class TableData {
     this.showNote(`${name} geladen (${fileSize(bytes.length)}); sla op om het te bewaren`);
   }
 
+  /**
+   * The whole value of a cut-off cell for the cell editor, by primary key. Rejects (and the
+   * editor shows the start, read-only) without a key or for a new row.
+   */
+  protected readonly loadFullValue = async (row: number, col: number): Promise<string | null> => {
+    const page = this.page();
+    const o = this.object();
+    const pk = this.primaryKey();
+    const column = page?.columns[col];
+    if (!page || !column || row >= page.rows.length || !pk.length) throw new Error('geen sleutel');
+    const keyValues = pk.map((c) => page.rows[row]?.[page.columns.indexOf(c)] ?? null);
+    if (
+      pk.some((c) => !page.columns.includes(c)) ||
+      keyValues.some((v) => v !== null && typeof v !== 'string')
+    )
+      throw new Error('sleutel onvolledig');
+    const result = await this.api.readCellText(o.connectionId, {
+      database: o.database,
+      table: o.name,
+      keyColumns: pk,
+      keyValues: keyValues as (string | null)[],
+      column,
+    });
+    if (!result.ok) {
+      this.showNote(result.error.message);
+      throw new Error(result.error.message);
+    }
+    return result.data;
+  };
+
   /** "Waarde opslaan als bestand": complete from the server by key, else as shown. */
   private async saveValue(): Promise<void> {
     const sel = this.grid()?.selection();

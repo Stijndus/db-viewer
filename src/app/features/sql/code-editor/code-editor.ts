@@ -75,7 +75,7 @@ export type EditorCommand =
   | 'lowerCase'
   | 'clear';
 
-const highlight = HighlightStyle.define([
+export const highlight = HighlightStyle.define([
   { tag: t.keyword, color: 'var(--syn-keyword)', fontWeight: '600' },
   { tag: [t.string, t.special(t.string)], color: 'var(--syn-string)' },
   { tag: [t.number, t.bool, t.null], color: 'var(--syn-number)' },
@@ -85,7 +85,7 @@ const highlight = HighlightStyle.define([
   { tag: [t.special(t.name), t.quote], color: 'var(--syn-special)' },
 ]);
 
-const theme = EditorView.theme(
+export const theme = EditorView.theme(
   {
     '&': { height: '100%', backgroundColor: 'var(--bg)', color: 'var(--text)', fontSize: '13px' },
     '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.6' },

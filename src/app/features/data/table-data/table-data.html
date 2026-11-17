@@ -157,6 +157,8 @@
         (sortRequested)="toggleSort($event)"
         [dialect]="dialect()"
         [tableName]="object().name"
+        [widthKey]="object().connectionId + '/' + object().database + '/' + object().name"
+        [loadFullValue]="loadFullValue"
         (copied)="onCopied($event)"
         (exportRows)="exportRows($event)"
         (cellEdited)="onCellEdited($event)"

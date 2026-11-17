@@ -230,6 +230,14 @@ export const fileNameSchema = z
   .max(255)
   .refine((n) => !/[\\/]/.test(n), 'Ongeldige naam');
 
+export const cellKeySchema = z.object({
+  database: identifierSchema,
+  table: identifierSchema,
+  keyColumns: z.array(identifierSchema).min(1).max(16),
+  keyValues: z.array(z.string().max(65_535).nullable()).min(1).max(16),
+  column: identifierSchema,
+});
+
 export const cellSaveRequestSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('key'),
