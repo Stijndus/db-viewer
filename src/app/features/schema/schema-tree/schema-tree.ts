@@ -95,9 +95,13 @@ export class SchemaTree {
 
     const q = this.schema.filter().trim().toLowerCase();
     const matches = (name: string) => !q || name.toLowerCase().includes(q);
+    // A system database whose name is searched for is shown too.
     const visible = dbs.data.filter(
       (d) =>
-        !d.system || this.schema.showSystem() || this.schema.isExpanded(dbKey(conn.id, d.name)),
+        !d.system ||
+        this.schema.showSystem() ||
+        this.schema.isExpanded(dbKey(conn.id, d.name)) ||
+        (!!q && matches(d.name)),
     );
     const rows: Row[] = [];
 
@@ -107,8 +111,11 @@ export class SchemaTree {
       const hits = loaded?.filter((o) => matches(o.name)) ?? [];
       // While filtering, show a database when its name or one of its loaded objects matches.
       if (q && !matches(db.name) && hits.length === 0) continue;
+      // Matching objects inside: open, showing just those. Only the name of the database
+      // matches: as it was, and opened it shows all its objects.
+      const onlyHits = !!q && hits.length > 0;
 
-      const dbOpen = this.schema.isExpanded(dbKey(conn.id, db.name)) || (!!q && hits.length > 0);
+      const dbOpen = this.schema.isExpanded(dbKey(conn.id, db.name)) || onlyHits;
       rows.push({ type: 'db', key: dbKey(conn.id, db.name), level: 1, db, expanded: dbOpen });
       if (!dbOpen) continue;
 
@@ -126,10 +133,10 @@ export class SchemaTree {
       }
 
       for (const g of GROUPS) {
-        const items = (q ? hits : objects.data).filter((o) => g.kinds.includes(o.kind));
+        const items = (onlyHits ? hits : objects.data).filter((o) => g.kinds.includes(o.kind));
         if (items.length === 0) continue;
         const gKey = groupKey(conn.id, db.name, g.id);
-        const gOpen = this.schema.isExpanded(gKey) || !!q;
+        const gOpen = this.schema.isExpanded(gKey) || onlyHits;
         rows.push({
           type: 'group',
           key: gKey,
@@ -177,13 +184,21 @@ export class SchemaTree {
           1,
           'empty',
           q
-            ? 'Niets gevonden in de geopende databases.'
+            ? 'Geen database of tabel gevonden. Tabellen worden gezocht in de databases die al geladen zijn.'
             : 'Geen databases zichtbaar voor deze gebruiker.',
         ),
       );
     }
     return rows;
   });
+
+  /** A name split around what the filter matches, to mark it: [before, match, after]. */
+  protected marked(name: string): [string, string, string] {
+    const q = this.schema.filter().trim().toLowerCase();
+    const at = q ? name.toLowerCase().indexOf(q) : -1;
+    if (at < 0) return [name, '', ''];
+    return [name.slice(0, at), name.slice(at, at + q.length), name.slice(at + q.length)];
+  }
 
   protected readonly hiddenSystemCount = computed(() => {
     const conn = this.conn();

@@ -98,4 +98,55 @@ describe('App', () => {
     expect(cells).toEqual(['id', 'email', 'status']);
     expect(el.querySelector('.key-tag.pk')?.textContent).toContain('PK');
   });
+
+  it('filters the tree on database names as well as tables', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    (el.querySelector('.card .btn-primary') as HTMLButtonElement).click();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(el.querySelector('.tree-row')).not.toBeNull();
+    });
+    const rowTexts = () =>
+      Array.from(el.querySelectorAll('.tree-row')).map((r) =>
+        Array.from(r.querySelectorAll('.tl, .count'))
+          .map((s) => s.textContent?.trim())
+          .join(' '),
+      );
+    const filter = async (text: string) => {
+      const input = el.querySelector<HTMLInputElement>('#tree-filter')!;
+      input.value = text;
+      input.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    expect(el.querySelector<HTMLInputElement>('#tree-filter')!.placeholder).toBe(
+      'Filter databases en tabellen…',
+    );
+
+    // A database by its name, also a system database that is hidden otherwise.
+    await filter('SHO');
+    expect(rowTexts()).toEqual(['shop']);
+    expect(el.querySelector('.tree-hit')?.textContent).toBe('sho');
+    await filter('schema');
+    expect(rowTexts()).toEqual(['information_schema']);
+
+    // A table: its database opens with just the matches.
+    await filter('ord');
+    expect(rowTexts()).toEqual(['app_dev', 'Tabellen 1', 'orders', 'Views 1', 'paid_orders']);
+
+    // The database name matches and it is open: all its tables, not just matching ones.
+    await filter('app');
+    expect(rowTexts()).toEqual([
+      'app_dev',
+      'Tabellen 2',
+      'customers',
+      'orders',
+      'Views 1',
+      'Routines 1',
+    ]);
+  });
 });

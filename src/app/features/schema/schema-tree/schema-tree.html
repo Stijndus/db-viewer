@@ -42,12 +42,12 @@
         </svg>
       </button>
     </div>
-    <label for="tree-filter" class="visually-hidden">Filter tabellen</label>
+    <label for="tree-filter" class="visually-hidden">Databases en tabellen filteren</label>
     <input
       id="tree-filter"
       type="search"
       class="input"
-      placeholder="Filter tabellen…"
+      placeholder="Filter databases en tabellen…"
       [value]="schema.filter()"
       (input)="schema.filter.set($any($event.target).value)"
     />
@@ -102,7 +102,12 @@
                 <ellipse cx="12" cy="5" rx="8" ry="3" />
                 <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
               </svg>
-              <span class="tl" [class.muted]="row.db.system">{{ row.db.name }}</span>
+              @let dm = marked(row.db.name);
+              <span class="tl" [class.muted]="row.db.system"
+                ><span>{{ dm[0] }}</span
+                ><mark class="tree-hit">{{ dm[1] }}</mark
+                ><span>{{ dm[2] }}</span></span
+              >
             </button>
           }
           @case ('group') {
@@ -195,7 +200,12 @@
                   </svg>
                 }
               }
-              <span class="tl">{{ row.obj.name }}</span>
+              @let om = marked(row.obj.name);
+              <span class="tl"
+                ><span>{{ om[0] }}</span
+                ><mark class="tree-hit">{{ om[1] }}</mark
+                ><span>{{ om[2] }}</span></span
+              >
               @if (row.obj.kind === 'function') {
                 <span class="count">fn</span>
               }

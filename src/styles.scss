@@ -2688,3 +2688,13 @@ input.input-sm[type='number'] {
 .cell-editor .dialog-foot {
   padding: 12px 20px;
 }
+
+/* What the tree filter matches, in database and table names. */
+.tree-hit {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+}
+.tree-hit:empty {
+  display: none;
+}

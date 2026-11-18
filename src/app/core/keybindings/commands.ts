@@ -57,7 +57,7 @@ export const COMMANDS: CommandInfo[] = [
   })),
   // Schema
   { id: 'tree.focus', title: 'Naar de databaseboom', category: 'Schema' },
-  { id: 'tree.focusFilter', title: 'Tabellen filteren', category: 'Schema' },
+  { id: 'tree.focusFilter', title: 'Databases en tabellen filteren', category: 'Schema' },
   { id: 'tree.refresh', title: 'Schema vernieuwen', category: 'Schema' },
   { id: 'tree.emptyTable', title: 'Tabel leegmaken…', category: 'Schema' },
   // SQL
