@@ -93,27 +93,40 @@ export class SchemaTree {
       return [statusRow('root', 1, 'loading', 'Databases laden…')];
     if (dbs.status === 'error') return [errorRow('root', 1, dbs.error)];
 
-    const q = this.schema.filter().trim().toLowerCase();
+    const { q, dbPart, objPart } = this.query();
     const matches = (name: string) => !q || name.toLowerCase().includes(q);
+    const dbMatches = (name: string) => dbPart !== null && name.toLowerCase().includes(dbPart);
+    const objMatches = (name: string) => objPart !== null && name.toLowerCase().includes(objPart);
     // A system database whose name is searched for is shown too.
     const visible = dbs.data.filter(
       (d) =>
         !d.system ||
         this.schema.showSystem() ||
         this.schema.isExpanded(dbKey(conn.id, d.name)) ||
-        (!!q && matches(d.name)),
+        (!!q && (dbPart === null ? matches(d.name) : dbMatches(d.name))),
     );
     const rows: Row[] = [];
 
     for (const db of visible) {
       const objects = this.schema.objects(conn.id, db.name);
       const loaded = objects?.status === 'loaded' ? objects.data : null;
-      const hits = loaded?.filter((o) => matches(o.name)) ?? [];
-      // While filtering, show a database when its name or one of its loaded objects matches.
-      if (q && !matches(db.name) && hits.length === 0) continue;
-      // Matching objects inside: open, showing just those. Only the name of the database
-      // matches: as it was, and opened it shows all its objects.
-      const onlyHits = !!q && hits.length > 0;
+      let onlyHits: boolean;
+      let hits: SchemaObject[];
+      if (dbPart !== null) {
+        // "database.table": only databases matching the first part, with the objects matching
+        // the second (all of them when it is empty). They load by themselves.
+        if (!dbMatches(db.name)) continue;
+        hits = loaded?.filter((o) => !objPart || objMatches(o.name)) ?? [];
+        if (loaded && hits.length === 0) continue;
+        onlyHits = true;
+      } else {
+        hits = loaded?.filter((o) => matches(o.name)) ?? [];
+        // While filtering, show a database when its name or one of its loaded objects matches.
+        if (q && !matches(db.name) && hits.length === 0) continue;
+        // Matching objects inside: open, showing just those. Only the name of the database
+        // matches: as it was, and opened it shows all its objects.
+        onlyHits = !!q && hits.length > 0;
+      }
 
       const dbOpen = this.schema.isExpanded(dbKey(conn.id, db.name)) || onlyHits;
       rows.push({ type: 'db', key: dbKey(conn.id, db.name), level: 1, db, expanded: dbOpen });
@@ -184,7 +197,9 @@ export class SchemaTree {
           1,
           'empty',
           q
-            ? 'Geen database of tabel gevonden. Tabellen worden gezocht in de databases die al geladen zijn.'
+            ? dbPart !== null
+              ? `Geen tabel gevonden met "${objPart}" in een database met "${dbPart}".`
+              : 'Geen database of tabel gevonden. Tabellen worden gezocht in de databases die al geladen zijn; typ database.tabel om ook in andere te zoeken.'
             : 'Geen databases zichtbaar voor deze gebruiker.',
         ),
       );
@@ -193,8 +208,37 @@ export class SchemaTree {
   });
 
   /** A name split around what the filter matches, to mark it: [before, match, after]. */
-  protected marked(name: string): [string, string, string] {
+  /**
+   * The filter: plain text matches databases and tables; "database.table" (or "base.tab")
+   * matches the first part in database names and the second in table names.
+   */
+  protected readonly query = computed(() => {
     const q = this.schema.filter().trim().toLowerCase();
+    const dot = q.indexOf('.');
+    return dot > 0
+      ? { q, dbPart: q.slice(0, dot), objPart: q.slice(dot + 1) }
+      : { q, dbPart: null, objPart: null };
+  });
+
+  /** The databases a "database.table" search looks in: loaded when not yet (at most 30). */
+  private readonly searchLoader = effect(() => {
+    const conn = this.conn();
+    const { dbPart } = this.query();
+    const dbs = conn ? this.schema.databases(conn.id) : undefined;
+    if (!conn || dbPart === null || dbs?.status !== 'loaded') return;
+    untracked(() => {
+      const todo = dbs.data
+        .filter((d) => d.name.toLowerCase().includes(dbPart))
+        .filter((d) => !d.system || this.schema.showSystem())
+        .filter((d) => !this.schema.objects(conn.id, d.name))
+        .slice(0, 30);
+      for (const d of todo) void this.schema.loadObjects(conn.id, d.name);
+    });
+  });
+
+  protected marked(name: string, part: 'db' | 'obj' = 'obj'): [string, string, string] {
+    const { q: all, dbPart, objPart } = this.query();
+    const q = dbPart === null ? all : part === 'db' ? dbPart : (objPart ?? '');
     const at = q ? name.toLowerCase().indexOf(q) : -1;
     if (at < 0) return [name, '', ''];
     return [name.slice(0, at), name.slice(at, at + q.length), name.slice(at + q.length)];

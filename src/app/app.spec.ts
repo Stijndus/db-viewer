@@ -138,6 +138,35 @@ describe('App', () => {
     await filter('ord');
     expect(rowTexts()).toEqual(['app_dev', 'Tabellen 1', 'orders', 'Views 1', 'paid_orders']);
 
+    // "database.table": the first part in database names, the second in their tables; the
+    // matching databases load by themselves (shop was never opened).
+    await filter('sho.cust');
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(rowTexts()).toEqual(['shop', 'Tabellen 1', 'customers']);
+    });
+    expect(Array.from(el.querySelectorAll('.tree-hit')).map((m) => m.textContent)).toEqual([
+      'sho',
+      'cust',
+    ]);
+    // Only the database part: everything in it, opened.
+    await filter('app.');
+    expect(rowTexts()).toEqual([
+      'app_dev',
+      'Tabellen 2',
+      'customers',
+      'orders',
+      'Views 1',
+      'paid_orders',
+      'Routines 1',
+      'refresh_stats',
+    ]);
+    await filter('app.xyz');
+    expect(el.querySelector('.tree-row')?.textContent?.trim()).toBe(
+      'Geen tabel gevonden met "xyz" in een database met "app".',
+    );
+
     // The database name matches and it is open: all its tables, not just matching ones.
     await filter('app');
     expect(rowTexts()).toEqual([

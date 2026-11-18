@@ -48,6 +48,7 @@
       type="search"
       class="input"
       placeholder="Filter databases en tabellen…"
+      title="Typ een deel van een naam, of database.tabel (bijv. plan.ord) om in bepaalde databases te zoeken"
       [value]="schema.filter()"
       (input)="schema.filter.set($any($event.target).value)"
     />
@@ -102,7 +103,7 @@
                 <ellipse cx="12" cy="5" rx="8" ry="3" />
                 <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
               </svg>
-              @let dm = marked(row.db.name);
+              @let dm = marked(row.db.name, 'db');
               <span class="tl" [class.muted]="row.db.system"
                 ><span>{{ dm[0] }}</span
                 ><mark class="tree-hit">{{ dm[1] }}</mark
