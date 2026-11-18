@@ -383,9 +383,13 @@ export class ErDiagram {
   protected onWheel(event: WheelEvent): void {
     // Ctrl+wheel (and pinch) zooms; the wheel alone scrolls, like a page.
     if (!event.ctrlKey && !event.metaKey) return;
+    // The diagram zooms, not the whole window (the app zooms on Ctrl+wheel elsewhere).
     event.preventDefault();
+    event.stopPropagation();
     const box = this.viewport()!.nativeElement.getBoundingClientRect();
-    this.setZoom(this.zoom() * Math.exp(-event.deltaY / 300), {
+    // About 20% per wheel step; a trackpad's small steps zoom smoothly.
+    const delta = Math.max(-120, Math.min(120, event.deltaY));
+    this.setZoom(this.zoom() * Math.exp(-delta / 600), {
       x: event.clientX - box.left,
       y: event.clientY - box.top,
     });

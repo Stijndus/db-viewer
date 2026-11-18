@@ -77,9 +77,7 @@ export function quickMatches(
       )
       .slice(0, MAX_RESULTS);
   }
-  const dot = q.lastIndexOf('.');
-  const dbPart = dot > 0 ? q.slice(0, dot) : '';
-  const namePart = dot > 0 ? q.slice(dot + 1) : q;
+  const { dbPart, namePart } = splitQuery(q);
   const scored: { item: QuickItem; score: number }[] = [];
   for (const item of items) {
     if (dbPart && matchScore(item.database, dbPart) === null) continue;
@@ -98,6 +96,24 @@ export function quickMatches(
     )
     .slice(0, MAX_RESULTS)
     .map((s) => s.item);
+}
+
+/** "db.table", or the tags "db:…" and "tb:…" as in the tree filter; text alone is the name. */
+export function splitQuery(query: string): { dbPart: string; namePart: string } {
+  const q = query.trim();
+  const db = /(?:^|\s)db:(\S*)/i.exec(q);
+  const tb = /(?:^|\s)(?:tb|tabel|table):(\S*)/i.exec(q);
+  if (db || tb) {
+    const rest = q
+      .replace(/(?:^|\s)db:\S*/i, ' ')
+      .replace(/(?:^|\s)(?:tb|tabel|table):\S*/i, ' ')
+      .trim();
+    return { dbPart: db ? db[1]! : rest, namePart: tb ? tb[1]! : rest };
+  }
+  const dot = q.lastIndexOf('.');
+  return dot > 0
+    ? { dbPart: q.slice(0, dot), namePart: q.slice(dot + 1) }
+    : { dbPart: '', namePart: q };
 }
 
 /** Ctrl+P: open any table, view or routine of the connection, over all its databases. */

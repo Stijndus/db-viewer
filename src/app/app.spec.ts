@@ -150,6 +150,19 @@ describe('App', () => {
       'sho',
       'cust',
     ]);
+    // The same with tags.
+    await filter('db:sho tb:cust');
+    expect(rowTexts()).toEqual(['shop', 'Tabellen 1', 'customers']);
+    await filter('tb:paid');
+    expect(rowTexts()).toEqual([
+      'app_dev',
+      'Views 1',
+      'paid_orders',
+      'shop',
+      'Views 1',
+      'paid_orders',
+    ]);
+
     // Only the database part: everything in it, opened.
     await filter('app.');
     expect(rowTexts()).toEqual([

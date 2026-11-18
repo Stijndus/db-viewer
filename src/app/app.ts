@@ -116,7 +116,8 @@ export class App implements OnInit {
   private lastWheelZoom = 0;
 
   private onWheel(event: WheelEvent): void {
-    if (!(event.ctrlKey || event.metaKey) || event.deltaY === 0) return;
+    // Already handled (the ER diagram zooms itself): leave the window as it is.
+    if (!(event.ctrlKey || event.metaKey) || event.deltaY === 0 || event.defaultPrevented) return;
     event.preventDefault();
     // A trackpad sends many small steps: at most one zoom step per 120 ms.
     const now = Date.now();

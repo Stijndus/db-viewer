@@ -1,6 +1,6 @@
 {
   "name": "db-viewer",
-  "version": "0.12.22",
+  "version": "0.12.23",
   "scripts": {
     "ng": "ng",
     "start": "npm run dev",

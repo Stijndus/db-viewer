@@ -103,7 +103,7 @@ export class SchemaTree {
         !d.system ||
         this.schema.showSystem() ||
         this.schema.isExpanded(dbKey(conn.id, d.name)) ||
-        (!!q && (dbPart === null ? matches(d.name) : dbMatches(d.name))),
+        (!!q && (dbPart === null ? matches(d.name) : !!dbPart && dbMatches(d.name))),
     );
     const rows: Row[] = [];
 
@@ -212,13 +212,7 @@ export class SchemaTree {
    * The filter: plain text matches databases and tables; "database.table" (or "base.tab")
    * matches the first part in database names and the second in table names.
    */
-  protected readonly query = computed(() => {
-    const q = this.schema.filter().trim().toLowerCase();
-    const dot = q.indexOf('.');
-    return dot > 0
-      ? { q, dbPart: q.slice(0, dot), objPart: q.slice(dot + 1) }
-      : { q, dbPart: null, objPart: null };
-  });
+  protected readonly query = computed(() => parseTreeFilter(this.schema.filter()));
 
   /** The databases a "database.table" search looks in: loaded when not yet (at most 30). */
   private readonly searchLoader = effect(() => {
@@ -447,4 +441,35 @@ function statusRow(key: string, level: number, state: 'loading' | 'empty', text:
 
 function errorRow(key: string, level: number, error: DbError): Row {
   return { type: 'status', key, level, state: 'error', text: error.message, hint: error.hint };
+}
+
+/**
+ * The tree filter: plain text matches databases and tables; `database.table` (or `base.tab`)
+ * and the tags `db:…` and `tb:…` match the database and the table part separately. A part that
+ * is left out matches everything.
+ */
+export function parseTreeFilter(text: string): {
+  q: string;
+  dbPart: string | null;
+  objPart: string | null;
+} {
+  const q = text.trim().toLowerCase();
+  const db = /(?:^|\s)db:(\S*)/.exec(q);
+  const tb = /(?:^|\s)(?:tb|tabel|table):(\S*)/.exec(q);
+  if (db || tb) {
+    const rest = q
+      .replace(/(?:^|\s)db:\S*/, ' ')
+      .replace(/(?:^|\s)(?:tb|tabel|table):\S*/, ' ')
+      .trim();
+    // Text next to a tag: the other part ("db:plan ord" looks for ord in plan…).
+    return {
+      q,
+      dbPart: db ? db[1]! : rest,
+      objPart: tb ? tb[1]! : rest,
+    };
+  }
+  const dot = q.indexOf('.');
+  return dot > 0
+    ? { q, dbPart: q.slice(0, dot), objPart: q.slice(dot + 1) }
+    : { q, dbPart: null, objPart: null };
 }
