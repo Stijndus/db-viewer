@@ -1,6 +1,6 @@
 {
   "name": "db-viewer",
-  "version": "0.12.20",
+  "version": "0.12.21",
   "scripts": {
     "ng": "ng",
     "start": "npm run dev",
@@ -19,6 +19,7 @@
   "packageManager": "npm@10.9.9",
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
+    "@dagrejs/dagre": "^1.1.4",
     "7zip-bin": "^5.2.0",
     "electron-updater": "^6.8.11",
     "mssql": "^12.7.14",

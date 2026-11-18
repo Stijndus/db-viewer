@@ -10,6 +10,7 @@ import type {
   RunResult,
   SchemaObject,
   SortKey,
+  DatabaseModel,
 } from '../../shared/models';
 
 /** Everything a driver needs to open a connection, password resolved. */
@@ -55,6 +56,8 @@ export interface DbSession {
   listObjects(database: string): Promise<SchemaObject[]>;
   listColumns(database: string, table: string): Promise<ColumnInfo[]>;
   listAllColumns(database: string): Promise<Record<string, string[]>>;
+  /** Tables with their columns and the foreign keys of a database (and those pointing into it). */
+  databaseModel(database: string): Promise<DatabaseModel>;
 
   // Table data, read-only and time-limited.
   readRows(database: string, table: string, request: RowsRequest): Promise<RowsPage>;

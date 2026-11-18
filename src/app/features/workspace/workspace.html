@@ -36,6 +36,20 @@
           >
             <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />
           </svg>
+        } @else if (tab.kind === 'diagram') {
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <rect x="2" y="3" width="8" height="7" rx="1" />
+            <rect x="14" y="14" width="8" height="7" rx="1" />
+            <path d="M10 6.5h3a2 2 0 0 1 2 2V14" />
+          </svg>
         } @else if (tab.objectKind === 'view') {
           <svg
             width="14"
@@ -166,6 +180,14 @@
         [tabId]="tab.id"
         [hidden]="ws.activeId() !== tab.id"
       />
+    } @else if (tab.kind === 'diagram') {
+      <div class="ws-diagram" [hidden]="ws.activeId() !== tab.id">
+        @defer (on immediate) {
+          <app-er-diagram [connectionId]="connection().id" [database]="tab.database" />
+        } @placeholder {
+          <div class="dt-empty muted">Diagram laden…</div>
+        }
+      </div>
     } @else if (sqlTab(tab); as st) {
       <div class="ws-sql" [hidden]="ws.activeId() !== tab.id">
         @defer (on immediate) {

@@ -1,3 +1,5 @@
+import { groupForeignKeys, groupModelTables } from './common';
+import type { DatabaseModel } from '../../shared/models';
 import type pg from 'pg';
 import type { ColumnInfo, ColumnKey, DatabaseInfo, SchemaObject } from '../../shared/models';
 
@@ -154,4 +156,58 @@ export async function listAllColumns(
   const out: Record<string, string[]> = {};
   for (const r of res.rows) (out[r.t] ??= []).push(r.c);
   return out;
+}
+
+export async function databaseModel(pool: pg.Pool, schema: string): Promise<DatabaseModel> {
+  // Booleans arrive as text ('t'/'f'): the pool returns every value as the server writes it.
+  const cols = await pool.query<{ t: string; c: string; ty: string; pk: PgBool }>(
+    `SELECT c.relname AS t, a.attname AS c, format_type(a.atttypid, a.atttypmod) AS ty,
+            COALESCE(a.attnum = ANY (i.indkey), false) AS pk
+       FROM pg_attribute a
+       JOIN pg_class c ON c.oid = a.attrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       LEFT JOIN pg_index i ON i.indrelid = c.oid AND i.indisprimary
+      WHERE n.nspname = $1 AND c.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped
+      ORDER BY c.relname, a.attnum`,
+    [schema],
+  );
+  const keys = await pool.query<{
+    n: string;
+    d: string;
+    t: string;
+    c: string;
+    rd: string;
+    rt: string;
+    rc: string;
+  }>(
+    `SELECT con.conname AS n, ns.nspname AS d, cl.relname AS t, a.attname AS c,
+            rns.nspname AS rd, rcl.relname AS rt, ra.attname AS rc
+       FROM pg_constraint con
+       JOIN pg_class cl ON cl.oid = con.conrelid
+       JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+       JOIN pg_class rcl ON rcl.oid = con.confrelid
+       JOIN pg_namespace rns ON rns.oid = rcl.relnamespace
+       CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(col, refcol, ord)
+       JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.col
+       JOIN pg_attribute ra ON ra.attrelid = con.confrelid AND ra.attnum = k.refcol
+      WHERE con.contype = 'f' AND (ns.nspname = $1 OR rns.nspname = $1)
+      ORDER BY ns.nspname, cl.relname, con.conname, k.ord`,
+    [schema],
+  );
+  return {
+    tables: groupModelTables(
+      cols.rows.map((r) => ({ table: r.t, name: r.c, type: r.ty, primary: bool(r.pk) })),
+    ),
+    foreignKeys: groupForeignKeys(
+      keys.rows.map((r) => ({
+        name: r.n,
+        database: r.d,
+        table: r.t,
+        column: r.c,
+        refDatabase: r.rd,
+        refTable: r.rt,
+        refColumn: r.rc,
+      })),
+    ),
+  };
 }

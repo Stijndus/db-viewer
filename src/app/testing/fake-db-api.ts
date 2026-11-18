@@ -1,5 +1,6 @@
 import type { DbApi } from '../../../shared/ipc-contract';
 import type {
+  DatabaseModel,
   ColumnInfo,
   ConnectionProfile,
   DatabaseInfo,
@@ -81,6 +82,41 @@ export const DATABASES: DatabaseInfo[] = [
   { name: 'shop', system: false },
 ];
 
+/** orders.customer_id → customers.id, in the given database. */
+export function fakeModel(database: string): DatabaseModel {
+  return {
+    tables: [
+      {
+        name: 'customers',
+        columns: [
+          { name: 'id', type: 'int', primary: true },
+          { name: 'email', type: 'varchar(255)', primary: false },
+          { name: 'status', type: "enum('active','blocked')", primary: false },
+        ],
+      },
+      {
+        name: 'orders',
+        columns: [
+          { name: 'id', type: 'int', primary: true },
+          { name: 'customer_id', type: 'int', primary: false },
+          { name: 'total', type: 'decimal(10,2)', primary: false },
+        ],
+      },
+    ],
+    foreignKeys: [
+      {
+        name: 'fk_orders_customer',
+        database,
+        table: 'orders',
+        columns: ['customer_id'],
+        refDatabase: database,
+        refTable: 'customers',
+        refColumns: ['id'],
+      },
+    ],
+  };
+}
+
 export const OBJECTS: SchemaObject[] = [
   { name: 'customers', kind: 'table', rowEstimate: 1200, comment: 'Klanten' },
   { name: 'orders', kind: 'table', rowEstimate: 98000, comment: '' },
@@ -159,6 +195,7 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     routineParams: () => ok([]),
     objectAction: () => ok(undefined),
     listAllColumns: () => ok({ customers: ['id', 'email', 'status'], orders: ['id', 'total'] }),
+    databaseModel: (_id, database) => ok(fakeModel(database)),
     applyChanges: (_id, _db, _table, changes) =>
       ok({
         deleted: changes.deletes.length,

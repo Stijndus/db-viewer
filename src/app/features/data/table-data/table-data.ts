@@ -24,6 +24,7 @@ import type {
   RowsPage,
   SortDirection,
   SortKey,
+  ForeignKey,
 } from '../../../../../shared/models';
 import { DB_API } from '../../../core/db-api';
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
@@ -35,6 +36,7 @@ import { gridValues } from '../data-grid/copy-formats';
 import { PromptStore } from '../../../core/prompt/prompt';
 import type { MenuAction, MenuEntry } from '../../../core/context-menu/context-menu.store';
 import { quoteIdent, stringLiteral } from '../../../../../shared/dialect';
+import { keysFrom, keysTo, matchWhere, tableLabel } from '../relations';
 import {
   base64Bytes,
   binaryValue,
@@ -385,6 +387,25 @@ export class TableData {
 
   constructor() {
     this.registerCommands();
+    // The keys of this table's database, for following them.
+    effect(() => {
+      const o = this.object();
+      void this.schema.ensureModel(o.connectionId, o.database);
+    });
+    // Opened by following a key while this tab was already open: filter on the key now.
+    effect(() => {
+      const request = this.schema.whereRequest();
+      if (!request) return;
+      untracked(() => {
+        // A tab that is just switching to this table takes it in reset(), before its first load.
+        const o = this.object();
+        if (this.objectKey !== `${o.connectionId}\u0001${o.database}\u0001${o.name}`) return;
+        const where = this.schema.takeWhereRequest(this.object());
+        if (where === null) return;
+        this.whereDraft.set(where);
+        this.applyFilter();
+      });
+    });
     // Emptied from the tree's menu: show the (now empty) table again, edits are gone with the rows.
     effect(() => {
       const changed = this.schema.dataChanged();
@@ -611,6 +632,119 @@ export class TableData {
 
   // ── The grid's context menu (like HeidiSQL's) ──────────────────────
   /** The items this table adds to the grid menu: values, rows, sorting and filtering. */
+  // ── Foreign keys: to the linked row, and the rows that point here ──
+  /** The database's tables and keys (loaded once per database). */
+  private readonly model = computed(() => {
+    const o = this.object();
+    const m = this.schema.model(o.connectionId, o.database);
+    return m?.status === 'loaded' ? m.data : null;
+  });
+  private readonly keysOut = computed(() => {
+    const m = this.model();
+    const o = this.object();
+    return m ? keysFrom(m, o.database, o.name) : [];
+  });
+  private readonly keysIn = computed(() => {
+    const m = this.model();
+    const o = this.object();
+    return m ? keysTo(m, o.database, o.name) : [];
+  });
+  /** Grid columns with a key, and where they point. */
+  protected readonly links = computed<Record<number, string>>(() => {
+    const columns = this.page()?.columns ?? [];
+    const o = this.object();
+    const out: Record<number, string> = {};
+    for (const key of this.keysOut()) {
+      key.columns.forEach((c, i) => {
+        const at = columns.indexOf(c);
+        if (at >= 0 && out[at] === undefined)
+          out[at] = `${tableLabel(key.refDatabase, key.refTable, o.database)}.${key.refColumns[i]}`;
+      });
+    }
+    return out;
+  });
+
+  /** The values of these columns in a row, as shown (with edits); null when one cannot be used. */
+  private rowValues(row: number, columns: string[]): (string | null)[] | null {
+    const names = this.page()?.columns ?? [];
+    const cells = this.displayRows()[row];
+    if (!cells) return null;
+    const values: (string | null)[] = [];
+    for (const c of columns) {
+      const at = names.indexOf(c);
+      const v = at >= 0 ? cells[at] : undefined;
+      if (v === null || typeof v === 'string') values.push(v);
+      else return null;
+    }
+    return values;
+  }
+
+  /** Opens the row this row's key points to (in its table, filtered on the key). */
+  protected followKey(row: number, key: ForeignKey): void {
+    const values = this.rowValues(row, key.columns);
+    if (!values) return this.showNote('Deze waarde kan niet gevolgd worden.');
+    if (values.every((v) => v === null))
+      return this.showNote('Geen gekoppelde rij: de waarde is NULL.');
+    void this.schema.openFiltered(
+      {
+        connectionId: this.object().connectionId,
+        database: key.refDatabase,
+        name: key.refTable,
+        kind: 'table',
+      },
+      matchWhere(this.dialect(), key.refColumns, values),
+    );
+  }
+
+  /** Opens the rows of another table whose key points to this row. */
+  protected followBack(row: number, key: ForeignKey): void {
+    const values = this.rowValues(row, key.refColumns);
+    if (!values || values.some((v) => v === null))
+      return this.showNote('Deze rij heeft (nog) geen sleutel om naar te verwijzen.');
+    void this.schema.openFiltered(
+      {
+        connectionId: this.object().connectionId,
+        database: key.database,
+        name: key.table,
+        kind: 'table',
+      },
+      matchWhere(this.dialect(), key.columns, values),
+    );
+  }
+
+  /** The cell's arrow or Ctrl+click: the key that holds this column. */
+  protected onFollowLink(event: { row: number; col: number }): void {
+    const name = this.page()?.columns[event.col];
+    const key = this.keysOut().find((k) => name !== undefined && k.columns.includes(name));
+    if (key) this.followKey(event.row, key);
+  }
+
+  private linkItems(sel: GridSelection): MenuEntry[] {
+    const n = this.page()?.rows.length ?? 0;
+    if (sel.top !== sel.bottom || sel.row >= n) return [];
+    const o = this.object();
+    const name = this.page()?.columns[sel.col];
+    // The key of the clicked column first.
+    const out = [...this.keysOut()].sort(
+      (a, b) => Number(b.columns.includes(name ?? '')) - Number(a.columns.includes(name ?? '')),
+    );
+    const items: MenuEntry[] = out.map((key) => ({
+      label: `Naar ${tableLabel(key.refDatabase, key.refTable, o.database)} (${key.columns.join(', ')})`,
+      run: () => this.followKey(sel.row, key),
+    }));
+    const back = this.keysIn();
+    if (back.length) {
+      items.push({
+        label: 'Rijen die hiernaar verwijzen',
+        items: back.map((key) => ({
+          label: `${tableLabel(key.database, key.table, o.database)} (${key.columns.join(', ')})`,
+          run: () => this.followBack(sel.row, key),
+        })),
+      });
+    }
+    return items;
+  }
+
   protected readonly gridMenu = (sel: GridSelection): GridMenuSections => {
     const editable = this.editState().editable;
     const page = this.page();
@@ -707,6 +841,7 @@ export class TableData {
     if (filters.length) viewItems.push({ label: 'Snelfilter', items: filters });
 
     return {
+      links: this.linkItems(sel),
       values: valueItems,
       rows: rowItems,
       view: viewItems,
@@ -1028,8 +1163,10 @@ export class TableData {
     this.requestId++;
     this.offset.set(0);
     this.sort.set(null);
-    this.whereDraft.set('');
-    this.whereApplied.set('');
+    // Opened by following a key: start filtered on it.
+    const where = this.schema.takeWhereRequest(this.object()) ?? '';
+    this.whereDraft.set(where);
+    this.whereApplied.set(where);
     this.page.set(null);
     this.loading.set(false);
     this.error.set(null);

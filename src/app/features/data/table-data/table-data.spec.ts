@@ -4,7 +4,12 @@ import type { DbApi } from '../../../../../shared/ipc-contract';
 import type { ColumnInfo, RowsRequest } from '../../../../../shared/models';
 import { DB_API } from '../../../core/db-api';
 import { COLUMNS, fakeDbApi, fakeRows, PROFILE } from '../../../testing/fake-db-api';
-import type { Load, SelectedObject } from '../../schema/schema.store';
+import {
+  ContextMenuStore,
+  type MenuAction,
+  type MenuSubmenu,
+} from '../../../core/context-menu/context-menu.store';
+import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema.store';
 import { columnWidth, isNumericType, TableData } from './table-data';
 
 @Component({
@@ -554,5 +559,108 @@ describe('TableData grid extras', () => {
     window.dispatchEvent(new MouseEvent('mousemove', { clientX: 1, clientY: 1, buttons: 0 }));
     await settle();
     expect(rows()).toEqual([true, true]);
+  });
+});
+
+describe('TableData foreign keys', () => {
+  it('follows a key from a value to the linked row, by arrow and Ctrl+click', async () => {
+    localStorage.clear();
+    const reads: RowsRequest[] = [];
+    const ctx = await setup({
+      readRows: (_id, _db, table, request) => {
+        reads.push(request);
+        return Promise.resolve({
+          ok: true,
+          data:
+            table === 'orders'
+              ? {
+                  columns: ['id', 'customer_id', 'total'],
+                  rows: [
+                    ['1', '7', '10.00'],
+                    ['2', null, '5.00'],
+                  ],
+                  hasMore: false,
+                  durationMs: 1,
+                }
+              : fakeRows(request),
+        });
+      },
+    });
+    const schema = TestBed.inject(SchemaStore);
+    const open = vi.spyOn(schema, 'openFiltered').mockResolvedValue();
+    ctx.fixture.componentInstance.object.set({
+      connectionId: PROFILE.id,
+      database: 'app_dev',
+      name: 'orders',
+      kind: 'table',
+    });
+    await ctx.settle();
+    await ctx.settle();
+    await vi.waitFor(() => expect(ctx.el.querySelector('.dg-fk')).not.toBeNull());
+    // Only on values, not on NULL; the header says where it points.
+    expect(ctx.el.querySelectorAll('.dg-fk')).toHaveLength(1);
+    expect(ctx.el.querySelector('.dg-fk-mark')?.getAttribute('title')).toBe(
+      'Verwijst naar customers.id',
+    );
+    ctx.el.querySelector<HTMLButtonElement>('.dg-fk')!.click();
+    expect(open).toHaveBeenCalledWith(
+      { connectionId: PROFILE.id, database: 'app_dev', name: 'customers', kind: 'table' },
+      "`id` = '7'",
+    );
+
+    const cell = ctx.el.querySelectorAll('.dg-row')[0]!.querySelectorAll('.dg-cell')[1]!;
+    cell.dispatchEvent(new MouseEvent('mousedown', { button: 0, ctrlKey: true, bubbles: true }));
+    expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the rows that point to this row, from the menu', async () => {
+    localStorage.clear();
+    const ctx = await setup();
+    const schema = TestBed.inject(SchemaStore);
+    const open = vi.spyOn(schema, 'openFiltered').mockResolvedValue();
+    const menus = TestBed.inject(ContextMenuStore);
+    await vi.waitFor(() => expect(schema.model(PROFILE.id, 'app_dev')?.status).toBe('loaded'));
+    const cell = ctx.el.querySelectorAll('.dg-row')[2]!.querySelectorAll('.dg-cell')[0]!;
+    cell.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    cell.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    await ctx.settle();
+    const entries = menus.menu()!.items;
+    const back = entries.find(
+      (e) => e !== 'separator' && e.label === 'Rijen die hiernaar verwijzen',
+    ) as MenuSubmenu;
+    expect(back.items.map((i) => (i === 'separator' ? '—' : i.label))).toEqual([
+      'orders (customer_id)',
+    ]);
+    (back.items[0] as MenuAction).run();
+    expect(open).toHaveBeenCalledWith(
+      { connectionId: PROFILE.id, database: 'app_dev', name: 'orders', kind: 'table' },
+      "`customer_id` = '3'",
+    );
+  });
+
+  it('starts filtered on the key when opened by following it', async () => {
+    localStorage.clear();
+    const reads: RowsRequest[] = [];
+    const ctx = await setup({
+      readRows: (_id, _db, _t, request) => {
+        reads.push(request);
+        return Promise.resolve({ ok: true, data: fakeRows(request) });
+      },
+    });
+    const schema = TestBed.inject(SchemaStore);
+    schema.whereRequest.set({
+      object: { connectionId: PROFILE.id, database: 'app_dev', name: 'orders', kind: 'table' },
+      where: "`id` = '7'",
+    });
+    ctx.fixture.componentInstance.object.set({
+      connectionId: PROFILE.id,
+      database: 'app_dev',
+      name: 'orders',
+      kind: 'table',
+    });
+    await ctx.settle();
+    await vi.waitFor(() => expect(reads.at(-1)?.where).toBe("`id` = '7'"));
+    expect(ctx.el.querySelector<HTMLInputElement>('.dt-where')!.value).toBe("`id` = '7'");
+    expect(schema.whereRequest()).toBeNull();
   });
 });

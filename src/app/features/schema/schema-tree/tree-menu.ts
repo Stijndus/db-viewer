@@ -78,6 +78,7 @@ export class TreeMenu {
         label: `Nieuw SQL-tabblad in deze ${container}`,
         run: () => this.ws.newSql(conn.id, { database }),
       },
+      { label: 'ER-diagram', run: () => this.ws.openDiagram(conn.id, database) },
       { label: 'Vernieuwen', run: () => void this.schema.refresh(conn.id) },
       ...(conn.readOnly ? [] : this.createEntry(conn)),
       'separator',

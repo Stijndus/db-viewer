@@ -56,6 +56,8 @@ export const COMMANDS: CommandInfo[] = [
     category: 'Tabbladen',
   })),
   // Schema
+  { id: 'workbench.quickOpen', title: 'Tabel openen (snel zoeken)', category: 'Schema' },
+  { id: 'schema.erDiagram', title: 'ER-diagram van de database', category: 'Schema' },
   { id: 'tree.focus', title: 'Naar de databaseboom', category: 'Schema' },
   { id: 'tree.focusFilter', title: 'Databases en tabellen filteren', category: 'Schema' },
   { id: 'tree.refresh', title: 'Schema vernieuwen', category: 'Schema' },
@@ -136,6 +138,7 @@ export const DEFAULT_BINDINGS: DefaultBinding[] = [
     source: H,
   })),
 
+  { key: 'ctrl+p', command: 'workbench.quickOpen', when: 'connected', source: V },
   { key: 'ctrl+d', command: 'tree.focus', when: 'connected', source: H },
   { key: 'ctrl+e', command: 'tree.focusFilter', when: 'connected', source: H },
   { key: 'f5', command: 'tree.refresh', when: 'treeFocus || connected && !tableTab', source: H },

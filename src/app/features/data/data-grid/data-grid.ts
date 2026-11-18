@@ -19,7 +19,8 @@ import { ContextMenuStore, type MenuEntry } from '../../../core/context-menu/con
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { COPY_FORMAT_LABELS, formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
 import { DB_API } from '../../../core/db-api';
-import { CellEditor, looksLikeJson, type CellEditorRequest } from './cell-editor';
+import { CellEditor, type CellEditorRequest } from './cell-editor';
+import { looksLikeJson } from './json-text';
 import { nowFor, typeCategory } from './column-types';
 
 export interface GridColumn {
@@ -55,6 +56,8 @@ export interface GridSelection {
 
 /** Menu items from the view that owns the grid (table or query result), per section. */
 export interface GridMenuSections {
+  /** First: following foreign keys of the row. */
+  links?: MenuEntry[];
   /** After copy and paste: insert value, load or save a file. */
   values?: MenuEntry[];
   /** Row actions: add, duplicate, save, delete. */
@@ -198,6 +201,10 @@ export class DataGrid {
    * as long as the grid.
    */
   readonly widthKey = input<string | null>(null);
+  /** Columns with a foreign key, by index, and where they point ("customers.id"). */
+  readonly links = input<Record<number, string>>({});
+  /** The link of a cell was clicked (or Ctrl+clicked): follow its foreign key. */
+  readonly followLink = output<{ row: number; col: number }>();
   /**
    * Loads the whole value of a cut-off cell for the cell editor (table data, by key). Without it
    * a cut-off value is shown in the editor, not edited.
@@ -345,6 +352,16 @@ export class DataGrid {
   }
 
   protected select(row: number, col: number, event?: MouseEvent): void {
+    // Ctrl+click on a foreign key value: to the linked row.
+    if (event?.button === 0 && (event.ctrlKey || event.metaKey) && this.links()[col]) {
+      const cell = this.rows()[row]?.[col];
+      if (cell !== null && cell !== undefined) {
+        event.preventDefault();
+        this.setSelected(row, col);
+        this.followLink.emit({ row, col });
+        return;
+      }
+    }
     // The right button keeps a block that already holds the cell (its menu copies the block).
     if (event?.button === 2 && this.inRange(row, col)) return;
     const editing = this.editing();
@@ -803,6 +820,7 @@ export class DataGrid {
       typeof active === 'string' && /^https?:\/\/\S+$/i.test(active.trim()) ? active.trim() : null;
     const key = (command: string) => this.keys.keyLabel(command);
     const items: MenuEntry[] = [
+      ...(extra.links?.length ? [...extra.links, 'separator' as const] : []),
       {
         label: cells === 1 ? 'Waarde kopiëren' : 'Kopiëren',
         shortcut: key('data.copy'),

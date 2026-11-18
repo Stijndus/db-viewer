@@ -1,5 +1,5 @@
 import { nowFor, typeCategory } from './column-types';
-import { compactJson, formatJson, jsonProblem, looksLikeJson } from './cell-editor';
+import { compactJson, formatJson, jsonProblem, looksLikeJson } from './json-text';
 
 describe('column types', () => {
   it('knows the types of every dialect', () => {

@@ -83,6 +83,7 @@ export const sqliteDriver: DbDriver = {
       listObjects: (database) => meta.listObjects(reader, database),
       listColumns: (database, table) => meta.listColumns(reader, database, table),
       listAllColumns: (database) => meta.listAllColumns(reader, database),
+      databaseModel: (database) => meta.databaseModel(reader, database),
 
       streamRows: (source, onBatch, signal) => exporter.streamRows(file, source, onBatch, signal),
       tableDdl: (database, table) => exporter.tableDdl(reader, database, table),

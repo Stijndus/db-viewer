@@ -1,3 +1,5 @@
+import { groupForeignKeys, groupModelTables } from './common';
+import type { DatabaseModel } from '../../shared/models';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import type {
   ColumnInfo,
@@ -89,6 +91,48 @@ export async function listAllColumns(
   const out: Record<string, string[]> = {};
   for (const r of rows) (out[String(r['t'])] ??= []).push(String(r['c']));
   return out;
+}
+
+export async function databaseModel(pool: Pool, database: string): Promise<DatabaseModel> {
+  const [cols] = await pool.query<RowDataPacket[]>(
+    `SELECT c.TABLE_NAME AS t, c.COLUMN_NAME AS c, c.COLUMN_TYPE AS ty, c.COLUMN_KEY AS k
+       FROM information_schema.COLUMNS c
+       JOIN information_schema.TABLES tb
+         ON tb.TABLE_SCHEMA = c.TABLE_SCHEMA AND tb.TABLE_NAME = c.TABLE_NAME
+      WHERE c.TABLE_SCHEMA = ? AND tb.TABLE_TYPE = 'BASE TABLE'
+      ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION`,
+    [database],
+  );
+  const [keys] = await pool.query<RowDataPacket[]>(
+    `SELECT CONSTRAINT_NAME AS n, TABLE_SCHEMA AS d, TABLE_NAME AS t, COLUMN_NAME AS c,
+            REFERENCED_TABLE_SCHEMA AS rd, REFERENCED_TABLE_NAME AS rt, REFERENCED_COLUMN_NAME AS rc
+       FROM information_schema.KEY_COLUMN_USAGE
+      WHERE REFERENCED_TABLE_NAME IS NOT NULL
+        AND (TABLE_SCHEMA = ? OR REFERENCED_TABLE_SCHEMA = ?)
+      ORDER BY TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION`,
+    [database, database],
+  );
+  return {
+    tables: groupModelTables(
+      cols.map((r) => ({
+        table: String(r['t']),
+        name: String(r['c']),
+        type: String(r['ty']),
+        primary: r['k'] === 'PRI',
+      })),
+    ),
+    foreignKeys: groupForeignKeys(
+      keys.map((r) => ({
+        name: String(r['n']),
+        database: String(r['d']),
+        table: String(r['t']),
+        column: String(r['c']),
+        refDatabase: String(r['rd']),
+        refTable: String(r['rt']),
+        refColumn: String(r['rc']),
+      })),
+    ),
+  };
 }
 
 export function mapTableRow(r: RowDataPacket | Record<string, unknown>): SchemaObject {

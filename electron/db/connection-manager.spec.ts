@@ -24,6 +24,7 @@ function fakeDriver() {
         listObjects: async () => [],
         listColumns: async () => [],
         listAllColumns: async () => ({}),
+        databaseModel: async () => ({ tables: [], foreignKeys: [] }),
         readRows: async () => ({ columns: [], rows: [], hasMore: false, durationMs: 0 }),
         countRows: async () => 0,
         applyChanges: async () => ({ deleted: 0, updated: 0, inserted: 0 }),

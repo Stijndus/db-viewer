@@ -32,6 +32,7 @@ export const postgresDriver: DbDriver = {
       listObjects: (schema) => guard(meta.listObjects(pool, schema)),
       listColumns: (schema, table) => guard(meta.listColumns(pool, schema, table)),
       listAllColumns: (schema) => guard(meta.listAllColumns(pool, schema)),
+      databaseModel: (schema) => guard(meta.databaseModel(pool, schema)),
       readRows: (schema, table, request) => guard(data.readRows(pool, schema, table, request)),
       streamRows: (source, onBatch, signal) => exporter.streamRows(pool, source, onBatch, signal),
       tableDdl: (schema, table) => guard(exporter.tableDdl(pool, schema, table)),

@@ -1,9 +1,12 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { defaultContainer } from '../../shared/dialect';
 import type { ConnectionProfile } from '../../shared/models';
 import { ConfirmDanger } from './core/confirm-danger/confirm-danger';
 import { Prompt } from './core/prompt/prompt';
 import { ContextMenu } from './core/context-menu/context-menu';
 import { CommandPalette } from './core/keybindings/command-palette';
+import { QuickOpen } from './features/schema/quick-open';
+import { SchemaStore } from './features/schema/schema.store';
 import { KeybindingsEditor } from './core/keybindings/keybindings-editor';
 import { KeybindingsStore } from './core/keybindings/keybindings.store';
 import { ThemePicker } from './core/theme-picker/theme-picker';
@@ -45,6 +48,7 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     ConfirmDanger,
     KeybindingsEditor,
     CommandPalette,
+    QuickOpen,
     Prompt,
   ],
   templateUrl: './app.html',
@@ -55,6 +59,7 @@ export class App implements OnInit {
   protected readonly updates = inject(UpdateStore);
   protected readonly ws = inject(WorkspaceStore);
   protected readonly transfer = inject(TransferStore);
+  private readonly schema = inject(SchemaStore);
 
   /** "43%", "klaar", … for an import in the status bar. */
   protected importStatus(jobId: string): string {
@@ -129,6 +134,26 @@ export class App implements OnInit {
     keys.handle('workbench.theme', () => this.theme.openPicker());
     keys.handle('workbench.keybindings', () => keys.editorOpen.set(true));
     keys.handle('workbench.commandPalette', () => keys.paletteOpen.set(true));
+    keys.handle('workbench.quickOpen', () => {
+      const id = this.store.activeId();
+      if (!id || this.store.statusOf(id) !== 'connected') return false;
+      this.schema.quickOpenFor.set(id);
+      return true;
+    });
+    keys.handle('schema.erDiagram', () => {
+      const conn = this.store.active();
+      if (!conn || this.store.statusOf(conn.id) !== 'connected') return false;
+      // The database of the tab or table in view, else the connection's own.
+      const tab = this.ws.active();
+      const selected = this.schema.selected();
+      const database =
+        (tab && tab.kind !== 'sql' ? tab.database : undefined) ??
+        (selected?.connectionId === conn.id ? selected.database : undefined) ??
+        defaultContainer(conn.type, conn.database);
+      if (!database) return false;
+      this.ws.openDiagram(conn.id, database);
+      return true;
+    });
     keys.handle('connections.next', () => this.ws.switchBy(1));
     keys.handle('connections.previous', () => this.ws.switchBy(-1));
     keys.handle('connections.overview', () => {

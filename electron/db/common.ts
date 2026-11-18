@@ -7,7 +7,15 @@ import {
 } from '../../shared/changes';
 import { qualifiedName, quoteIdent } from '../../shared/dialect';
 import { classify, splitStatements } from '../../shared/sql';
-import type { Cell, ColumnInfo, DbType, SortKey, StatementResult } from '../../shared/models';
+import type {
+  Cell,
+  ColumnInfo,
+  DatabaseModel,
+  DbType,
+  ForeignKey,
+  SortKey,
+  StatementResult,
+} from '../../shared/models';
 import { AppError, toSqlError } from '../ipc/errors';
 
 /** Building blocks every driver shares: value conversion, filter clauses, saving grid edits. */
@@ -272,4 +280,52 @@ export function stoppedResult(index: number, sql: string): StatementResult {
     durationMs: 0,
     error: { code: 'CANCELLED', message: 'Gestopt.' },
   };
+}
+
+/** One column pair of a foreign key, as the metadata queries return them. */
+export interface ForeignKeyRow {
+  name: string;
+  database: string;
+  table: string;
+  column: string;
+  refDatabase: string;
+  refTable: string;
+  refColumn: string;
+}
+
+/** Rows per column (in key order) to keys with their column lists. */
+export function groupForeignKeys(rows: ForeignKeyRow[]): ForeignKey[] {
+  const keys = new Map<string, ForeignKey>();
+  for (const r of rows) {
+    const id = `${r.database}\u0000${r.table}\u0000${r.name}`;
+    let key = keys.get(id);
+    if (!key) {
+      key = {
+        name: r.name,
+        database: r.database,
+        table: r.table,
+        columns: [],
+        refDatabase: r.refDatabase,
+        refTable: r.refTable,
+        refColumns: [],
+      };
+      keys.set(id, key);
+    }
+    key.columns.push(r.column);
+    key.refColumns.push(r.refColumn);
+  }
+  return [...keys.values()];
+}
+
+/** Column rows (in table and column order) to the tables of a model. */
+export function groupModelTables(
+  rows: { table: string; name: string; type: string; primary: boolean }[],
+): DatabaseModel['tables'] {
+  const tables = new Map<string, DatabaseModel['tables'][number]>();
+  for (const r of rows) {
+    let t = tables.get(r.table);
+    if (!t) tables.set(r.table, (t = { name: r.table, columns: [] }));
+    t.columns.push({ name: r.name, type: r.type, primary: r.primary });
+  }
+  return [...tables.values()];
 }

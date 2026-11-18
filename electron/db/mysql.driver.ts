@@ -54,6 +54,7 @@ export const mysqlDriver: DbDriver = {
       listObjects: (database) => meta.listObjects(pool, database),
       listColumns: (database, table) => meta.listColumns(pool, database, table, isMariaDb),
       listAllColumns: (database) => meta.listAllColumns(pool, database),
+      databaseModel: (database) => meta.databaseModel(pool, database),
       readRows: (database, table, request) => data.readRows(pool, database, table, request),
       countRows: (database, table, where) => data.countRows(pool, database, table, where),
       async applyChanges(database, table, changes) {

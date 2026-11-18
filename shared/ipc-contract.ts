@@ -2,6 +2,7 @@ import type { ApplyResult, ChangeSet } from './changes';
 import type {
   CellFile,
   CellKey,
+  DatabaseModel,
   CellSaveRequest,
   ColumnInfo,
   ConnectResult,
@@ -41,6 +42,7 @@ export const IPC = {
   listObjects: 'schema:objects',
   listColumns: 'schema:columns',
   listAllColumns: 'schema:all-columns',
+  databaseModel: 'schema:model',
   objectDefinition: 'schema:definition',
   routineParams: 'schema:routine-params',
   objectAction: 'schema:action',
@@ -121,6 +123,8 @@ export interface DbApi {
 
   /** Column names per table of one database (for autocompletion). */
   listAllColumns(connectionId: string, database: string): Promise<Result<Record<string, string[]>>>;
+  /** Tables, columns and foreign keys of a database: following keys and the ER diagram. */
+  databaseModel(connectionId: string, database: string): Promise<Result<DatabaseModel>>;
 
   /** CREATE statement of a table, view, procedure or function (tree context menu). */
   objectDefinition(

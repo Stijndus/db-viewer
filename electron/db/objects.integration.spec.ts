@@ -102,6 +102,8 @@ const servers: Server[] = [
       'DROP PROCEDURE IF EXISTS dbo.ctx_p',
       'DROP FUNCTION IF EXISTS dbo.ctx_f',
       'DROP SCHEMA IF EXISTS ctx_nieuw',
+      'DROP TABLE IF EXISTS dbo.ctx_child',
+      'DROP TABLE IF EXISTS dbo.ctx_parent',
     ],
     container: null,
   },
@@ -115,7 +117,7 @@ const servers: Server[] = [
       "INSERT INTO ctx_t (naam) VALUES ('a'), ('b')",
       'CREATE VIEW ctx_v AS SELECT naam FROM ctx_t',
     ],
-    cleanup: [],
+    cleanup: ['DROP TABLE IF EXISTS ctx_child', 'DROP TABLE IF EXISTS ctx_parent'],
     container: null,
   },
 ];
@@ -395,6 +397,34 @@ for (const server of servers) {
         expect(r?.kind === 'rows' && Number(r.rows[0]?.[0])).toBe(1);
       }
       await run(['DROP TABLE ctx_child']);
+    });
+
+    it('lists tables, primary keys and foreign keys, with their column pairs', async () => {
+      await run([
+        'CREATE TABLE ctx_parent (id int NOT NULL, part int NOT NULL, naam varchar(20), PRIMARY KEY (id, part))',
+        'CREATE TABLE ctx_child (id int PRIMARY KEY, p_id int, p_part int, ' +
+          'CONSTRAINT ctx_child_parent FOREIGN KEY (p_id, p_part) REFERENCES ctx_parent (id, part))',
+      ]);
+      const model = await session.databaseModel(server.schema);
+      const parent = model.tables.find((t) => t.name === 'ctx_parent');
+      expect(parent?.columns.map((c) => [c.name, c.primary])).toEqual([
+        ['id', true],
+        ['part', true],
+        ['naam', false],
+      ]);
+      expect(parent?.columns[2]?.type).toMatch(/char/i);
+      const key = model.foreignKeys.find((k) => k.table === 'ctx_child');
+      expect(key).toMatchObject({
+        database: server.schema,
+        columns: ['p_id', 'p_part'],
+        refDatabase: server.schema,
+        refTable: 'ctx_parent',
+        refColumns: ['id', 'part'],
+      });
+      if (server.type !== 'sqlite') expect(key?.name).toBe('ctx_child_parent');
+      // Views are not tables of the model.
+      expect(model.tables.some((t) => t.name === 'ctx_v')).toBe(false);
+      await run(['DROP TABLE ctx_child', 'DROP TABLE ctx_parent']);
     });
 
     it.runIf(server.type !== 'sqlite')('creates a database or schema', async () => {

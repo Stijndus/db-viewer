@@ -1,3 +1,5 @@
+import { groupForeignKeys, groupModelTables } from './common';
+import type { DatabaseModel } from '../../shared/models';
 import { quoteIdent } from '../../shared/dialect';
 import type { ColumnInfo, ColumnKey, DatabaseInfo, SchemaObject } from '../../shared/models';
 import type { EditTarget } from './common';
@@ -102,6 +104,60 @@ export async function listAllColumns(
   const out: Record<string, string[]> = {};
   for (const [t, c] of res.rows) (out[String(t)] ??= []).push(String(c));
   return out;
+}
+
+export async function databaseModel(
+  conn: SqliteConnection,
+  database: string,
+): Promise<DatabaseModel> {
+  const cols = await conn.query(
+    `SELECT m.name, p.name, p.type, p.pk FROM ${master(database)} m, pragma_table_info(m.name, ?) p
+      WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+      ORDER BY m.name, p.cid`,
+    [database],
+  );
+  const tables = groupModelTables(
+    cols.rows.map((r) => ({
+      table: String(r[0]),
+      name: String(r[1]),
+      type: String(r[2] ?? '').toLowerCase(),
+      primary: Number(r[3]) > 0,
+    })),
+  );
+  const keys = await conn.query(
+    `SELECT m.name, f.id, f."table", f."from", f."to"
+       FROM ${master(database)} m, pragma_foreign_key_list(m.name, ?) f
+      WHERE m.type = 'table'
+      ORDER BY m.name, f.id, f.seq`,
+    [database],
+  );
+  // A key without "to" columns points to the primary key of its table.
+  const primaryOf = (table: string) =>
+    tables
+      .find((t) => t.name.toLowerCase() === table.toLowerCase())
+      ?.columns.filter((c) => c.primary)
+      .map((c) => c.name) ?? [];
+  const seq = new Map<string, number>();
+  return {
+    tables,
+    foreignKeys: groupForeignKeys(
+      keys.rows.map((r) => {
+        const id = `${String(r[0])}\u0000${String(r[1])}`;
+        const n = seq.get(id) ?? 0;
+        seq.set(id, n + 1);
+        const refTable = String(r[2]);
+        return {
+          name: `fk_${String(r[0])}_${String(r[1])}`,
+          database,
+          table: String(r[0]),
+          column: String(r[3]),
+          refDatabase: database,
+          refTable,
+          refColumn: r[4] === null ? (primaryOf(refTable)[n] ?? '') : String(r[4]),
+        };
+      }),
+    ),
+  };
 }
 
 export async function readTarget(

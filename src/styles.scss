@@ -2698,3 +2698,118 @@ input.input-sm[type='number'] {
 .tree-hit:empty {
   display: none;
 }
+
+/* Foreign keys: an arrow in the cell leads to the linked row (also Ctrl+click). */
+.dg-cell.has-link {
+  position: relative;
+  padding-right: 26px;
+}
+.dg-fk {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+}
+.dg-row:hover .dg-fk,
+.dg-cell.selected .dg-fk,
+.dg-fk:focus-visible {
+  opacity: 1;
+}
+.dg-fk:hover {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.dg-fk-mark {
+  margin-left: 4px;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Ctrl+P: quick open */
+.qo-name {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.qo-foot {
+  padding: 8px 10px 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+/* ER diagram tab */
+.ws-diagram {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.ws-diagram[hidden] {
+  display: none;
+}
+app-er-diagram {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.er-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.er-title {
+  margin: 0;
+  font-size: 15px;
+}
+.er-bar .push {
+  flex: 1;
+}
+.er-find {
+  width: 180px;
+  height: 30px;
+}
+.er-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.er-pct {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.er-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+  cursor: grab;
+}
+.er-viewport.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+.er-svg {
+  display: block;
+}
+.er-node {
+  cursor: pointer;
+}

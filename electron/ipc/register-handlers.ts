@@ -380,6 +380,9 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
   handle(IPC.listAllColumns, (rawId, rawDb) =>
     manager.session(idSchema.parse(rawId)).listAllColumns(identifierSchema.parse(rawDb)),
   );
+  handle(IPC.databaseModel, (rawId, rawDb) =>
+    manager.session(idSchema.parse(rawId)).databaseModel(identifierSchema.parse(rawDb)),
+  );
 
   // Tree context menu: definitions, call templates and dropping or emptying objects.
   handle(IPC.objectDefinition, async (rawId, rawDb, rawKind, rawName) => {

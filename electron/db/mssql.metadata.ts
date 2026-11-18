@@ -1,3 +1,5 @@
+import { groupForeignKeys, groupModelTables } from './common';
+import type { DatabaseModel } from '../../shared/models';
 import type sql from 'mssql';
 import type { ColumnInfo, ColumnKey, DatabaseInfo, SchemaObject } from '../../shared/models';
 import type { EditTarget } from './common';
@@ -246,5 +248,61 @@ export async function readTarget(
     type: row.type === 'U' ? 'table' : 'view',
     columns: cols.recordset.map((c) => c.name),
     primaryKey: cols.recordset.filter((c) => c.pk === 1).map((c) => c.name),
+  };
+}
+
+export async function databaseModel(
+  pool: sql.ConnectionPool,
+  schema: string,
+): Promise<DatabaseModel> {
+  const cols = await pool
+    .request()
+    .input('schema', schema)
+    .query<{ t: string; c: string; ty: string; pk: number }>(
+      `SELECT o.name AS t, c.name AS c, TYPE_NAME(c.user_type_id) AS ty,
+              CASE WHEN ic.column_id IS NULL THEN 0 ELSE 1 END AS pk
+         FROM sys.columns c
+         JOIN sys.objects o ON o.object_id = c.object_id
+         JOIN sys.schemas s ON s.schema_id = o.schema_id
+         LEFT JOIN sys.indexes i ON i.object_id = o.object_id AND i.is_primary_key = 1
+         LEFT JOIN sys.index_columns ic
+           ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.column_id = c.column_id
+        WHERE s.name = @schema AND o.type = 'U'
+        ORDER BY o.name, c.column_id`,
+    );
+  const keys = await pool
+    .request()
+    .input('schema', schema)
+    .query<{ n: string; d: string; t: string; c: string; rd: string; rt: string; rc: string }>(
+      `SELECT fk.name AS n, ps.name AS d, pt.name AS t, pc.name AS c,
+              rs.name AS rd, rt.name AS rt, rc.name AS rc
+         FROM sys.foreign_keys fk
+         JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+         JOIN sys.tables pt ON pt.object_id = fkc.parent_object_id
+         JOIN sys.schemas ps ON ps.schema_id = pt.schema_id
+         JOIN sys.columns pc
+           ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+         JOIN sys.tables rt ON rt.object_id = fkc.referenced_object_id
+         JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
+         JOIN sys.columns rc
+           ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+        WHERE ps.name = @schema OR rs.name = @schema
+        ORDER BY ps.name, pt.name, fk.name, fkc.constraint_column_id`,
+    );
+  return {
+    tables: groupModelTables(
+      cols.recordset.map((r) => ({ table: r.t, name: r.c, type: r.ty, primary: r.pk === 1 })),
+    ),
+    foreignKeys: groupForeignKeys(
+      keys.recordset.map((r) => ({
+        name: r.n,
+        database: r.d,
+        table: r.t,
+        column: r.c,
+        refDatabase: r.rd,
+        refTable: r.rt,
+        refColumn: r.rc,
+      })),
+    ),
   };
 }

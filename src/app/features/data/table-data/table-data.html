@@ -152,6 +152,8 @@
         [rowOffset]="offset()"
         [editable]="editState().editable"
         [menuSections]="gridMenu"
+        [links]="links()"
+        (followLink)="onFollowLink($event)"
         [rowMarks]="rowMarks()"
         [editedCells]="editedCells()"
         (sortRequested)="toggleSort($event)"

@@ -30,6 +30,7 @@ const api: DbApi = {
     ipcRenderer.invoke(IPC.routineParams, id, database, kind, name),
   objectAction: (id, action) => ipcRenderer.invoke(IPC.objectAction, id, action),
   listAllColumns: (id, database) => ipcRenderer.invoke(IPC.listAllColumns, id, database),
+  databaseModel: (id, database) => ipcRenderer.invoke(IPC.databaseModel, id, database),
   readRows: (id, database, table, request) =>
     ipcRenderer.invoke(IPC.readRows, id, database, table, request),
   countRows: (id, database, table, where) =>

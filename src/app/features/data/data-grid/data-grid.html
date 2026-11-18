@@ -106,6 +106,11 @@
               </svg>
             }
             <span class="tl">{{ col.name }}</span>
+            @if (links()[c]) {
+              <span class="dg-fk-mark" [title]="'Verwijst naar ' + links()[c]" aria-hidden="true"
+                >→</span
+              >
+            }
             @if (col.sort) {
               <span class="dg-sort" aria-hidden="true">{{ col.sort === 'asc' ? '↑' : '↓' }}</span>
             }
@@ -164,6 +169,7 @@
               [class.in-range]="inRange(row.index, c)"
               [class.edited]="cell.edited"
               [class.editing]="isEditing(row.index, c)"
+              [class.has-link]="!!links()[c] && cell.cls !== 'is-null' && !isEditing(row.index, c)"
               [attr.aria-selected]="inRange(row.index, c)"
               [attr.title]="cell.title"
               (mousedown)="select(row.index, c, $event)"
@@ -202,6 +208,32 @@
                 </button>
               } @else {
                 {{ cell.text }}
+                @if (links()[c] && cell.cls !== 'is-null') {
+                  <button
+                    type="button"
+                    class="dg-fk"
+                    tabindex="-1"
+                    [title]="'Naar de gekoppelde rij in ' + links()[c] + ' (Ctrl+klik)'"
+                    [attr.aria-label]="'Naar de gekoppelde rij in ' + links()[c]"
+                    (mousedown)="$event.stopPropagation()"
+                    (dblclick)="$event.stopPropagation()"
+                    (click)="followLink.emit({ row: row.index, col: c })"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </button>
+                }
               }
             </div>
           }
@@ -211,9 +243,12 @@
   </div>
 </div>
 @if (popup(); as p) {
-  <app-cell-editor
-    [request]="p.request"
-    (saved)="onPopupSaved($event)"
-    (closed)="onPopupClosed()"
-  />
+  <!-- The editor (CodeMirror) loads the first time it is needed. -->
+  @defer (on immediate) {
+    <app-cell-editor
+      [request]="p.request"
+      (saved)="onPopupSaved($event)"
+      (closed)="onPopupClosed()"
+    />
+  }
 }

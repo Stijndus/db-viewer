@@ -170,6 +170,27 @@ export interface ColumnInfo {
   comment: string;
 }
 
+/**
+ * A foreign key: `columns` of `database`.`table` point to `refColumns` of `refDatabase`.`refTable`.
+ * In PostgreSQL and SQL Server "database" is the schema, as in the tree.
+ */
+export interface ForeignKey {
+  name: string;
+  database: string;
+  table: string;
+  columns: string[];
+  refDatabase: string;
+  refTable: string;
+  refColumns: string[];
+}
+
+/** The tables of a database with their columns, and its foreign keys: for relations and the ER diagram. */
+export interface DatabaseModel {
+  tables: { name: string; columns: { name: string; type: string; primary: boolean }[] }[];
+  /** Keys from tables in this database, and keys from elsewhere that point into it. */
+  foreignKeys: ForeignKey[];
+}
+
 // ── Table data (step 3) ────────────────────────────────────────────
 
 /** Binary values (BLOB, BINARY, BIT): only a size and the first bytes as hex travel to the UI. */

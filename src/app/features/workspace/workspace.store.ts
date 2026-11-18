@@ -7,7 +7,8 @@ import { SqlStore } from '../sql/sql.store';
 
 export type WorkspaceTab =
   | { id: string; kind: 'table'; database: string; name: string; objectKind: ObjectKind }
-  | { id: string; kind: 'sql' };
+  | { id: string; kind: 'sql' }
+  | { id: string; kind: 'diagram'; database: string };
 
 interface Saved {
   tabs: WorkspaceTab[];
@@ -103,6 +104,16 @@ export class WorkspaceStore {
       objectKind: object.kind,
     };
     this.insert(conn, tab);
+  }
+
+  /** The ER diagram of a database, in its own tab (one per database). */
+  openDiagram(connectionId: string, database: string): void {
+    this.restore(connectionId);
+    const existing = this.tabsOf(connectionId).find(
+      (t) => t.kind === 'diagram' && t.database === database,
+    );
+    if (existing) return this.activate(connectionId, existing.id);
+    this.insert(connectionId, { id: newId(), kind: 'diagram', database });
   }
 
   newSql(
@@ -348,6 +359,8 @@ export class WorkspaceStore {
       if (t?.kind === 'sql' && sqlIds.has(t.id)) {
         tabs.push({ id: t.id, kind: 'sql' });
         sqlIds.delete(t.id);
+      } else if (t?.kind === 'diagram' && typeof t.database === 'string') {
+        tabs.push({ id: String(t.id), kind: 'diagram', database: t.database });
       } else if (
         t?.kind === 'table' &&
         typeof t.database === 'string' &&

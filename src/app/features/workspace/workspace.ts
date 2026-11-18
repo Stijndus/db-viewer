@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import type { ConnectionProfile } from '../../../../shared/models';
 import { ConnectionHome } from '../schema/connection-home/connection-home';
+import { ErDiagram } from '../schema/er-diagram/er-diagram';
 import { ObjectView } from '../schema/object-view/object-view';
 import { SchemaStore, type SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
@@ -27,7 +28,7 @@ interface TabMenu {
 /** Main area of an open connection: one tab bar for tables and SQL, and the active tab below it. */
 @Component({
   selector: 'app-workspace',
-  imports: [ObjectView, ConnectionHome, SqlPanel],
+  imports: [ObjectView, ConnectionHome, SqlPanel, ErDiagram],
   templateUrl: './workspace.html',
   host: {
     '(window:keydown)': 'onKeydown($event)',
@@ -65,7 +66,9 @@ export class Workspace {
   }
 
   protected title(tab: WorkspaceTab): string {
-    return tab.kind === 'table' ? tab.name : (this.sqlTab(tab)?.title ?? 'SQL');
+    if (tab.kind === 'table') return tab.name;
+    if (tab.kind === 'diagram') return `ER: ${tab.database}`;
+    return this.sqlTab(tab)?.title ?? 'SQL';
   }
 
   /** Same table name in two databases: show the database too. */

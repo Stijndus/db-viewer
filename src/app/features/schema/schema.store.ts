@@ -6,6 +6,7 @@ import type {
   ObjectKind,
   Result,
   SchemaObject,
+  DatabaseModel,
 } from '../../../../shared/models';
 import { DB_API } from '../../core/db-api';
 import { ConnectionsStore } from '../connections/connections.store';
@@ -46,6 +47,17 @@ export class SchemaStore {
   private readonly databasesCache = signal<Record<string, Load<DatabaseInfo[]>>>({});
   private readonly objectsCache = signal<Record<string, Load<SchemaObject[]>>>({});
   private readonly columnsCache = signal<Record<string, Load<ColumnInfo[]>>>({});
+  /** Tables, columns and foreign keys per database: following keys, the ER diagram. */
+  private readonly modelCache = signal<Record<string, Load<DatabaseModel>>>({});
+
+  /**
+   * A table to open with a filter (following a foreign key). The table's data view takes it,
+   * once: a new tab before its first load, an open tab at once.
+   */
+  /** Ctrl+P is open for this connection. */
+  readonly quickOpenFor = signal<string | null>(null);
+
+  readonly whereRequest = signal<{ object: SelectedObject; where: string } | null>(null);
 
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly selected = signal<SelectedObject | null>(null);
@@ -88,6 +100,45 @@ export class SchemaStore {
 
   objects(conn: string, db: string): Load<SchemaObject[]> | undefined {
     return this.objectsCache()[objectsCacheKey(conn, db)];
+  }
+
+  model(conn: string, db: string): Load<DatabaseModel> | undefined {
+    return this.modelCache()[objectsCacheKey(conn, db)];
+  }
+
+  /** Loads a database's model once (again after a refresh). */
+  async ensureModel(conn: string, db: string): Promise<void> {
+    if (this.model(conn, db)) return;
+    await this.load(this.modelCache, objectsCacheKey(conn, db), () =>
+      this.api.databaseModel(conn, db),
+    );
+  }
+
+  /** Loads a database's model again (the diagram's "Vernieuwen"). */
+  async reloadModel(conn: string, db: string): Promise<void> {
+    await this.load(this.modelCache, objectsCacheKey(conn, db), () =>
+      this.api.databaseModel(conn, db),
+    );
+  }
+
+  /** Opens a table's data filtered on `where`, in its tab (new or open). */
+  async openFiltered(object: SelectedObject, where: string): Promise<void> {
+    this.whereRequest.set({ object, where });
+    await this.openAs(object, 'data');
+  }
+
+  /** The filter waiting for this table, taken (so it is applied once); null when none. */
+  takeWhereRequest(object: Omit<SelectedObject, 'kind'>): string | null {
+    const r = this.whereRequest();
+    if (
+      !r ||
+      r.object.connectionId !== object.connectionId ||
+      r.object.database !== object.database ||
+      r.object.name !== object.name
+    )
+      return null;
+    this.whereRequest.set(null);
+    return r.where;
   }
 
   columns(conn: string, db: string, table: string): Load<ColumnInfo[]> | undefined {
@@ -225,6 +276,7 @@ export class SchemaStore {
     this.databasesCache.update(drop);
     this.objectsCache.update(drop);
     this.columnsCache.update(drop);
+    this.modelCache.update(drop);
     if (!opts.keepUiState) {
       this.expanded.update((set) => new Set([...set].filter((k) => k.split(SEP)[1] !== conn)));
       if (this.selected()?.connectionId === conn) this.selected.set(null);
