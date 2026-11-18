@@ -21,10 +21,22 @@ export interface TestSshOptions {
   hostKey?: string;
 }
 
+/**
+ * A new ed25519 host key. ssh2 now and then generates one its own parser rejects ("Malformed
+ * OpenSSH private key"), which made CI fail at random: such a key is skipped.
+ */
+function freshHostKey(): string {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const key = utils.generateKeyPairSync('ed25519').private;
+    if (!(utils.parseKey(key) instanceof Error)) return key;
+  }
+  throw new Error('Geen bruikbare testsleutel kunnen maken');
+}
+
 /** A minimal SSH server for tests: password and/or key login, and `direct-tcpip` forwarding. */
 export async function startTestSshServer(options: TestSshOptions = {}): Promise<TestSshServer> {
   const { user = 'tunnel', password = 'geheim' } = options;
-  const hostKey = options.hostKey ?? utils.generateKeyPairSync('ed25519').private;
+  const hostKey = options.hostKey ?? freshHostKey();
   const parsedHost = utils.parseKey(hostKey);
   if (parsedHost instanceof Error) throw parsedHost;
   const hostPublic = (Array.isArray(parsedHost) ? parsedHost[0] : parsedHost)!.getPublicSSH();
