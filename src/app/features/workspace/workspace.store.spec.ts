@@ -244,4 +244,33 @@ describe('WorkspaceStore', () => {
     ws.disconnect(OTHER);
     await vi.waitFor(() => expect(connections.activeId()).toBeNull());
   });
+
+  it('keeps the tree filter per connection when switching', async () => {
+    const { connections, schema, ws } = await setup();
+    const OTHER = '22222222-2222-4222-8222-222222222222';
+    connections.connections.update((all) => [...all, { ...PROFILE, id: OTHER, name: 'productie' }]);
+    schema.filter.set('orders');
+    await connections.connect(OTHER);
+    TestBed.tick();
+    expect(connections.activeId()).toBe(OTHER);
+    // The other connection starts without the first one's search.
+    expect(schema.filter()).toBe('');
+    schema.filter.set('db:crm');
+
+    ws.switchTo(ID);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(ID));
+    TestBed.tick();
+    expect(schema.filter()).toBe('orders');
+    ws.switchTo(OTHER);
+    await vi.waitFor(() => expect(connections.activeId()).toBe(OTHER));
+    TestBed.tick();
+    expect(schema.filter()).toBe('db:crm');
+
+    // Closed and opened again: empty.
+    ws.disconnect(ID);
+    await vi.waitFor(() => expect(connections.statusOf(ID)).toBe('idle'));
+    await connections.connect(ID);
+    TestBed.tick();
+    expect(schema.filter()).toBe('');
+  });
 });

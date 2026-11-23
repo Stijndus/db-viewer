@@ -61,7 +61,10 @@ export class SchemaStore {
 
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly selected = signal<SelectedObject | null>(null);
+  /** The tree filter of the connection in view; each open connection keeps its own. */
   readonly filter = signal('');
+  private readonly filters = new Map<string, string>();
+  private filterOwner: string | null = null;
   readonly showSystem = signal(false);
   /** Data or Structure: the last choice, used when a table opens in a new tab. */
   readonly lastObjectTab = signal<'data' | 'structure'>('data');
@@ -83,6 +86,16 @@ export class SchemaStore {
   }
 
   constructor() {
+    // Switching connections: put away this one's filter, bring back the other's (or none).
+    effect(() => {
+      const id = this.connections.activeId();
+      untracked(() => {
+        if (id === this.filterOwner) return;
+        if (this.filterOwner !== null) this.filters.set(this.filterOwner, this.filter());
+        this.filterOwner = id;
+        this.filter.set((id !== null && this.filters.get(id)) || '');
+      });
+    });
     // Drop everything we know about a connection once it is no longer open.
     effect(() => {
       const status = this.connections.status();
@@ -262,6 +275,8 @@ export class SchemaStore {
   }
 
   private forget(conn: string, opts: { keepUiState?: boolean } = {}): void {
+    // Closed: next time it opens with an empty filter.
+    if (!opts.keepUiState) this.filters.delete(conn);
     const ofConn = (key: string) => key === conn || key.startsWith(conn + SEP);
     const drop = <T>(cache: Record<string, T>) =>
       Object.fromEntries(Object.entries(cache).filter(([k]) => !ofConn(k)));
