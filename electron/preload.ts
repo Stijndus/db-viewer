@@ -29,6 +29,9 @@ const api: DbApi = {
   routineParams: (id, database, kind, name) =>
     ipcRenderer.invoke(IPC.routineParams, id, database, kind, name),
   objectAction: (id, action) => ipcRenderer.invoke(IPC.objectAction, id, action),
+  listUsers: (id) => ipcRenderer.invoke(IPC.listUsers, id),
+  userDetails: (id, user) => ipcRenderer.invoke(IPC.userDetails, id, user),
+  applyUserChanges: (id, changes) => ipcRenderer.invoke(IPC.applyUserChanges, id, changes),
   listAllColumns: (id, database) => ipcRenderer.invoke(IPC.listAllColumns, id, database),
   databaseModel: (id, database) => ipcRenderer.invoke(IPC.databaseModel, id, database),
   readRows: (id, database, table, request) =>

@@ -30,9 +30,13 @@ import type { ConnectionManager } from '../db/connection-manager';
 import { objectDefinition, routineParams, runObjectAction } from '../db/objects';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
+import { applyUserChanges, listUsers, userDetails } from '../db/users';
+import { hasUsers } from '../../shared/user-sql';
 import { AppError, toDbError } from './errors';
 import {
   cellKeySchema,
+  userChangesSchema,
+  userRefSchema,
   cellSaveRequestSchema,
   changeSetSchema,
   connectionInputSchema,
@@ -406,6 +410,34 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
       identifierSchema.parse(rawDb),
       routineKindSchema.parse(rawKind),
       identifierSchema.parse(rawName),
+    );
+  });
+
+  // Database users: list, details, changes (refused on a read-only connection).
+  const userDialect = async (id: string) => {
+    const profile = await store.get(id);
+    if (!hasUsers(profile.type))
+      throw new AppError('NOT_SUPPORTED', 'SQLite heeft geen gebruikers.');
+    return { dialect: profile.type, readOnly: profile.readOnly };
+  };
+  handle(IPC.listUsers, async (rawId) => {
+    const id = idSchema.parse(rawId);
+    const { dialect } = await userDialect(id);
+    return listUsers(manager.session(id), dialect);
+  });
+  handle(IPC.userDetails, async (rawId, rawUser) => {
+    const id = idSchema.parse(rawId);
+    const { dialect } = await userDialect(id);
+    return userDetails(manager.session(id), dialect, userRefSchema.parse(rawUser));
+  });
+  handle(IPC.applyUserChanges, async (rawId, rawChanges) => {
+    const id = idSchema.parse(rawId);
+    const { dialect, readOnly } = await userDialect(id);
+    await applyUserChanges(
+      manager.session(id),
+      dialect,
+      readOnly,
+      userChangesSchema.parse(rawChanges),
     );
   });
 

@@ -15,6 +15,11 @@ GRANT ALL ON ctx_weg.* TO 'viewer'@'localhost';
 -- …and create one from the tree ("Nieuwe database…").
 GRANT ALL ON ctx_nieuw.* TO 'viewer'@'%';
 GRANT ALL ON ctx_nieuw.* TO 'viewer'@'localhost';
+-- User management tests: an administrator that may create users and grant on app_dev.
+CREATE USER IF NOT EXISTS 'dbv_admin'@'%' IDENTIFIED BY 'admin123';
+CREATE USER IF NOT EXISTS 'dbv_admin'@'localhost' IDENTIFIED BY 'admin123';
+GRANT ALL ON *.* TO 'dbv_admin'@'%' WITH GRANT OPTION;
+GRANT ALL ON *.* TO 'dbv_admin'@'localhost' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 
 CREATE TABLE IF NOT EXISTS app_dev.orders (

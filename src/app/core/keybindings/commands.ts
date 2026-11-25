@@ -58,6 +58,7 @@ export const COMMANDS: CommandInfo[] = [
   // Schema
   { id: 'workbench.quickOpen', title: 'Tabel openen (snel zoeken)', category: 'Schema' },
   { id: 'schema.erDiagram', title: 'ER-diagram van de database', category: 'Schema' },
+  { id: 'schema.users', title: 'Gebruikers beheren', category: 'Schema' },
   { id: 'tree.focus', title: 'Naar de databaseboom', category: 'Schema' },
   { id: 'tree.focusFilter', title: 'Databases en tabellen filteren', category: 'Schema' },
   { id: 'tree.refresh', title: 'Schema vernieuwen', category: 'Schema' },

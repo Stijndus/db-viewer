@@ -11,6 +11,12 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'viewer')
   CREATE LOGIN viewer WITH PASSWORD = 'Test123!viewer', CHECK_POLICY = OFF;
 GO
+-- User management tests: an administrator (sysadmin) that may create logins and grant.
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'dbv_admin')
+  CREATE LOGIN dbv_admin WITH PASSWORD = 'Admin123!dbv', CHECK_POLICY = OFF, DEFAULT_DATABASE = app_dev;
+GO
+ALTER SERVER ROLE sysadmin ADD MEMBER dbv_admin;
+GO
 USE app_dev;
 GO
 CREATE USER viewer FOR LOGIN viewer;

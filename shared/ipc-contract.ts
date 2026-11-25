@@ -1,3 +1,4 @@
+import type { DbUserRef, DbUserSummary, UserChange, UserDetails } from './user-sql';
 import type { ApplyResult, ChangeSet } from './changes';
 import type {
   CellFile,
@@ -46,6 +47,9 @@ export const IPC = {
   objectDefinition: 'schema:definition',
   routineParams: 'schema:routine-params',
   objectAction: 'schema:action',
+  listUsers: 'users:list',
+  userDetails: 'users:details',
+  applyUserChanges: 'users:apply',
   readRows: 'data:rows',
   countRows: 'data:count',
   applyChanges: 'data:apply',
@@ -142,6 +146,11 @@ export interface DbApi {
   ): Promise<Result<RoutineParam[]>>;
   /** Empties or drops an object or database; refused on read-only connections. */
   objectAction(connectionId: string, action: ObjectAction): Promise<Result<void>>;
+  /** The server's users (MySQL accounts, PostgreSQL roles, SQL Server logins). */
+  listUsers(connectionId: string): Promise<Result<DbUserSummary[]>>;
+  userDetails(connectionId: string, user: DbUserRef): Promise<Result<UserDetails>>;
+  /** Runs the changes in order; refused on a read-only connection. */
+  applyUserChanges(connectionId: string, changes: UserChange[]): Promise<Result<void>>;
 
   // Table data (step 3). Always read-only, with a time limit.
   /** One page of rows from a table or view. */

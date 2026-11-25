@@ -1,0 +1,442 @@
+<div class="um">
+  <div class="um-bar">
+    <h2 class="um-title">Gebruikers</h2>
+    @if (users(); as u) {
+      @if (u.status === 'loaded') {
+        <span class="muted small">{{ u.data.length }} op deze server</span>
+      }
+    }
+    @if (readOnly()) {
+      <span
+        class="ro-badge ro-small"
+        title="Op een alleen-lezen verbinding kun je gebruikers alleen bekijken"
+        >Alleen-lezen</span
+      >
+    }
+    <span class="push"></span>
+    @if (note(); as n) {
+      <span class="ok-text small" role="status">{{ n }}</span>
+    }
+    <button type="button" class="btn btn-ghost btn-sm" (click)="loadUsers()">Vernieuwen</button>
+    <button
+      type="button"
+      class="btn btn-primary btn-sm"
+      [disabled]="readOnly()"
+      (click)="newUser()"
+    >
+      Nieuwe gebruiker…
+    </button>
+  </div>
+
+  @switch (users().status) {
+    @case ('loading') {
+      <div class="dt-empty muted">Gebruikers laden…</div>
+    }
+    @case ('error') {
+      @let u = users();
+      <div class="um-error">
+        <div class="banner banner-error" role="alert">
+          {{ u.status === 'error' ? u.message : '' }}
+        </div>
+      </div>
+    }
+    @default {
+      <div class="um-body">
+        <aside class="um-list" aria-label="Gebruikers">
+          <label class="visually-hidden" for="um-find">Gebruiker zoeken</label>
+          <input
+            id="um-find"
+            class="input input-sm"
+            type="search"
+            placeholder="Zoek gebruiker…"
+            [value]="find()"
+            (input)="find.set($any($event.target).value)"
+          />
+          <ul role="listbox" aria-label="Gebruikers">
+            @for (u of shown(); track label(u)) {
+              @let on = selected()?.name === u.name && (selected()?.host ?? '') === (u.host ?? '');
+              <li
+                role="option"
+                class="um-user"
+                [class.active]="on"
+                [attr.aria-selected]="on"
+                tabindex="0"
+                (click)="select(u)"
+                (keydown.enter)="select(u)"
+              >
+                <span class="um-user-name mono"
+                  ><span>{{ u.name || '(anoniem)' }}</span
+                  ><span class="muted">{{ u.host !== undefined ? '@' + u.host : '' }}</span></span
+                >
+                @if (u.superuser) {
+                  <span class="badge um-badge" title="Mag alles op de server">beheerder</span>
+                }
+                @if (!u.canLogin) {
+                  <span
+                    class="badge um-badge um-badge-quiet"
+                    title="Kan niet inloggen (rol of uitgeschakeld)"
+                    >geen login</span
+                  >
+                }
+              </li>
+            } @empty {
+              <li class="muted small um-empty">Geen gebruikers gevonden</li>
+            }
+          </ul>
+        </aside>
+
+        <section class="um-detail" aria-label="Rechten">
+          @if (selected(); as user) {
+            <div class="um-head">
+              <h3 class="mono">{{ label(user) }}</h3>
+              <span class="push"></span>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                [disabled]="readOnly()"
+                (click)="changePassword()"
+              >
+                Wachtwoord wijzigen…
+              </button>
+              <button
+                type="button"
+                class="btn btn-danger-ghost btn-sm"
+                [disabled]="readOnly()"
+                (click)="remove()"
+              >
+                Verwijderen…
+              </button>
+            </div>
+
+            @switch (details()?.status) {
+              @case ('loading') {
+                <div class="muted small um-pad">Rechten laden…</div>
+              }
+              @case ('error') {
+                @let d = details();
+                <div class="banner banner-error um-pad" role="alert">
+                  {{ d?.status === 'error' ? d.message : '' }}
+                </div>
+              }
+              @case ('loaded') {
+                @let d = details();
+                <div class="um-scroll">
+                  @if (dialect() === 'mssql' && d?.status === 'loaded' && !d.data.mapped) {
+                    <div class="banner banner-warn">
+                      Deze login heeft nog geen gebruiker in de database van deze verbinding, dus
+                      hij kan er niets.
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        [disabled]="readOnly()"
+                        (click)="mapUser()"
+                      >
+                        Toegang geven
+                      </button>
+                    </div>
+                  }
+
+                  <h4 class="um-section">Rechten</h4>
+                  @for (s of scopes(); track s.scope.database + '/' + s.scope.table) {
+                    <div class="um-scope" [class.changed]="s.before.join() !== s.after.join()">
+                      <div class="um-scope-head">
+                        <span class="um-scope-name"
+                          ><span class="muted small">{{
+                            s.scope.table
+                              ? 'Tabel'
+                              : s.scope.database
+                                ? containerWord() === 'database'
+                                  ? 'Database'
+                                  : 'Schema'
+                                : ''
+                          }}</span>
+                          <span class="mono">{{ scopeLabel(s.scope) }}</span></span
+                        >
+                        <span class="push"></span>
+                        @for (set of sets(s.scope); track set.label) {
+                          <button
+                            type="button"
+                            class="link-btn small"
+                            [disabled]="readOnly()"
+                            (click)="setTicks(s.scope, set.privileges)"
+                          >
+                            {{ set.label }}
+                          </button>
+                        }
+                        @if (s.after.length) {
+                          <button
+                            type="button"
+                            class="link-btn small"
+                            [disabled]="readOnly()"
+                            (click)="setTicks(s.scope, [])"
+                          >
+                            Niets
+                          </button>
+                        }
+                      </div>
+                      @if (!s.scope.database && dialect() === 'postgres') {
+                        <p class="muted small um-hint">
+                          Eigenschappen van de rol: of hij mag inloggen, databases of rollen maken,
+                          of alles mag.
+                        </p>
+                      }
+                      @if (s.scope.database && !s.scope.table && dialect() === 'postgres') {
+                        <p class="muted small um-hint">
+                          USAGE en CREATE gelden voor het schema; de rest voor alle tabellen erin,
+                          ook die later worden gemaakt.
+                        </p>
+                      }
+                      <div class="um-privs">
+                        @for (p of options(s.scope); track p) {
+                          <label
+                            class="check um-priv"
+                            [class.added]="s.after.includes(p) && !s.before.includes(p)"
+                            [class.removed]="!s.after.includes(p) && s.before.includes(p)"
+                          >
+                            <input
+                              type="checkbox"
+                              [checked]="s.after.includes(p)"
+                              [disabled]="readOnly()"
+                              (change)="toggle(s.scope, p, $any($event.target).checked)"
+                            />
+                            <span class="mono">{{ p }}</span>
+                          </label>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (!readOnly()) {
+                    <div class="um-add">
+                      <span class="small">Rechten geven op</span>
+                      <label class="visually-hidden" for="um-add-db">{{ containerWord() }}</label>
+                      <select
+                        id="um-add-db"
+                        class="select input-sm"
+                        [value]="addDb()"
+                        (change)="addDb.set($any($event.target).value); addTable.set('')"
+                      >
+                        <option value="">Kies een {{ containerWord() }}…</option>
+                        @for (db of databases(); track db) {
+                          <option [value]="db">{{ db }}</option>
+                        }
+                      </select>
+                      <label class="visually-hidden" for="um-add-table">Tabel</label>
+                      <select
+                        id="um-add-table"
+                        class="select input-sm"
+                        [disabled]="!addDb()"
+                        [value]="addTable()"
+                        (change)="addTable.set($any($event.target).value)"
+                      >
+                        <option value="">Alle tabellen</option>
+                        @for (t of tablesOfAddDb(); track t) {
+                          <option [value]="t">{{ t }}</option>
+                        }
+                      </select>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        [disabled]="!addDb()"
+                        (click)="addScope()"
+                      >
+                        Toevoegen
+                      </button>
+                    </div>
+                  }
+
+                  @if (roles().length) {
+                    <h4 class="um-section">Rollen</h4>
+                    <p class="muted small um-hint">
+                      @if (dialect() === 'mssql') {
+                        Serverrollen gelden voor de hele server, databaserollen voor de database van
+                        deze verbinding.
+                      } @else {
+                        Een lid van een rol krijgt alle rechten van die rol.
+                      }
+                    </p>
+                    <div class="um-privs">
+                      @for (r of roles(); track (r.role.server ? 's:' : 'd:') + r.role.name) {
+                        <label
+                          class="check um-priv"
+                          [class.added]="r.after && !r.before"
+                          [class.removed]="!r.after && r.before"
+                        >
+                          <input
+                            type="checkbox"
+                            [checked]="r.after"
+                            [disabled]="readOnly()"
+                            (change)="toggleRole(r.role, $any($event.target).checked)"
+                          />
+                          <span class="mono">{{ r.role.name }}</span>
+                          @if (r.role.server) {
+                            <span class="muted small">server</span>
+                          }
+                        </label>
+                      }
+                    </div>
+                  }
+
+                  @if (d?.status === 'loaded' && d.data.other.length) {
+                    <h4 class="um-section">Overige rechten</h4>
+                    <p class="muted small um-hint">
+                      Rechten op kolommen en dergelijke; aan te passen via SQL.
+                    </p>
+                    <pre class="um-other mono small">{{ d.data.other.join('\n') }}</pre>
+                  }
+                </div>
+
+                @if (changes().length || error()) {
+                  <div class="um-foot">
+                    @if (error(); as e) {
+                      <div class="banner banner-error" role="alert">{{ e }}</div>
+                    }
+                    <span class="small"
+                      >{{ changes().length }}
+                      {{ changes().length === 1 ? 'wijziging' : 'wijzigingen' }}</span
+                    >
+                    <span class="push"></span>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="discard()">
+                      Annuleren
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm"
+                      [disabled]="!changes().length"
+                      (click)="review()"
+                    >
+                      Opslaan…
+                    </button>
+                  </div>
+                }
+              }
+            }
+          } @else {
+            <div class="dt-empty muted">Kies een gebruiker.</div>
+          }
+        </section>
+      </div>
+    }
+  }
+</div>
+
+@if (form(); as f) {
+  <dialog
+    #formDialog
+    class="dialog um-dialog"
+    aria-labelledby="um-form-title"
+    (cancel)="$event.preventDefault(); closeForm()"
+  >
+    <form (submit)="$event.preventDefault(); submitForm()">
+      <div class="dialog-head">
+        <h2 id="um-form-title">
+          {{ f.kind === 'create' ? 'Nieuwe gebruiker' : 'Wachtwoord wijzigen' }}
+        </h2>
+      </div>
+      <div class="dialog-body um-form">
+        @if (f.kind === 'create') {
+          <div class="field">
+            <label class="field-label" for="um-name">Naam</label>
+            <input
+              id="um-name"
+              class="input mono"
+              autocomplete="off"
+              spellcheck="false"
+              [value]="f.name"
+              (input)="updateForm({ name: $any($event.target).value })"
+            />
+          </div>
+          @if (dialect() === 'mysql') {
+            <div class="field">
+              <label class="field-label" for="um-host">Mag inloggen vanaf</label>
+              <input
+                id="um-host"
+                class="input mono"
+                autocomplete="off"
+                spellcheck="false"
+                [value]="f.host"
+                (input)="updateForm({ host: $any($event.target).value })"
+              />
+              <span class="muted small"
+                >% is overal; localhost alleen vanaf de server zelf (ook via een SSH-tunnel).</span
+              >
+            </div>
+          }
+        }
+        <div class="field">
+          <label class="field-label" for="um-pw">Wachtwoord</label>
+          <div class="um-pw">
+            <input
+              id="um-pw"
+              class="input mono"
+              autocomplete="new-password"
+              spellcheck="false"
+              [type]="f.show ? 'text' : 'password'"
+              [value]="f.password"
+              (input)="updateForm({ password: $any($event.target).value })"
+            />
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              (click)="updateForm({ show: !f.show })"
+            >
+              {{ f.show ? 'Verbergen' : 'Tonen' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              (click)="updateForm({ password: newPassword() })"
+            >
+              Nieuw
+            </button>
+          </div>
+          <span class="muted small"
+            >Een sterk wachtwoord staat al klaar; het gaat bij Verder naar het klembord.</span
+          >
+        </div>
+      </div>
+      <div class="dialog-foot">
+        <div class="foot-end">
+          <button type="button" class="btn btn-ghost" (click)="closeForm()">Annuleren</button>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="!f.password || (f.kind === 'create' && !f.name.trim())"
+          >
+            Verder
+          </button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+}
+
+@if (preview(); as p) {
+  <dialog
+    #previewDialog
+    class="dialog um-dialog"
+    aria-labelledby="um-preview-title"
+    (cancel)="$event.preventDefault(); closePreview()"
+  >
+    <div class="dialog-head">
+      <h2 id="um-preview-title">{{ p.title }}</h2>
+    </div>
+    <div class="dialog-body">
+      <p class="small">Dit wordt op de server uitgevoerd:</p>
+      <pre class="danger-sql mono small">{{ sqlOf(p.changes) }}</pre>
+      @if (error(); as e) {
+        <div class="banner banner-error" role="alert">{{ e }}</div>
+      }
+    </div>
+    <div class="dialog-foot">
+      <div class="foot-end">
+        <button type="button" class="btn btn-ghost" [disabled]="busy()" (click)="closePreview()">
+          Annuleren
+        </button>
+        <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="runPreview()">
+          {{ busy() ? 'Bezig…' : 'Uitvoeren' }}
+        </button>
+      </div>
+    </div>
+  </dialog>
+}

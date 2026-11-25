@@ -194,6 +194,22 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     objectDefinition: (_id, _db, _kind, name) => ok(`CREATE TABLE ${name} (id int)`),
     routineParams: () => ok([]),
     objectAction: () => ok(undefined),
+    listUsers: () =>
+      ok([
+        { name: 'root', host: 'localhost', canLogin: true, superuser: true },
+        { name: 'viewer', host: '%', canLogin: true, superuser: false },
+      ]),
+    userDetails: () =>
+      ok({
+        grants: [
+          { scope: {}, privileges: [] },
+          { scope: { database: 'app_dev' }, privileges: ['SELECT', 'INSERT'] },
+        ],
+        roles: [],
+        availableRoles: [],
+        other: [],
+      }),
+    applyUserChanges: () => ok(undefined),
     listAllColumns: () => ok({ customers: ['id', 'email', 'status'], orders: ['id', 'total'] }),
     databaseModel: (_id, database) => ok(fakeModel(database)),
     applyChanges: (_id, _db, _table, changes) =>

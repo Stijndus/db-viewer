@@ -254,3 +254,40 @@ export const cellSaveRequestSchema = z.discriminatedUnion('kind', [
     name: z.string().min(1).max(255),
   }),
 ]);
+
+const userRefSchema = z.object({
+  name: z.string().min(1).max(128),
+  host: z.string().max(255).optional(),
+});
+const scopeSchema = z.object({
+  database: identifierSchema.optional(),
+  table: identifierSchema.optional(),
+});
+/** Privilege and attribute words: letters and spaces only, so they can be written into SQL. */
+const privilegeSchema = z.string().regex(/^[A-Z][A-Z ]{1,40}$/);
+const passwordSchema = z.string().min(1).max(512);
+const roleSchema = z.object({ name: z.string().min(1).max(128), server: z.boolean() });
+export { userRefSchema };
+export const userChangesSchema = z
+  .array(
+    z.discriminatedUnion('action', [
+      z.object({ action: z.literal('create'), user: userRefSchema, password: passwordSchema }),
+      z.object({ action: z.literal('drop'), user: userRefSchema }),
+      z.object({ action: z.literal('password'), user: userRefSchema, password: passwordSchema }),
+      z.object({
+        action: z.enum(['grant', 'revoke']),
+        user: userRefSchema,
+        scope: scopeSchema,
+        privileges: z.array(privilegeSchema).min(1).max(64),
+      }),
+      z.object({
+        action: z.literal('role'),
+        user: userRefSchema,
+        role: roleSchema,
+        member: z.boolean(),
+      }),
+      z.object({ action: z.literal('map'), user: userRefSchema }),
+    ]),
+  )
+  .min(1)
+  .max(500);

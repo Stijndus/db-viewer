@@ -36,6 +36,20 @@
           >
             <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />
           </svg>
+        } @else if (tab.kind === 'users') {
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <circle cx="9" cy="8" r="3.5" />
+            <path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" />
+            <path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.7.8 2.7 2.6 3 5.2" />
+          </svg>
         } @else if (tab.kind === 'diagram') {
           <svg
             width="14"
@@ -180,6 +194,12 @@
         [tabId]="tab.id"
         [hidden]="ws.activeId() !== tab.id"
       />
+    } @else if (tab.kind === 'users') {
+      <div class="ws-diagram" [hidden]="ws.activeId() !== tab.id">
+        @defer (on immediate) {
+          <app-user-manager [connectionId]="connection().id" />
+        }
+      </div>
     } @else if (tab.kind === 'diagram') {
       <div class="ws-diagram" [hidden]="ws.activeId() !== tab.id">
         @defer (on immediate) {

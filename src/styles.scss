@@ -2813,3 +2813,202 @@ app-er-diagram {
 .er-node {
   cursor: pointer;
 }
+
+/* User manager */
+.um {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.um-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.um-bar .push,
+.um-head .push,
+.um-scope-head .push,
+.um-foot .push {
+  flex: 1;
+}
+.um-title {
+  margin: 0;
+  font-size: 15px;
+}
+.um-error {
+  padding: 20px;
+}
+.um-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  flex: 1;
+  min-height: 0;
+}
+.um-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-right: 1px solid var(--border);
+  min-height: 0;
+}
+.um-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+}
+.um-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.um-user:hover {
+  background: var(--hover);
+}
+.um-user.active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.um-user-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.um-badge {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.um-badge-quiet {
+  background: var(--panel-2);
+  color: var(--text-3);
+}
+.um-empty {
+  padding: 8px;
+}
+.um-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.um-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.um-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.um-pad {
+  margin: 16px 20px;
+}
+.um-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 20px 20px;
+}
+.um-section {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.um-hint {
+  margin: 0 0 8px;
+}
+.um-scope {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.um-scope.changed {
+  border-color: var(--accent);
+}
+.um-scope-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.um-scope-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+}
+.um-privs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.um-priv {
+  font-size: 12.5px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.um-priv.added {
+  background: var(--ok-bg);
+}
+.um-priv.removed {
+  background: var(--err-bg);
+  text-decoration: line-through;
+}
+.um-add {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.um-add .select {
+  width: auto;
+  min-width: 160px;
+}
+.um-other {
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  white-space: pre-wrap;
+}
+.um-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.um-foot .banner {
+  flex-basis: 100%;
+}
+.um-dialog {
+  width: min(560px, calc(100vw - 48px));
+}
+.um-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.um-pw {
+  display: flex;
+  gap: 6px;
+}
+.um-pw .input {
+  flex: 1;
+}

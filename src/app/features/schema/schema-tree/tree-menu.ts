@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { hasUsers } from '../../../../../shared/user-sql';
 import { DIALECTS, qualifiedName, quoteIdent } from '../../../../../shared/dialect';
 import type {
   ColumnInfo,
@@ -61,6 +62,10 @@ export class TreeMenu {
             ...this.createEntry(conn),
             { label: 'SQL-bestand importeren…', run: () => this.transfer.openImport(conn.id) },
           ]),
+      // Also on a read-only connection: users can be looked at there.
+      ...(hasUsers(conn.type)
+        ? [{ label: 'Gebruikers beheren', run: () => this.ws.openUsers(conn.id) }]
+        : []),
       'separator',
       {
         label: 'Verbinding bewerken…',

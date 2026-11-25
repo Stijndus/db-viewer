@@ -148,11 +148,18 @@ export class App implements OnInit {
       const tab = this.ws.active();
       const selected = this.schema.selected();
       const database =
-        (tab && tab.kind !== 'sql' ? tab.database : undefined) ??
+        (tab && (tab.kind === 'table' || tab.kind === 'diagram') ? tab.database : undefined) ??
         (selected?.connectionId === conn.id ? selected.database : undefined) ??
         defaultContainer(conn.type, conn.database);
       if (!database) return false;
       this.ws.openDiagram(conn.id, database);
+      return true;
+    });
+    keys.handle('schema.users', () => {
+      const conn = this.store.active();
+      if (!conn || this.store.statusOf(conn.id) !== 'connected' || conn.type === 'sqlite')
+        return false;
+      this.ws.openUsers(conn.id);
       return true;
     });
     keys.handle('connections.next', () => this.ws.switchBy(1));

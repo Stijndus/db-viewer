@@ -4,6 +4,9 @@
 SELECT 'CREATE ROLE viewer LOGIN PASSWORD ''test123'''
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'viewer') \gexec
 ALTER ROLE viewer NOSUPERUSER LOGIN PASSWORD 'test123';
+-- User management tests: a role that may create roles and grant on everything.
+SELECT 'CREATE ROLE dbv_admin LOGIN SUPERUSER PASSWORD ''admin123'''
+ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dbv_admin') \gexec
 DROP DATABASE IF EXISTS app_dev WITH (FORCE);
 CREATE DATABASE app_dev OWNER viewer;
 \connect app_dev
