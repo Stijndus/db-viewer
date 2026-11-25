@@ -12,6 +12,7 @@ import type { ConnectionProfile } from '../../../../shared/models';
 import { ConnectionHome } from '../schema/connection-home/connection-home';
 import { ErDiagram } from '../schema/er-diagram/er-diagram';
 import { UserManager } from '../users/user-manager';
+import { hasUsers } from '../../../../shared/user-sql';
 import { ObjectView } from '../schema/object-view/object-view';
 import { SchemaStore, type SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
@@ -42,6 +43,9 @@ export class Workspace {
   protected readonly ws = inject(WorkspaceStore);
   protected readonly sql = inject(SqlStore);
   protected readonly transfer = inject(TransferStore);
+  protected readonly keys = inject(KeybindingsStore);
+  /** SQLite has no users. */
+  protected readonly hasUsers = computed(() => hasUsers(this.connection().type));
   private readonly schema = inject(SchemaStore);
 
   constructor() {
