@@ -70,6 +70,7 @@ export const COMMANDS: CommandInfo[] = [
     category: 'SQL',
   },
   { id: 'sql.runAll', title: 'Alles uitvoeren', category: 'SQL' },
+  { id: 'sql.history', title: 'Query-geschiedenis', category: 'SQL' },
   { id: 'sql.stop', title: 'Uitvoeren stoppen', category: 'SQL' },
   { id: 'sql.clear', title: 'Editor leegmaken', category: 'SQL' },
   { id: 'sql.previousResult', title: 'Vorig resultaat', category: 'SQL' },
@@ -140,6 +141,7 @@ export const DEFAULT_BINDINGS: DefaultBinding[] = [
   })),
 
   { key: 'ctrl+p', command: 'workbench.quickOpen', when: 'connected', source: V },
+  { key: 'ctrl+h', command: 'sql.history', source: D },
   { key: 'ctrl+d', command: 'tree.focus', when: 'connected', source: H },
   { key: 'ctrl+e', command: 'tree.focusFilter', when: 'connected', source: H },
   { key: 'f5', command: 'tree.refresh', when: 'treeFocus || connected && !tableTab', source: H },

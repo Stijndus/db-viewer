@@ -258,6 +258,17 @@
   />
 }
 
+@if (transfer.dataImportFor(); as target) {
+  @defer (on immediate) {
+    <app-data-import-dialog
+      [connectionId]="target.connectionId"
+      [intoDatabase]="target.database"
+      [intoTable]="target.table"
+      [job]="target.jobId"
+    />
+  }
+}
+
 @if (updates.whatsNew(); as content) {
   <app-whats-new [content]="content" />
 }
@@ -270,6 +281,11 @@
   <app-confirm-write [request]="request" />
 }
 
+@if (history.panelFor()) {
+  @defer (on immediate) {
+    <app-query-history />
+  }
+}
 <app-context-menu />
 <app-confirm-danger />
 <app-keybindings-editor />

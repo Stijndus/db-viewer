@@ -20,6 +20,9 @@ import { ConnectionsStore, connectionLocation } from './features/connections/con
 import { WhatsNew } from './core/whats-new/whats-new';
 import { ExportDialog } from './features/transfer/export-dialog/export-dialog';
 import { ImportDialog } from './features/transfer/import-dialog/import-dialog';
+import { DataImportDialog } from './features/transfer/data-import-dialog/data-import-dialog';
+import { QueryHistory } from './features/sql/query-history/query-history';
+import { HistoryStore } from './features/sql/history.store';
 import { TransferStore } from './features/transfer/transfer.store';
 import { HostKeyPrompt } from './features/connections/host-key-prompt/host-key-prompt';
 import { PasswordPrompt } from './features/connections/password-prompt/password-prompt';
@@ -39,6 +42,8 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     HostKeyPrompt,
     WhatsNew,
     ImportDialog,
+    DataImportDialog,
+    QueryHistory,
     ExportDialog,
     SchemaTree,
     Workspace,
@@ -60,6 +65,7 @@ export class App implements OnInit {
   protected readonly ws = inject(WorkspaceStore);
   protected readonly transfer = inject(TransferStore);
   private readonly schema = inject(SchemaStore);
+  protected readonly history = inject(HistoryStore);
 
   /** "43%", "klaar", … for an import in the status bar. */
   protected importStatus(jobId: string): string {
@@ -153,6 +159,11 @@ export class App implements OnInit {
         defaultContainer(conn.type, conn.database);
       if (!database) return false;
       this.ws.openDiagram(conn.id, database);
+      return true;
+    });
+    keys.handle('sql.history', () => {
+      if (this.history.panelFor()) this.history.panelFor.set(null);
+      else this.history.open(this.store.activeId());
       return true;
     });
     keys.handle('schema.users', () => {

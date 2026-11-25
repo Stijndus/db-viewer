@@ -24,6 +24,9 @@ export interface ImportJob {
   /** The file (or the file in the archive), for the status bar and the dialog. */
   name: string;
   database?: string;
+  /** A CSV, JSON or Excel import into this table (else a SQL script). */
+  kind?: 'sql' | 'data';
+  table?: string;
 }
 
 /** Which import or export dialog is open, and the progress of running jobs. */
@@ -39,6 +42,13 @@ export class TransferStore {
   );
   /** Imports started in this session, running or finished, until their result was seen. */
   readonly imports = signal<ImportJob[]>([]);
+  /** The CSV, JSON and Excel import dialog: a new import into a table, or a started one. */
+  readonly dataImportFor = signal<{
+    connectionId: string;
+    database?: string;
+    table?: string;
+    jobId?: string;
+  } | null>(null);
   /** Jobs asked to stop that have not reported back yet: "Stoppen…" until they do. */
   readonly stopping = signal<ReadonlySet<string>>(new Set());
   /** The imports still running, per connection or all. */
@@ -56,7 +66,13 @@ export class TransferStore {
       // An import finished (also in the background): the schema may have new tables.
       const job = this.imports().find((j) => j.jobId === p.jobId);
       if (job && p.phase !== 'running' && before !== p.phase) {
-        void this.schema.refresh(job.connectionId);
+        if (job.kind === 'data' && job.database && job.table) {
+          // Rows only: an open grid of the table loads them again.
+          this.schema.dataChanged.set({
+            object: { connectionId: job.connectionId, database: job.database, name: job.table },
+            at: performance.now(),
+          });
+        } else void this.schema.refresh(job.connectionId);
       }
     });
   }
@@ -75,7 +91,8 @@ export class TransferStore {
   /** Opens the dialog of a started import (from the status bar). */
   showImport(jobId: string): void {
     const job = this.imports().find((j) => j.jobId === jobId);
-    if (job) this.importFor.set({ connectionId: job.connectionId, jobId });
+    if (job?.kind === 'data') this.dataImportFor.set({ connectionId: job.connectionId, jobId });
+    else if (job) this.importFor.set({ connectionId: job.connectionId, jobId });
   }
 
   /**
@@ -97,6 +114,15 @@ export class TransferStore {
 
   openImport(connectionId: string, database?: string): void {
     this.importFor.set({ connectionId, ...(database && { database }) });
+  }
+
+  /** CSV, JSON or Excel into a table; the table can still be changed in the dialog. */
+  openDataImport(connectionId: string, database?: string, table?: string): void {
+    this.dataImportFor.set({
+      connectionId,
+      ...(database && { database }),
+      ...(table && { table }),
+    });
   }
 
   openExport(target: ExportTarget): void {

@@ -72,6 +72,7 @@ describe('TreeMenu', () => {
       'SELECT in nieuw SQL-tabblad',
       '—',
       'Exporteren…',
+      'Importeren (CSV, JSON, Excel)…',
       'Kopiëren als: Naam, Volledige naam, SELECT, INSERT, CREATE TABLE',
       '—',
       'Leegmaken…',

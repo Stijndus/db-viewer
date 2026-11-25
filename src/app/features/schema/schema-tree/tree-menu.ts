@@ -61,6 +61,10 @@ export class TreeMenu {
         : [
             ...this.createEntry(conn),
             { label: 'SQL-bestand importeren…', run: () => this.transfer.openImport(conn.id) },
+            {
+              label: 'CSV, JSON of Excel importeren…',
+              run: () => this.transfer.openDataImport(conn.id),
+            },
           ]),
       // Also on a read-only connection: users can be looked at there.
       ...(hasUsers(conn.type)
@@ -103,6 +107,10 @@ export class TreeMenu {
             {
               label: 'SQL-bestand importeren…',
               run: () => this.transfer.openImport(conn.id, database),
+            },
+            {
+              label: 'CSV, JSON of Excel importeren…',
+              run: () => this.transfer.openDataImport(conn.id, database),
             },
           ]),
       'separator',
@@ -221,6 +229,14 @@ export class TreeMenu {
             source: { kind: 'table', database, table: obj.name, orderBy: [] },
           }),
       },
+      ...(isTable && !conn.readOnly
+        ? [
+            {
+              label: 'Importeren (CSV, JSON, Excel)…',
+              run: () => this.transfer.openDataImport(conn.id, database, obj.name),
+            },
+          ]
+        : []),
       {
         label: 'Kopiëren als',
         items: [

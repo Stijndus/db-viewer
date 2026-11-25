@@ -319,7 +319,15 @@ export interface ImportFileInfo {
   kind: 'script' | 'gzip' | 'archive';
   /** Some file in the archive needs a password. */
   encrypted?: boolean;
-  entries: { path: string; size: number | null; encrypted: boolean; script: boolean }[];
+  entries: {
+    path: string;
+    size: number | null;
+    encrypted: boolean;
+    /** A SQL script by its name. */
+    script: boolean;
+    /** A CSV, JSON or Excel file by its name. */
+    data?: boolean;
+  }[];
 }
 
 export interface SqlImportRequest {
@@ -334,6 +342,57 @@ export interface SqlImportRequest {
   onError: 'stop' | 'skip';
 }
 
+export type DataFileFormat = 'csv' | 'json' | 'xlsx';
+export type CsvEncoding = 'utf-8' | 'utf-16le' | 'utf-16be' | 'windows-1252' | 'iso-8859-1';
+
+/** How to read a CSV, JSON or Excel file; left out, it is detected. */
+export interface DataFileOptions {
+  file: string;
+  /** The file inside a zip or 7z archive. */
+  entry?: string;
+  /** Archive password; used for this import only, never stored. */
+  password?: string;
+  format?: DataFileFormat;
+  /** CSV: the delimiter (one character) and encoding. */
+  delimiter?: string;
+  encoding?: CsvEncoding;
+  /** CSV and Excel: the first row holds the column names. Default true. */
+  header?: boolean;
+  /** Excel: the worksheet by name; default the first. */
+  sheet?: string;
+}
+
+/** The first rows of a data file, as the import dialog shows them. */
+export interface DataPreview {
+  format: DataFileFormat;
+  columns: string[];
+  /** The first rows, values cut to a few hundred characters. */
+  rows: (string | null)[][];
+  /** Rows in the file, when known without reading it all (JSON). */
+  rowCount?: number;
+  /** CSV: what was detected or chosen. */
+  delimiter?: string;
+  encoding?: CsvEncoding;
+  /** Excel: the worksheets, and the one shown. */
+  sheets?: string[];
+  sheet?: string;
+}
+
+export interface DataImportRequest extends DataFileOptions {
+  database: string;
+  table: string;
+  /** File column (index in the preview's columns) → table column. */
+  mapping: { source: number; target: string }[];
+  /** Add rows, empty the table first, or update rows whose primary key exists. */
+  mode: 'append' | 'replace' | 'upsert';
+  /** All in one transaction undone at the first error, or bad rows skipped and listed. */
+  onError: 'rollback' | 'skip';
+  /** An empty text field becomes NULL (other column types always do). */
+  emptyAsNull: boolean;
+  /** MySQL and SQLite: no foreign key checks during the import. */
+  disableForeignKeys?: boolean;
+}
+
 /** Progress of an import or export, pushed while it runs and once at the end. */
 export interface TransferProgress {
   jobId: string;
@@ -342,10 +401,14 @@ export interface TransferProgress {
   /** Bytes read (import) or written (export) so far. */
   bytes: number;
   totalBytes: number | null;
-  /** Statements run (import) or rows written (export). */
+  /** Statements run (import), rows imported (data import) or rows written (export). */
   statements: number;
+  /** A CSV, JSON or Excel import: `statements` and `failed` count rows. */
+  unit?: 'rows';
+  /** Data import in one transaction: nothing was saved (rolled back after an error or stop). */
+  rolledBack?: boolean;
   failed: number;
-  /** The first failing statements (at most 100), with the server's message. */
+  /** The first failing statements or rows (at most 100), with the server's message. */
   errors: { statement: number; sql: string; message: string }[];
   /** Set when the whole job failed (phase 'failed'). */
   error?: DbError;
@@ -441,3 +504,38 @@ export type CellSaveRequest =
       name: string;
     }
   | { kind: 'content'; base64: string; name: string };
+
+// ── Query history ──────────────────────────────────────────────────
+
+/** What a statement in the history gave: rows, changed rows, or an error. */
+export type HistoryResult =
+  | { kind: 'rows'; rows: number; more?: boolean }
+  | { kind: 'ok'; affected: number }
+  | { kind: 'error'; message: string };
+
+/** One query (or, for long scripts, one run) from a SQL tab, kept on this computer only. */
+export interface HistoryEntry {
+  id: string;
+  connectionId: string;
+  /** The connection's name when it ran; shown when the connection is gone. */
+  connectionName: string;
+  database: string | null;
+  sql: string;
+  /** Longer than HISTORY_SQL_MAX: only the start was kept. */
+  truncated?: boolean;
+  /** When it ran (ms since 1970). */
+  at: number;
+  durationMs: number;
+  result: HistoryResult;
+  /** A whole script kept as one entry: how many statements ran. */
+  statements?: number;
+}
+
+export type NewHistoryEntry = Omit<HistoryEntry, 'id'>;
+
+/** The oldest entries go past this many. */
+export const HISTORY_MAX = 5000;
+/** SQL longer than this is kept cut off (and marked). */
+export const HISTORY_SQL_MAX = 64 * 1024;
+/** A run of more statements than this is kept as one entry, not one per statement. */
+export const HISTORY_SCRIPT_STATEMENTS = 20;

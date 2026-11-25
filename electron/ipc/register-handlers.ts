@@ -9,6 +9,8 @@ import {
 import { IPC, TRANSFER_EVENT, type AppInfo } from '../../shared/ipc-contract';
 import { exportData } from '../transfer/export';
 import { inspectImportFile, importSql } from '../transfer/sql-import';
+import { importData } from '../transfer/data-import';
+import { previewDataFile } from '../transfer/data-file';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { qualifiedName, quoteIdent, stringLiteral } from '../../shared/dialect';
@@ -30,6 +32,7 @@ import type { ConnectionManager } from '../db/connection-manager';
 import { objectDefinition, routineParams, runObjectAction } from '../db/objects';
 import type { ConnectionStore, SecretCipher } from '../store/connection-store';
 import type { Updater } from '../updater';
+import type { HistoryStore } from '../store/history-store';
 import { applyUserChanges, listUsers, userDetails } from '../db/users';
 import { hasUsers } from '../../shared/user-sql';
 import { AppError, toDbError } from './errors';
@@ -52,6 +55,10 @@ import {
   filePathSchema,
   jobIdSchema,
   sqlImportRequestSchema,
+  newHistoryEntriesSchema,
+  historyIdsSchema,
+  dataFileOptionsSchema,
+  dataImportRequestSchema,
   fingerprintSchema,
   optionalPasswordSchema,
   optionalPathSchema,
@@ -63,6 +70,8 @@ import {
 
 export interface HandlerDeps {
   store: ConnectionStore;
+  /** The query history file. */
+  history: HistoryStore;
   manager: ConnectionManager;
   cipher: SecretCipher;
   updater: Updater;
@@ -165,16 +174,36 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
   // Import and export: long jobs that report progress as events and can be cancelled.
   const jobs = new Map<string, AbortController>();
 
-  handle(IPC.pickImportFile, async (rawCurrent) => {
+  handle(IPC.pickImportFile, async (rawCurrent, rawKind) => {
     const current = optionalPathSchema.parse(rawCurrent);
+    const data = z.enum(['sql', 'data']).optional().parse(rawKind) === 'data';
     const result = await deps.pickFile({
-      title: 'SQL-bestand of archief kiezen',
+      title: data ? 'CSV-, JSON- of Excel-bestand kiezen' : 'SQL-bestand of archief kiezen',
       defaultPath: current || undefined,
       properties: ['openFile'],
-      filters: [
-        { name: 'SQL-scripts en archieven', extensions: ['sql', 'gz', 'zip', '7z', 'txt'] },
-        { name: 'Alle bestanden', extensions: ['*'] },
-      ],
+      filters: data
+        ? [
+            {
+              name: 'CSV, JSON, Excel en archieven',
+              extensions: [
+                'csv',
+                'tsv',
+                'txt',
+                'json',
+                'jsonl',
+                'ndjson',
+                'xlsx',
+                'gz',
+                'zip',
+                '7z',
+              ],
+            },
+            { name: 'Alle bestanden', extensions: ['*'] },
+          ]
+        : [
+            { name: 'SQL-scripts en archieven', extensions: ['sql', 'gz', 'zip', '7z', 'txt'] },
+            { name: 'Alle bestanden', extensions: ['*'] },
+          ],
     });
     return result.canceled ? null : (result.filePaths[0] ?? null);
   });
@@ -183,28 +212,34 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
     inspectImportFile(filePathSchema.parse(rawFile), optionalPasswordSchema.parse(rawPassword)),
   );
 
-  handle(IPC.startSqlImport, async (rawId, rawRequest) => {
+  /** Runs an import as a job: progress goes to the window, the end too (also a failure). */
+  const startImport = async <R>(
+    rawId: unknown,
+    run: (
+      session: DbSession,
+      dialect: DbType,
+      readOnly: boolean,
+      request: R,
+      jobId: string,
+      report: (p: TransferProgress) => void,
+      signal: AbortSignal,
+    ) => Promise<TransferProgress>,
+    request: R,
+    unit?: 'rows',
+  ) => {
     const id = idSchema.parse(rawId);
-    const request = sqlImportRequestSchema.parse(rawRequest);
     const session = manager.session(id);
     const profile = await store.get(id);
     const jobId = randomUUID();
     const controller = new AbortController();
     jobs.set(jobId, controller);
     const report = (p: TransferProgress) => deps.send(TRANSFER_EVENT, p);
-    void importSql(
-      session,
-      profile.type,
-      profile.readOnly,
-      request,
-      jobId,
-      report,
-      controller.signal,
-    )
+    void run(session, profile.type, profile.readOnly, request, jobId, report, controller.signal)
       .then(report, (err: unknown) =>
         report({
           jobId,
           kind: 'import',
+          ...(unit && { unit }),
           phase: controller.signal.aborted ? 'cancelled' : 'failed',
           bytes: 0,
           totalBytes: null,
@@ -216,7 +251,15 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
       )
       .finally(() => jobs.delete(jobId));
     return { jobId };
-  });
+  };
+
+  handle(IPC.startSqlImport, (rawId, rawRequest) =>
+    startImport(rawId, importSql, sqlImportRequestSchema.parse(rawRequest)),
+  );
+  handle(IPC.previewDataFile, (raw) => previewDataFile(dataFileOptionsSchema.parse(raw)));
+  handle(IPC.startDataImport, (rawId, rawRequest) =>
+    startImport(rawId, importData, dataImportRequestSchema.parse(rawRequest), 'rows'),
+  );
 
   /** Files exports wrote this run: only these may be shown in the file manager. */
   const written = new Set<string>();
@@ -337,6 +380,19 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
       );
     return value;
   });
+
+  handle(IPC.historyList, () => deps.history.list());
+  handle(IPC.historyAdd, (raw) => deps.history.add(newHistoryEntriesSchema.parse(raw)));
+  handle(IPC.historyDelete, (raw) => deps.history.delete(historyIdsSchema.parse(raw)));
+  handle(IPC.historyClear, (raw) =>
+    deps.history.clear(
+      z
+        .string()
+        .uuid()
+        .optional()
+        .parse(raw ?? undefined),
+    ),
+  );
 
   handle(IPC.cancelTransfer, (rawJob) => {
     jobs.get(jobIdSchema.parse(rawJob))?.abort();

@@ -1,0 +1,199 @@
+@if (history.panelFor()) {
+  <dialog
+    #dialog
+    class="dialog dialog-conn qh-dialog"
+    aria-labelledby="qh-title"
+    (cancel)="$event.preventDefault(); close()"
+    (keydown)="onKey($event)"
+  >
+    <div class="dialog-head">
+      <h2 id="qh-title">Query-geschiedenis</h2>
+      <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="close()">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="qh-bar">
+      <input
+        #input
+        class="input grow"
+        type="search"
+        aria-label="Zoeken in de geschiedenis"
+        placeholder="Zoeken in de SQL…"
+        autocomplete="off"
+        spellcheck="false"
+        [value]="query()"
+        (input)="setFilter(() => query.set(input.value))"
+      />
+      <select
+        #conn
+        class="input qh-conn"
+        aria-label="Verbinding"
+        (change)="setFilter(() => connection.set(conn.value))"
+      >
+        <option value="" [selected]="connection() === ''">Alle verbindingen</option>
+        @for (c of connectionOptions(); track c.id) {
+          <option [value]="c.id" [selected]="c.id === connection()">{{ c.name }}</option>
+        }
+      </select>
+      <label class="check qh-errors">
+        <input
+          type="checkbox"
+          [checked]="errorsOnly()"
+          (change)="setFilter(() => errorsOnly.set(!errorsOnly()))"
+        />
+        Alleen fouten
+      </label>
+    </div>
+
+    <div #list class="qh-list" role="listbox" aria-label="Uitgevoerde queries">
+      @if (history.entries() === null) {
+        <p class="muted small qh-empty">
+          {{ history.loadError()?.message ?? 'Geschiedenis laden…' }}
+        </p>
+      } @else {
+        @for (e of visible(); track e.id; let i = $index) {
+          <div
+            class="qh-item"
+            role="option"
+            [attr.data-index]="i"
+            [class.active]="i === active()"
+            [attr.aria-selected]="i === active()"
+            (click)="active.set(i)"
+            (dblclick)="use(e, 'current')"
+          >
+            <div class="qh-meta small">
+              <span class="mono">{{ when(e.at) }}</span>
+              <span class="muted"
+                >{{ connectionName(e) }}{{ e.database ? ' · ' + e.database : '' }}</span
+              >
+              <span class="push"></span>
+              <span class="muted mono">{{ duration(e.durationMs) }}</span>
+              <span class="qh-result" [class.err-text]="e.result.kind === 'error'">{{
+                resultText(e)
+              }}</span>
+            </div>
+            <pre class="qh-sql mono">{{ e.sql }}</pre>
+            @if (e.truncated) {
+              <span class="small muted">Ingekort: alleen het begin is bewaard.</span>
+            }
+            @if (e.result.kind === 'error') {
+              <span class="small err-text qh-msg">{{ e.result.message }}</span>
+            }
+            @if (i === active()) {
+              <div class="qh-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  [disabled]="!isConnected(e)"
+                  [title]="
+                    isConnected(e)
+                      ? currentTab(e)
+                        ? 'Invoegen bij de cursor van het huidige SQL-tabblad (Enter)'
+                        : 'Er is geen SQL-tabblad open: opent een nieuw (Enter)'
+                      : 'Verbind eerst met ' + connectionName(e)
+                  "
+                  (click)="$event.stopPropagation(); use(e, 'current')"
+                >
+                  In huidig tabblad
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  [disabled]="!isConnected(e)"
+                  [title]="isConnected(e) ? 'Ctrl+Enter' : 'Verbind eerst met ' + connectionName(e)"
+                  (click)="$event.stopPropagation(); use(e, 'new')"
+                >
+                  Nieuw tabblad
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  (click)="$event.stopPropagation(); copy(e)"
+                >
+                  {{ copied() === e.id ? 'Gekopieerd' : 'Kopiëren' }}
+                </button>
+                <span class="push"></span>
+                <button
+                  type="button"
+                  class="btn btn-danger-ghost btn-sm"
+                  title="Uit de geschiedenis verwijderen (Delete)"
+                  (click)="$event.stopPropagation(); remove(e)"
+                >
+                  Verwijderen
+                </button>
+              </div>
+            }
+          </div>
+        } @empty {
+          <p class="muted small qh-empty">
+            @if (history.entries()!.length === 0) {
+              Nog geen queries. Alles wat je in een SQL-tabblad uitvoert, komt hier te staan.
+            } @else if (connection() && !query() && !errorsOnly()) {
+              Nog geen queries op deze verbinding.
+              <button
+                type="button"
+                class="link-btn small"
+                (click)="setFilter(() => connection.set(''))"
+              >
+                Alle verbindingen tonen
+              </button>
+            } @else {
+              Niets gevonden.
+              @if (connection()) {
+                <button
+                  type="button"
+                  class="link-btn small"
+                  (click)="setFilter(() => connection.set(''))"
+                >
+                  Zoeken in alle verbindingen
+                </button>
+              }
+            }
+          </p>
+        }
+        @if (matches().length > visible().length) {
+          <button type="button" class="link-btn small qh-more" (click)="shown.set(shown() + 200)">
+            Meer tonen ({{ matches().length - visible().length }} over)
+          </button>
+        }
+      }
+    </div>
+
+    <div class="dialog-foot">
+      <label class="check">
+        <input
+          type="checkbox"
+          [checked]="history.enabled()"
+          (change)="history.setEnabled(!history.enabled())"
+        />
+        Geschiedenis bijhouden
+      </label>
+      <span class="muted small"
+        >{{ (history.entries() ?? []).length.toLocaleString('nl-NL') }} van max.
+        {{ max.toLocaleString('nl-NL') }} · alleen op deze computer</span
+      >
+      <span class="grow"></span>
+      <button
+        type="button"
+        class="btn btn-danger-ghost"
+        [disabled]="!(history.entries() ?? []).length"
+        (click)="clear()"
+      >
+        {{ connection() ? 'Wissen voor deze verbinding' : 'Alles wissen' }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="close()">Sluiten</button>
+    </div>
+  </dialog>
+}

@@ -11,7 +11,12 @@ import type {
   ConnectionInput,
   ConnectionProfile,
   DatabaseInfo,
+  DataFileOptions,
+  DataImportRequest,
+  DataPreview,
   ExportRequest,
+  HistoryEntry,
+  NewHistoryEntry,
   ImportFileInfo,
   LaunchRequest,
   ObjectAction,
@@ -64,7 +69,13 @@ export const IPC = {
   pickImportFile: 'dialog:import-file',
   inspectImportFile: 'transfer:inspect',
   startSqlImport: 'transfer:import-sql',
+  previewDataFile: 'transfer:preview-data',
+  startDataImport: 'transfer:import-data',
   cancelTransfer: 'transfer:cancel',
+  historyList: 'history:list',
+  historyAdd: 'history:add',
+  historyDelete: 'history:delete',
+  historyClear: 'history:clear',
   pickExportFile: 'dialog:export-file',
   startExport: 'transfer:export',
   showInFolder: 'shell:show-in-folder',
@@ -189,7 +200,8 @@ export interface DbApi {
   checkForUpdates(): Promise<Result<UpdateState>>;
   // Import and export.
   /** File dialog for a SQL script or an archive (.sql, .gz, .zip, .7z); null when cancelled. */
-  pickImportFile(current?: string): Promise<Result<string | null>>;
+  /** A SQL script (default) or a CSV, JSON or Excel file, or an archive holding one. */
+  pickImportFile(current?: string, kind?: 'sql' | 'data'): Promise<Result<string | null>>;
   /** What is in the file: a script, or the files in an archive (password needed for hidden names). */
   inspectImportFile(file: string, password?: string): Promise<Result<ImportFileInfo>>;
   /** Starts running a SQL script on a connection; progress arrives through onTransfer. */
@@ -197,7 +209,23 @@ export interface DbApi {
     connectionId: string,
     request: SqlImportRequest,
   ): Promise<Result<{ jobId: string }>>;
+  /** The columns and first rows of a CSV, JSON or Excel file (also inside an archive). */
+  previewDataFile(options: DataFileOptions): Promise<Result<DataPreview>>;
+  /** Starts loading a data file into a table; progress arrives through onTransfer. */
+  startDataImport(
+    connectionId: string,
+    request: DataImportRequest,
+  ): Promise<Result<{ jobId: string }>>;
   cancelTransfer(jobId: string): Promise<Result<void>>;
+
+  // Query history, on this computer only.
+  /** All entries, newest first. */
+  historyList(): Promise<Result<HistoryEntry[]>>;
+  /** Adds entries (in the order they ran); returns them with their ids. */
+  historyAdd(entries: NewHistoryEntry[]): Promise<Result<HistoryEntry[]>>;
+  historyDelete(ids: string[]): Promise<Result<void>>;
+  /** One connection's entries, or all of them. */
+  historyClear(connectionId?: string): Promise<Result<void>>;
   /** Save dialog for an export; `name` includes the extension. Null when cancelled. */
   pickExportFile(name: string): Promise<Result<string | null>>;
   /** Starts writing an export; progress arrives through onTransfer. */

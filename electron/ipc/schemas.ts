@@ -149,6 +149,61 @@ export const sqlImportRequestSchema = z.object({
   onError: z.enum(['stop', 'skip']),
 });
 
+export const dataFileOptionsSchema = z.object({
+  file: filePathSchema,
+  entry: z.string().min(1).max(4096).optional(),
+  password: z.string().max(1024).optional(),
+  format: z.enum(['csv', 'json', 'xlsx']).optional(),
+  delimiter: z.string().length(1).optional(),
+  encoding: z.enum(['utf-8', 'utf-16le', 'utf-16be', 'windows-1252', 'iso-8859-1']).optional(),
+  header: z.boolean().optional(),
+  sheet: z.string().min(1).max(256).optional(),
+});
+
+export const dataImportRequestSchema = dataFileOptionsSchema.extend({
+  database: identifierSchema,
+  table: identifierSchema,
+  mapping: z
+    .array(z.object({ source: z.number().int().min(0).max(100_000), target: identifierSchema }))
+    .min(1, 'Koppel minstens één kolom')
+    .max(4096),
+  mode: z.enum(['append', 'replace', 'upsert']),
+  onError: z.enum(['rollback', 'skip']),
+  emptyAsNull: z.boolean(),
+  disableForeignKeys: z.boolean().optional(),
+});
+
+const historyResultSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('rows'),
+    rows: z.number().int().min(0),
+    more: z.boolean().optional(),
+  }),
+  z.object({ kind: z.literal('ok'), affected: z.number().int() }),
+  z.object({ kind: z.literal('error'), message: z.string().max(4000) }),
+]);
+
+export const newHistoryEntriesSchema = z
+  .array(
+    z.object({
+      connectionId: z.string().uuid(),
+      connectionName: z.string().max(200),
+      database: z.string().max(256).nullable(),
+      // Cut to HISTORY_SQL_MAX by the store; refuse what is absurdly larger.
+      sql: z
+        .string()
+        .min(1)
+        .max(16 * 1024 * 1024),
+      at: z.number().int().positive(),
+      durationMs: z.number().min(0),
+      result: historyResultSchema,
+      statements: z.number().int().min(1).optional(),
+    }),
+  )
+  .max(1000);
+
+export const historyIdsSchema = z.array(z.string().uuid()).max(10_000);
+
 export const jobIdSchema = z.string().regex(/^[a-z0-9-]{8,64}$/i, 'Ongeldige taak');
 
 const sortKeySchema = z.object({ column: identifierSchema, direction: z.enum(['asc', 'desc']) });

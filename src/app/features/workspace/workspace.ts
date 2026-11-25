@@ -81,6 +81,14 @@ export class Workspace {
       .some((t) => t.kind === 'table' && t.name === tab.name && t.database !== tab.database);
   }
 
+  /** Into the table of the active tab, when that is a table. */
+  protected openDataImport(): void {
+    const tab = this.ws.active();
+    if (tab?.kind === 'table' && tab.objectKind === 'table') {
+      this.transfer.openDataImport(this.connection().id, tab.database, tab.name);
+    } else this.transfer.openDataImport(this.connection().id);
+  }
+
   protected activate(tab: WorkspaceTab): void {
     this.ws.activate(this.connection().id, tab.id);
     this.scrollIntoView(tab.id);

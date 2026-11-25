@@ -32,6 +32,28 @@
       Statement uitvoeren
     </button>
   }
+  <button
+    type="button"
+    class="btn btn-ghost btn-sm"
+    [title]="'Eerder uitgevoerde queries (' + keys.keyLabels('sql.history') + ')'"
+    (click)="history.open(connectionId())"
+  >
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5M12 7v5l3 2" />
+    </svg>
+    Geschiedenis
+  </button>
   <span class="push"></span>
   @if (profile()?.readOnly) {
     <span class="ro-badge" title="Deze verbinding weigert alles wat gegevens wijzigt"

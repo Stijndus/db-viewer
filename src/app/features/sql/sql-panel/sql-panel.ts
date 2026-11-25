@@ -24,6 +24,7 @@ import {
 import { bytesBase64 } from '../../data/table-data/cell-values';
 import { columnWidth, isNumericType } from '../../data/table-data/table-data';
 import { SchemaStore } from '../../schema/schema.store';
+import { HistoryStore } from '../history.store';
 import { CodeEditor, type EditorCommand } from '../code-editor/code-editor';
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
@@ -45,6 +46,7 @@ export class SqlPanel {
   protected readonly sql = inject(SqlStore);
   private readonly api = inject(DB_API);
   protected readonly keys = inject(KeybindingsStore);
+  protected readonly history = inject(HistoryStore);
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
   private readonly transfer = inject(TransferStore);

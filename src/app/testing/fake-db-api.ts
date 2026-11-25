@@ -1,6 +1,7 @@
 import type { DbApi } from '../../../shared/ipc-contract';
 import type {
   DatabaseModel,
+  HistoryEntry,
   ColumnInfo,
   ConnectionProfile,
   DatabaseInfo,
@@ -174,6 +175,7 @@ export function fakeRows(request: RowsRequest): RowsPage {
 
 /** In-memory DbApi for component and store tests. Override any method per test. */
 export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
+  const history: HistoryEntry[] = [];
   return {
     appInfo: () => ok({ encryptionAvailable: true, version: '0.0.0-test' }),
     pickDatabaseFile: () => ok('/home/test/app.db'),
@@ -235,7 +237,38 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
         entries: [],
       }),
     startSqlImport: () => ok({ jobId: 'job-00000001' }),
+    previewDataFile: (options) =>
+      ok({
+        format: 'csv',
+        columns: ['id', 'Email', 'extra'],
+        rows: [
+          ['1', 'Anna', 'x'],
+          ['2', null, 'y'],
+        ],
+        delimiter: options.delimiter ?? ';',
+        encoding: options.encoding ?? 'utf-8',
+      }),
+    startDataImport: () => ok({ jobId: 'job-00000003' }),
     cancelTransfer: () => ok(undefined),
+    // An in-memory history, newest first, like the main process keeps it.
+    historyList: () => ok([...history]),
+    historyAdd: (entries) => {
+      const added = entries.map((e) => ({ ...e, id: crypto.randomUUID() }));
+      history.unshift(...[...added].reverse());
+      return ok(added);
+    },
+    historyDelete: (ids) => {
+      for (const id of ids) {
+        const i = history.findIndex((e) => e.id === id);
+        if (i >= 0) history.splice(i, 1);
+      }
+      return ok(undefined);
+    },
+    historyClear: (connectionId) => {
+      const keep = connectionId ? history.filter((e) => e.connectionId !== connectionId) : [];
+      history.splice(0, history.length, ...keep);
+      return ok(undefined);
+    },
     pickExportFile: (name) => ok(`/home/test/${name}`),
     startExport: () => ok({ jobId: 'job-00000002' }),
     showInFolder: () => ok(undefined),

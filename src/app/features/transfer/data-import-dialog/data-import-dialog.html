@@ -1,0 +1,479 @@
+<dialog #dialog class="dialog dialog-conn" aria-labelledby="dimp-title" (close)="onClose()">
+  <div class="dialog-head">
+    <h2 id="dimp-title">Data importeren</h2>
+    <button
+      type="button"
+      class="icon-btn borderless"
+      [attr.aria-label]="running() ? 'Op de achtergrond verder' : 'Sluiten'"
+      (click)="close()"
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="dialog-body">
+    @if (jobId() === null) {
+      @if (profile()?.readOnly) {
+        <div class="banner banner-error" role="alert">
+          <strong>Deze verbinding is alleen-lezen.</strong>
+          <span class="small"
+            >Importeren wijzigt de database. Gebruik een verbinding zonder alleen-lezen.</span
+          >
+        </div>
+      }
+
+      <div class="field">
+        <label for="dimp-file" class="field-label">Bestand</label>
+        <div class="row">
+          <input
+            id="dimp-file"
+            class="input mono grow"
+            [value]="file()"
+            readonly
+            placeholder="Kies een .csv, .json, .xlsx, .zip of .7z"
+          />
+          <button type="button" class="btn btn-secondary" [disabled]="busy()" (click)="choose()">
+            Kiezen…
+          </button>
+        </div>
+        <span class="muted small"
+          >CSV, JSON (een array van objecten) of Excel (.xlsx), ook uit een versleuteld zip- of
+          7z-archief.</span
+        >
+      </div>
+
+      @if (needsPasswordToList() && !info()) {
+        <form class="field" (submit)="$event.preventDefault(); inspect()">
+          <label for="dimp-pw-list" class="field-label">Wachtwoord van het archief</label>
+          <div class="row">
+            <input
+              #pwl
+              id="dimp-pw-list"
+              class="input grow"
+              type="password"
+              autocomplete="off"
+              [value]="password()"
+              (input)="password.set(pwl.value)"
+            />
+            <button type="submit" class="btn btn-secondary" [disabled]="!password() || busy()">
+              Openen
+            </button>
+          </div>
+        </form>
+      }
+
+      @if (info(); as i) {
+        <fieldset class="field">
+          <legend class="field-label">Bestand uit het archief</legend>
+          <div class="entry-list" role="radiogroup">
+            @for (e of dataEntries(); track e.path) {
+              <label class="entry" [class.muted]="!e.data">
+                <input
+                  type="radio"
+                  name="dimp-entry"
+                  [checked]="entry() === e.path"
+                  (change)="chooseEntry(e.path)"
+                />
+                <span class="mono grow">{{ e.path }}</span>
+                @if (e.encrypted) {
+                  <span class="small muted" title="Versleuteld">🔒</span>
+                }
+                <span class="small muted">{{ size(e.size) }}</span>
+              </label>
+            } @empty {
+              <span class="muted small">Het archief is leeg.</span>
+            }
+          </div>
+        </fieldset>
+        @if (selectedEntry()?.encrypted && !needsPasswordToList()) {
+          <form class="field" (submit)="$event.preventDefault(); loadPreview()">
+            <label for="dimp-pw" class="field-label">Wachtwoord van het archief</label>
+            <div class="row">
+              <input
+                #pw
+                id="dimp-pw"
+                class="input grow"
+                type="password"
+                autocomplete="off"
+                [value]="password()"
+                (input)="password.set(pw.value)"
+              />
+              <button type="submit" class="btn btn-secondary" [disabled]="!password() || busy()">
+                Openen
+              </button>
+            </div>
+            <span class="muted small">Alleen voor deze import; wordt niet opgeslagen.</span>
+          </form>
+        }
+      }
+
+      @if (preview(); as p) {
+        <div class="dimp-options">
+          @if (p.format === 'csv') {
+            <div class="field">
+              <label for="dimp-delim" class="field-label">Scheidingsteken</label>
+              <select
+                #delim
+                id="dimp-delim"
+                class="input"
+                (change)="setOption(() => delimiter.set(delim.value))"
+              >
+                @for (d of delimiters; track d.value) {
+                  <option [value]="d.value" [selected]="d.value === delimiter()">
+                    {{ d.label }}
+                  </option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="dimp-enc" class="field-label">Tekenset</label>
+              <select
+                #enc
+                id="dimp-enc"
+                class="input"
+                (change)="setOption(() => encoding.set($any(enc.value)))"
+              >
+                @for (e of encodings; track e.value) {
+                  <option [value]="e.value" [selected]="e.value === encoding()">
+                    {{ e.label }}
+                  </option>
+                }
+              </select>
+            </div>
+          }
+          @if (p.format === 'xlsx' && p.sheets) {
+            <div class="field">
+              <label for="dimp-sheet" class="field-label">Werkblad</label>
+              <select
+                #sh
+                id="dimp-sheet"
+                class="input"
+                (change)="setOption(() => sheet.set(sh.value))"
+              >
+                @for (s of p.sheets; track s) {
+                  <option [value]="s" [selected]="s === sheet()">{{ s }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (p.format !== 'json') {
+            <label class="check dimp-header">
+              <input
+                type="checkbox"
+                [checked]="header()"
+                (change)="setOption(() => header.set(!header()))"
+              />
+              Eerste rij bevat kolomnamen
+            </label>
+          } @else {
+            <span class="muted small dimp-header"
+              >JSON · {{ count(p.rowCount ?? 0) }} {{ p.rowCount === 1 ? 'rij' : 'rijen' }}</span
+            >
+          }
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="dimp-db" class="field-label">{{
+              container() === 'schema' ? 'Schema' : 'Database'
+            }}</label>
+            <select #db id="dimp-db" class="input" (change)="setDatabase(db.value)">
+              @for (d of databases(); track d) {
+                <option [value]="d" [selected]="d === database()">{{ d }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="dimp-table" class="field-label">In tabel</label>
+            <select #tb id="dimp-table" class="input" (change)="setTable(tb.value)">
+              <option value="" [selected]="!table()" disabled>Kies een tabel</option>
+              @for (t of tables(); track t) {
+                <option [value]="t" [selected]="t === table()">{{ t }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="row">
+            <span class="field-label grow"
+              >Kolommen koppelen · {{ mappedCount() }} van {{ p.columns.length }}</span
+            >
+            <button type="button" class="link-btn small" [disabled]="!table()" (click)="remap()">
+              Op naam koppelen
+            </button>
+            <button type="button" class="link-btn small" (click)="clearMapping()">
+              Niets koppelen
+            </button>
+          </div>
+          <div class="dimp-preview">
+            <table>
+              <thead>
+                <tr>
+                  @for (c of p.columns; track ci; let ci = $index) {
+                    <th>
+                      <span class="dimp-source mono" [title]="c">{{ c }}</span>
+                      <select
+                        #m
+                        class="input input-sm"
+                        [class.dimp-off]="!mapping()[ci]"
+                        [class.dimp-dup]="duplicates().has(mapping()[ci] ?? '')"
+                        [attr.aria-label]="'Tabelkolom voor ' + c"
+                        [disabled]="!table()"
+                        (change)="setMapping(ci, m.value)"
+                      >
+                        <option value="" [selected]="!mapping()[ci]">Niet importeren</option>
+                        @for (t of targets(); track t.name) {
+                          <option [value]="t.name" [selected]="t.name === mapping()[ci]">
+                            {{ label(t) }}
+                          </option>
+                        }
+                      </select>
+                    </th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of p.rows; track $index) {
+                  <tr>
+                    @for (v of r; track $index) {
+                      <td [class.dimp-null]="v === null" [class.dimp-off]="!mapping()[$index]">
+                        {{ v === null ? 'NULL' : v }}
+                      </td>
+                    }
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td class="muted" [attr.colspan]="p.columns.length || 1">
+                      Geen rijen gevonden.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (!table()) {
+            <span class="muted small">Kies eerst de tabel om kolommen te koppelen.</span>
+          } @else {
+            @if (duplicates().size) {
+              <span class="small err-text"
+                >Elke tabelkolom kan maar één keer worden gekozen: {{ duplicateNames() }}.</span
+              >
+            }
+            @if (unfilledRequired().length) {
+              <span class="small muted"
+                >Verplichte kolommen zonder waarde uit het bestand:
+                {{ unfilledRequired().join(', ') }}. Rijen zonder die waarde mislukken.</span
+              >
+            }
+          }
+        </div>
+
+        <div class="grid-2">
+          <fieldset class="field">
+            <legend class="field-label">Modus</legend>
+            <label class="check">
+              <input
+                type="radio"
+                name="dimp-mode"
+                [checked]="mode() === 'append'"
+                (change)="mode.set('append')"
+              />
+              Toevoegen
+            </label>
+            <label class="check">
+              <input
+                type="radio"
+                name="dimp-mode"
+                [checked]="mode() === 'replace'"
+                (change)="mode.set('replace')"
+              />
+              Tabel eerst leegmaken
+            </label>
+            <label class="check" [class.muted]="table() && !keyColumns().length">
+              <input
+                type="radio"
+                name="dimp-mode"
+                [checked]="mode() === 'upsert'"
+                [disabled]="!table() || !keyColumns().length"
+                (change)="mode.set('upsert')"
+              />
+              Bijwerken als de sleutel al bestaat
+            </label>
+            @if (table() && !keyColumns().length) {
+              <span class="muted small">Deze tabel heeft geen primaire sleutel.</span>
+            } @else if (mode() === 'upsert' && missingKeys().length) {
+              <span class="small err-text"
+                >Koppel de sleutelkolom {{ missingKeys().join(', ') }}.</span
+              >
+            } @else if (mode() === 'upsert') {
+              <span class="muted small"
+                >Rijen met dezelfde {{ keyColumns().join(', ') }} worden bijgewerkt, de andere
+                toegevoegd.</span
+              >
+            }
+          </fieldset>
+          <fieldset class="field">
+            <legend class="field-label">Bij een fout</legend>
+            <label class="check">
+              <input
+                type="radio"
+                name="dimp-err"
+                [checked]="onError() === 'rollback'"
+                (change)="onError.set('rollback')"
+              />
+              Alles terugdraaien
+            </label>
+            <label class="check">
+              <input
+                type="radio"
+                name="dimp-err"
+                [checked]="onError() === 'skip'"
+                (change)="onError.set('skip')"
+              />
+              Foute rijen overslaan
+            </label>
+            <span class="muted small">{{
+              onError() === 'rollback'
+                ? 'Eén transactie: bij een fout of Stoppen blijft de tabel zoals hij was.'
+                : 'Wat lukt blijft staan; de foute rijen zie je na afloop.'
+            }}</span>
+          </fieldset>
+        </div>
+
+        <div class="dimp-flags">
+          <label class="check">
+            <input
+              type="checkbox"
+              [checked]="emptyAsNull()"
+              (change)="emptyAsNull.set(!emptyAsNull())"
+            />
+            Lege tekstvelden als NULL
+          </label>
+          @if (canFk()) {
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="disableForeignKeys()"
+                (change)="disableForeignKeys.set(!disableForeignKeys())"
+              />
+              Foreign key-controle uitzetten tijdens de import
+            </label>
+          }
+        </div>
+      }
+
+      @if (error(); as e) {
+        <div class="banner banner-error" role="alert">
+          <strong>{{ e.message }}</strong>
+          @if (e.hint) {
+            <span class="small">{{ e.hint }}</span>
+          }
+        </div>
+      }
+    } @else {
+      @let p = progress();
+      @if (jobInfo(); as j) {
+        <span class="mono small">{{ j.name }} → {{ j.database }}.{{ j.table }}</span>
+      }
+      <div class="import-progress" role="status" aria-live="polite">
+        @switch (p?.phase ?? 'running') {
+          @case ('running') {
+            @if (stopping()) {
+              <strong>Bezig met stoppen…</strong>
+            } @else {
+              <strong>Bezig met importeren…</strong>
+              <span class="muted small"
+                >Je kunt dit venster sluiten en verder werken; de import loopt door en staat onderin
+                de statusbalk.</span
+              >
+            }
+          }
+          @case ('done') {
+            <strong class="ok-text"
+              >Klaar: {{ count(p!.statements) }}
+              {{ p!.statements === 1 ? 'rij' : 'rijen' }} geïmporteerd.</strong
+            >
+          }
+          @case ('done-with-errors') {
+            <strong
+              >Klaar: {{ count(p!.statements) }} geïmporteerd, {{ count(p!.failed) }}
+              {{ p!.failed === 1 ? 'rij' : 'rijen' }} overgeslagen.</strong
+            >
+          }
+          @case ('stopped-at-error') {
+            <strong class="err-text">Gestopt bij een fout. Niets is opgeslagen.</strong>
+          }
+          @case ('cancelled') {
+            <strong>{{
+              p?.rolledBack
+                ? 'Gestopt. Niets is opgeslagen.'
+                : 'Gestopt. Wat al was geïmporteerd, blijft staan.'
+            }}</strong>
+          }
+          @case ('failed') {
+            <strong class="err-text">{{ p?.error?.message ?? 'Import mislukt.' }}</strong>
+            @if (p?.error?.hint) {
+              <span class="small">{{ p?.error?.hint }}</span>
+            }
+            @if (p?.rolledBack) {
+              <span class="small">Niets is opgeslagen.</span>
+            }
+          }
+        }
+        <div class="bar" [class.indeterminate]="percent() === null && running()">
+          <span [style.width.%]="percent() ?? (running() ? 30 : 100)"></span>
+        </div>
+        <span class="muted small mono">
+          {{ count(p?.statements ?? 0) }} rijen
+          {{ p?.rolledBack ? 'opgeslagen' : 'geïmporteerd' }}
+          @if (p?.failed) {
+            · {{ count(p!.failed) }} mislukt
+          }
+          @if (p?.totalBytes) {
+            · {{ size(p!.bytes) }} van {{ size(p!.totalBytes) }}
+          }
+        </span>
+      </div>
+      @if (p?.errors?.length) {
+        <div class="import-errors">
+          @for (e of p!.errors; track e.statement) {
+            <div class="import-error">
+              <span class="small muted">Rij {{ count(e.statement) }}</span>
+              <code class="mono small">{{ e.sql }}</code>
+              <span class="small err-text">{{ e.message }}</span>
+            </div>
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <div class="dialog-foot">
+    <span class="grow"></span>
+    @if (jobId() === null) {
+      <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
+      <button type="button" class="btn btn-primary" [disabled]="!canStart()" (click)="start()">
+        Importeren
+      </button>
+    } @else if (running()) {
+      <button type="button" class="btn btn-danger-ghost" [disabled]="stopping()" (click)="stop()">
+        {{ stopping() ? 'Stoppen…' : 'Stoppen' }}
+      </button>
+      <button type="button" class="btn btn-primary" (click)="close()">Op de achtergrond</button>
+    } @else {
+      <button type="button" class="btn btn-primary" (click)="close()">Sluiten</button>
+    }
+  </div>
+</dialog>

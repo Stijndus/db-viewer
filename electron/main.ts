@@ -15,6 +15,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { LAUNCH_EVENT, ZOOM_EVENT } from '../shared/ipc-contract';
 import { nextZoom, restoreBounds, SettingsFile } from './settings';
+import { HistoryStore } from './store/history-store';
 import type { LaunchRequest, ReleaseNote } from '../shared/models';
 import { parseCli, USAGE, userArgs, type CliCommand } from './cli';
 import { launchEnv, resolveLaunch, type LaunchData } from './launch';
@@ -40,6 +41,7 @@ const cipher: SecretCipher = {
 let mainWindow: BrowserWindow | null = null;
 let manager: ConnectionManager | null = null;
 let settings: SettingsFile | null = null;
+let history: HistoryStore | null = null;
 
 /** Sets the zoom factor, remembers it and tells the page (for the indicator in the status bar). */
 function setZoom(factor: number): number {
@@ -227,8 +229,10 @@ function startApp(): void {
     );
     manager = new ConnectionManager(store, getDriver);
     const updater = new Updater(() => mainWindow);
+    history = new HistoryStore(path.join(app.getPath('userData'), 'history.json'));
     handlers = registerHandlers({
       store,
+      history,
       manager,
       cipher,
       updater,
@@ -318,6 +322,7 @@ let handlers: Handlers | null = null;
 // Close every pool before quitting so MySQL doesn't keep half-open connections.
 let closing = false;
 app.on('before-quit', (event) => {
+  history?.flushSync();
   if (closing || !manager) return;
   event.preventDefault();
   closing = true;

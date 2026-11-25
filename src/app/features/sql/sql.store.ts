@@ -6,6 +6,7 @@ import { classify, splitStatements, statementAt, type SqlStatement } from '../..
 import { DB_API } from '../../core/db-api';
 import { ConnectionsStore } from '../connections/connections.store';
 import { SchemaStore } from '../schema/schema.store';
+import { HistoryStore, historyEntries } from './history.store';
 
 export const ROW_LIMITS = [100, 1000, 10000, null] as const;
 export type RowLimit = (typeof ROW_LIMITS)[number];
@@ -54,6 +55,7 @@ export class SqlStore {
   private readonly api = inject(DB_API);
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
+  private readonly history = inject(HistoryStore);
 
   private readonly tabsByConnection = signal<Record<string, SqlTab[]>>({});
   private readonly columnsCache = signal<Record<string, Record<string, string[]>>>({});
@@ -249,6 +251,7 @@ export class SqlStore {
       skipped,
     });
     const started = performance.now();
+    const startedAt = Date.now();
     const result = await this.api.runScript(connectionId, tabId, {
       statements: statements.map((s) => s.sql),
       // Only where the editor can switch the default schema/database (USE, search_path).
@@ -256,6 +259,20 @@ export class SqlStore {
       maxRows: tab.maxRows,
     });
     const totalMs = Math.round(performance.now() - started);
+    this.history.record(
+      historyEntries(
+        {
+          connectionId,
+          connectionName: profile?.name ?? '',
+          database: tab.database,
+          dialect,
+          statements: statements.map((s) => s.sql),
+          startedAt,
+          totalMs,
+        },
+        result,
+      ),
+    );
 
     if (!this.find(connectionId, tabId)) return; // tab closed meanwhile
     if (result.ok) {

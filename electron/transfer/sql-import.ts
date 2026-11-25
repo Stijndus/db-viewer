@@ -13,6 +13,9 @@ import type { DbSession } from '../db/driver';
 import { AppError } from '../ipc/errors';
 import { extractEntry, isArchive, listArchive } from './archive';
 
+/** Files a CSV, JSON or Excel import can read. */
+export const DATA_FILE = /\.(csv|tsv|txt|json|jsonl|ndjson|xlsx)$/i;
+
 /** Statements sent to the server per round trip, and roughly how much SQL text at most. */
 const BATCH_STATEMENTS = 200;
 const BATCH_CHARS = 2_000_000;
@@ -21,7 +24,7 @@ const MAX_ERRORS = 100;
 /** How often progress is reported, at most. */
 const PROGRESS_MS = 200;
 
-interface Source {
+export interface Source {
   stream: Readable;
   /** Bytes the progress counts towards; null when unknown. */
   total: number | null;
@@ -167,7 +170,10 @@ function cancelled(): AppError {
   return new AppError('CANCELLED', 'Import gestopt.');
 }
 
-async function openSource(request: SqlImportRequest): Promise<Source> {
+/** The bytes of a file: plain, gzipped, or one file inside a zip or 7z archive. */
+export async function openSource(
+  request: Pick<SqlImportRequest, 'file' | 'entry' | 'password'>,
+): Promise<Source> {
   const file = request.file;
   let stat;
   try {
@@ -319,6 +325,10 @@ export async function inspectImportFile(
     size: stat.size,
     kind: 'archive',
     encrypted: listing.encrypted,
-    entries: listing.entries.map((e) => ({ ...e, script: /\.(sql|txt)$/i.test(e.path) })),
+    entries: listing.entries.map((e) => ({
+      ...e,
+      script: /\.(sql|txt)$/i.test(e.path),
+      data: DATA_FILE.test(e.path),
+    })),
   };
 }
