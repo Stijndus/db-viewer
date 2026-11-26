@@ -68,7 +68,10 @@ export class TreeMenu {
           ]),
       // Also on a read-only connection: users can be looked at there.
       ...(hasUsers(conn.type)
-        ? [{ label: 'Gebruikers beheren', run: () => this.ws.openUsers(conn.id) }]
+        ? [
+            { label: 'Gebruikers beheren', run: () => this.ws.openUsers(conn.id) },
+            { label: 'Proceslijst', run: () => this.ws.openProcesses(conn.id) },
+          ]
         : []),
       'separator',
       {

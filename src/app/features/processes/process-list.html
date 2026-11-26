@@ -1,0 +1,209 @@
+<div class="pl">
+  <div class="um-bar">
+    <h2 class="um-title">Processen</h2>
+    @if (processes()) {
+      <span class="muted small"
+        >{{ counts().total }} {{ counts().total === 1 ? 'verbinding' : 'verbindingen' }},
+        {{ counts().running }} bezig</span
+      >
+    }
+    @if (readOnly()) {
+      <span
+        class="ro-badge ro-small"
+        title="Op een alleen-lezen verbinding kun je processen alleen bekijken"
+        >Alleen-lezen</span
+      >
+    }
+    <span class="push"></span>
+    @if (note(); as n) {
+      <span class="ok-text small" role="status">{{ n }}</span>
+    }
+    <input
+      #search
+      class="input input-sm pl-search"
+      type="search"
+      placeholder="Zoeken…"
+      aria-label="Zoeken in de processen"
+      spellcheck="false"
+      [value]="query()"
+      (input)="query.set(search.value)"
+    />
+    <label class="check small">
+      <input type="checkbox" [checked]="showIdle()" (change)="showIdle.set(!showIdle())" />
+      Inactieve
+    </label>
+    <label class="check small">
+      <input
+        type="checkbox"
+        [checked]="showBackground()"
+        (change)="showBackground.set(!showBackground())"
+      />
+      Serverprocessen
+    </label>
+    <select
+      #every
+      class="input input-sm pl-every"
+      aria-label="Vanzelf vernieuwen"
+      title="Vanzelf vernieuwen zolang dit tabblad open staat"
+      (change)="setRefresh(+every.value)"
+    >
+      @for (s of refreshChoices; track s) {
+        <option [value]="s" [selected]="s === refreshEvery()">
+          {{ s ? 'Elke ' + s + ' s' : 'Niet vanzelf' }}
+        </option>
+      }
+    </select>
+    <button type="button" class="btn btn-ghost btn-sm" [disabled]="loading()" (click)="load()">
+      Vernieuwen
+    </button>
+  </div>
+
+  @if (error(); as e) {
+    <div class="um-error">
+      <div class="banner banner-error" role="alert">
+        <strong>{{ e.message }}</strong>
+        @if (e.hint) {
+          <span class="small">{{ e.hint }}</span>
+        }
+      </div>
+    </div>
+  }
+
+  @if (processes() === null && !error()) {
+    <div class="dt-empty muted">Processen laden…</div>
+  } @else if (processes()) {
+    <div class="pl-body">
+      <div class="pl-table-wrap">
+        <table class="pl-table">
+          <thead>
+            <tr>
+              <th class="num">Id</th>
+              <th>Gebruiker</th>
+              <th>Host</th>
+              <th>Database</th>
+              <th>Status</th>
+              <th class="num">Tijd</th>
+              <th>Query</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of visible(); track p.id) {
+              <tr
+                [class.active]="p.id === selectedId()"
+                [class.pl-idle]="p.idle"
+                [class.pl-own]="p.own"
+                [attr.aria-selected]="p.id === selectedId()"
+                (click)="select(p)"
+              >
+                <td class="num mono">{{ p.id }}</td>
+                <td class="mono">{{ p.user }}</td>
+                <td class="mono pl-host" [title]="p.host">{{ p.host }}</td>
+                <td class="mono">{{ p.database ?? '' }}</td>
+                <td>
+                  {{ p.state }}
+                  @if (p.own) {
+                    <span class="badge pl-badge" title="De verbinding die deze lijst leest"
+                      >deze lijst</span
+                    >
+                  }
+                  @if (p.blockedBy.length) {
+                    <span
+                      class="badge pl-badge pl-wait"
+                      [title]="'Wacht op een lock van proces ' + p.blockedBy.join(', ')"
+                      >wacht op {{ p.blockedBy.join(', ') }}</span
+                    >
+                  }
+                </td>
+                <td
+                  class="num mono"
+                  [class.warn-text]="!p.idle && !p.own && (p.seconds ?? 0) >= slow"
+                >
+                  {{ duration(p.seconds) }}
+                </td>
+                <td class="mono pl-query" [title]="p.query ?? ''">{{ oneLine(p.query) }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="muted pl-empty">
+                  {{ query() ? 'Niets gevonden.' : 'Geen lopende queries.' }}
+                  @if (hidden() > 0 && !showIdle()) {
+                    <button type="button" class="link-btn small" (click)="showIdle.set(true)">
+                      Inactieve verbindingen tonen
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (selected(); as p) {
+        <section class="pl-detail" aria-label="Proces">
+          <div class="pl-detail-head">
+            <strong>Proces {{ p.id }}</strong>
+            <span class="muted small mono"
+              >{{ p.user }} · {{ p.host || 'lokaal' }}{{ p.database ? ' · ' + p.database : ''
+              }}{{ p.program ? ' · ' + p.program : '' }}</span
+            >
+            <span class="push"></span>
+            @if (p.query) {
+              <button type="button" class="btn btn-ghost btn-sm" (click)="copy(p)">Kopiëren</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="openInSql(p)">
+                In SQL-tabblad
+              </button>
+            }
+            @if (canCancel()) {
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                [disabled]="p.own || p.idle || readOnly()"
+                [title]="
+                  readOnly()
+                    ? 'Niet op een alleen-lezen verbinding'
+                    : p.idle
+                      ? 'Er loopt geen query'
+                      : 'Alleen de query stoppen; de verbinding blijft'
+                "
+                (click)="stop(p, 'cancel')"
+              >
+                Query stoppen
+              </button>
+            }
+            <button
+              type="button"
+              class="btn btn-danger-ghost btn-sm"
+              [disabled]="p.own || readOnly()"
+              [title]="
+                p.own
+                  ? 'Dit is de verbinding van deze lijst'
+                  : readOnly()
+                    ? 'Niet op een alleen-lezen verbinding'
+                    : 'De verbinding verbreken (KILL)'
+              "
+              (click)="stop(p, 'kill')"
+            >
+              {{ dialect() === 'mssql' ? 'Sessie beëindigen' : 'Verbinding verbreken' }}
+            </button>
+          </div>
+          @if (p.query) {
+            <pre class="pl-sql mono">{{ p.query }}</pre>
+          } @else {
+            <p class="muted small">Geen query.</p>
+          }
+        </section>
+      } @else if (selectedId()) {
+        <p class="muted small pl-gone">Proces {{ selectedId() }} bestaat niet meer.</p>
+      }
+
+      <div class="pl-foot muted small">
+        @if (at(); as a) {
+          Bijgewerkt om {{ time(a) }}
+        }
+        @if (hidden() > 0) {
+          · {{ hidden() }} verborgen
+        }
+      </div>
+    </div>
+  }
+</div>

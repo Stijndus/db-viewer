@@ -9,7 +9,8 @@ export type WorkspaceTab =
   | { id: string; kind: 'table'; database: string; name: string; objectKind: ObjectKind }
   | { id: string; kind: 'sql' }
   | { id: string; kind: 'diagram'; database: string }
-  | { id: string; kind: 'users' };
+  | { id: string; kind: 'users' }
+  | { id: string; kind: 'processes' };
 
 interface Saved {
   tabs: WorkspaceTab[];
@@ -113,6 +114,14 @@ export class WorkspaceStore {
     const existing = this.tabsOf(connectionId).find((t) => t.kind === 'users');
     if (existing) return this.activate(connectionId, existing.id);
     this.insert(connectionId, { id: newId(), kind: 'users' });
+  }
+
+  /** The server's process list, in its own tab (one per connection). */
+  openProcesses(connectionId: string): void {
+    this.restore(connectionId);
+    const existing = this.tabsOf(connectionId).find((t) => t.kind === 'processes');
+    if (existing) return this.activate(connectionId, existing.id);
+    this.insert(connectionId, { id: newId(), kind: 'processes' });
   }
 
   /** The ER diagram of a database, in its own tab (one per database). */
@@ -368,8 +377,8 @@ export class WorkspaceStore {
       if (t?.kind === 'sql' && sqlIds.has(t.id)) {
         tabs.push({ id: t.id, kind: 'sql' });
         sqlIds.delete(t.id);
-      } else if (t?.kind === 'users') {
-        tabs.push({ id: String(t.id), kind: 'users' });
+      } else if (t?.kind === 'users' || t?.kind === 'processes') {
+        tabs.push({ id: String(t.id), kind: t.kind });
       } else if (t?.kind === 'diagram' && typeof t.database === 'string') {
         tabs.push({ id: String(t.id), kind: 'diagram', database: t.database });
       } else if (

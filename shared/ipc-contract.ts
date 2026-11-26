@@ -1,3 +1,4 @@
+import type { ProcessAction, ProcessList } from './process-list';
 import type { DbUserRef, DbUserSummary, UserChange, UserDetails } from './user-sql';
 import type { ApplyResult, ChangeSet } from './changes';
 import type {
@@ -55,6 +56,8 @@ export const IPC = {
   listUsers: 'users:list',
   userDetails: 'users:details',
   applyUserChanges: 'users:apply',
+  listProcesses: 'processes:list',
+  stopProcess: 'processes:stop',
   readRows: 'data:rows',
   countRows: 'data:count',
   applyChanges: 'data:apply',
@@ -159,6 +162,10 @@ export interface DbApi {
   objectAction(connectionId: string, action: ObjectAction): Promise<Result<void>>;
   /** The server's users (MySQL accounts, PostgreSQL roles, SQL Server logins). */
   listUsers(connectionId: string): Promise<Result<DbUserSummary[]>>;
+  /** Connections and running queries on the server (not SQLite). */
+  listProcesses(connectionId: string): Promise<Result<ProcessList>>;
+  /** Stops a process's query, or ends its connection (refused on a read-only connection). */
+  stopProcess(connectionId: string, action: ProcessAction, id: string): Promise<Result<void>>;
   userDetails(connectionId: string, user: DbUserRef): Promise<Result<UserDetails>>;
   /** Runs the changes in order; refused on a read-only connection. */
   applyUserChanges(connectionId: string, changes: UserChange[]): Promise<Result<void>>;

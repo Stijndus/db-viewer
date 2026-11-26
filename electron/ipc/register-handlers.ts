@@ -35,6 +35,8 @@ import type { Updater } from '../updater';
 import type { HistoryStore } from '../store/history-store';
 import { applyUserChanges, listUsers, userDetails } from '../db/users';
 import { hasUsers } from '../../shared/user-sql';
+import { hasProcesses } from '../../shared/process-list';
+import { listProcesses, stopProcess } from '../db/processes';
 import { AppError, toDbError } from './errors';
 import {
   cellKeySchema,
@@ -476,6 +478,29 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
       throw new AppError('NOT_SUPPORTED', 'SQLite heeft geen gebruikers.');
     return { dialect: profile.type, readOnly: profile.readOnly };
   };
+  // The server's process list (not SQLite).
+  const processDialect = async (id: string) => {
+    const profile = await store.get(id);
+    if (!hasProcesses(profile.type))
+      throw new AppError('NO_PROCESSES', 'SQLite heeft geen proceslijst.');
+    return { dialect: profile.type, readOnly: profile.readOnly };
+  };
+  handle(IPC.listProcesses, async (rawId) => {
+    const id = idSchema.parse(rawId);
+    const { dialect } = await processDialect(id);
+    return listProcesses(manager.session(id), dialect);
+  });
+  handle(IPC.stopProcess, async (rawId, rawAction, rawPid) => {
+    const id = idSchema.parse(rawId);
+    const action = z.enum(['cancel', 'kill']).parse(rawAction);
+    const pid = z
+      .string()
+      .regex(/^\d{1,10}$/)
+      .parse(rawPid);
+    const { dialect, readOnly } = await processDialect(id);
+    await stopProcess(manager.session(id), dialect, readOnly, action, pid);
+  });
+
   handle(IPC.listUsers, async (rawId) => {
     const id = idSchema.parse(rawId);
     const { dialect } = await userDialect(id);

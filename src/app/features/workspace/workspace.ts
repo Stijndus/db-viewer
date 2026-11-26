@@ -12,6 +12,7 @@ import type { ConnectionProfile } from '../../../../shared/models';
 import { ConnectionHome } from '../schema/connection-home/connection-home';
 import { ErDiagram } from '../schema/er-diagram/er-diagram';
 import { UserManager } from '../users/user-manager';
+import { ProcessListView } from '../processes/process-list';
 import { hasUsers } from '../../../../shared/user-sql';
 import { ObjectView } from '../schema/object-view/object-view';
 import { SchemaStore, type SelectedObject } from '../schema/schema.store';
@@ -30,7 +31,7 @@ interface TabMenu {
 /** Main area of an open connection: one tab bar for tables and SQL, and the active tab below it. */
 @Component({
   selector: 'app-workspace',
-  imports: [ObjectView, ConnectionHome, SqlPanel, ErDiagram, UserManager],
+  imports: [ObjectView, ConnectionHome, SqlPanel, ErDiagram, UserManager, ProcessListView],
   templateUrl: './workspace.html',
   host: {
     '(window:keydown)': 'onKeydown($event)',
@@ -74,6 +75,7 @@ export class Workspace {
     if (tab.kind === 'table') return tab.name;
     if (tab.kind === 'diagram') return `ER: ${tab.database}`;
     if (tab.kind === 'users') return 'Gebruikers';
+    if (tab.kind === 'processes') return 'Processen';
     return this.sqlTab(tab)?.title ?? 'SQL';
   }
 

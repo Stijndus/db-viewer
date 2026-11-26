@@ -173,6 +173,13 @@ export class App implements OnInit {
       this.ws.openUsers(conn.id);
       return true;
     });
+    keys.handle('schema.processes', () => {
+      const conn = this.store.active();
+      if (!conn || this.store.statusOf(conn.id) !== 'connected' || conn.type === 'sqlite')
+        return false;
+      this.ws.openProcesses(conn.id);
+      return true;
+    });
     keys.handle('connections.next', () => this.ws.switchBy(1));
     keys.handle('connections.previous', () => this.ws.switchBy(-1));
     keys.handle('connections.overview', () => {

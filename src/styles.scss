@@ -3342,3 +3342,133 @@ textarea.rd-input {
   background: var(--accent-soft, var(--panel-2));
   color: var(--accent);
 }
+
+/* Process list */
+app-process-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.pl {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.pl .um-bar {
+  flex-wrap: wrap;
+}
+.pl-search {
+  width: 200px;
+}
+.pl-every {
+  width: auto;
+}
+.pl-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.pl-table-wrap {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+}
+.pl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.pl-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel-2);
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-2);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pl-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: top;
+}
+.pl-table .num {
+  text-align: right;
+}
+.pl-table tbody tr {
+  cursor: default;
+}
+.pl-table tbody tr:hover {
+  background: var(--panel-2);
+}
+.pl-table tbody tr.active {
+  background: var(--accent-soft);
+}
+.pl-table tr.pl-idle td {
+  color: var(--text-3);
+}
+.pl-host {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-query {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-badge {
+  margin-left: 6px;
+}
+.pl-wait {
+  color: var(--warn-text);
+}
+.pl-empty {
+  text-align: center;
+  padding: 24px !important;
+}
+.pl-detail {
+  border-top: 1px solid var(--border);
+  padding: 12px 20px 14px;
+  max-height: 40%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.pl-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pl-detail-head .push {
+  flex: 1;
+}
+.pl-sql {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12.5px;
+  min-height: 0;
+}
+.pl-gone {
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+}
+.pl-foot {
+  padding: 6px 20px;
+  border-top: 1px solid var(--border);
+}
