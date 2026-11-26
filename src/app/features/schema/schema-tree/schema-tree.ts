@@ -1,3 +1,4 @@
+import { ConnectionTools } from '../../workspace/connection-tools';
 import {
   Component,
   computed,
@@ -63,6 +64,7 @@ const GROUPS: { id: GroupId; label: string; kinds: ObjectKind[] }[] = [
 /** Sidebar tree of the active connection: databases → tables/views/routines → columns. */
 @Component({
   selector: 'app-schema-tree',
+  imports: [ConnectionTools],
   templateUrl: './schema-tree.html',
 })
 export class SchemaTree {

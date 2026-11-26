@@ -13,7 +13,6 @@ import { ConnectionHome } from '../schema/connection-home/connection-home';
 import { ErDiagram } from '../schema/er-diagram/er-diagram';
 import { UserManager } from '../users/user-manager';
 import { ProcessListView } from '../processes/process-list';
-import { hasUsers } from '../../../../shared/user-sql';
 import { ObjectView } from '../schema/object-view/object-view';
 import { SchemaStore, type SelectedObject } from '../schema/schema.store';
 import { SqlPanel } from '../sql/sql-panel/sql-panel';
@@ -45,8 +44,6 @@ export class Workspace {
   protected readonly sql = inject(SqlStore);
   protected readonly transfer = inject(TransferStore);
   protected readonly keys = inject(KeybindingsStore);
-  /** SQLite has no users. */
-  protected readonly hasUsers = computed(() => hasUsers(this.connection().type));
   private readonly schema = inject(SchemaStore);
 
   constructor() {
@@ -85,14 +82,6 @@ export class Workspace {
     return this.ws
       .tabs()
       .some((t) => t.kind === 'table' && t.name === tab.name && t.database !== tab.database);
-  }
-
-  /** Into the table of the active tab, when that is a table. */
-  protected openDataImport(): void {
-    const tab = this.ws.active();
-    if (tab?.kind === 'table' && tab.objectKind === 'table') {
-      this.transfer.openDataImport(this.connection().id, tab.database, tab.name);
-    } else this.transfer.openDataImport(this.connection().id);
   }
 
   protected activate(tab: WorkspaceTab): void {
@@ -143,27 +132,6 @@ export class Workspace {
   protected hasTabsRight(tab: WorkspaceTab): boolean {
     const tabs = this.ws.tabs();
     return tabs.findIndex((t) => t.id === tab.id) < tabs.length - 1;
-  }
-
-  /** Export a database as SQL: the one of the active table, else the profile's own. */
-  protected exportDatabase(): void {
-    const conn = this.connection();
-    const active = this.ws.active();
-    const state = this.schema.databases(conn.id);
-    const names =
-      state?.status === 'loaded' ? state.data.filter((d) => !d.system).map((d) => d.name) : [];
-    const preferred = [
-      active?.kind === 'table' ? active.database : '',
-      conn.type === 'sqlite' ? 'main' : conn.database,
-      conn.type === 'postgres' ? 'public' : conn.type === 'mssql' ? 'dbo' : '',
-    ].find((d) => d && names.includes(d));
-    const database = preferred ?? names[0] ?? '';
-    this.transfer.openExport({
-      connectionId: conn.id,
-      title: conn.name,
-      baseName: database || conn.name,
-      source: { kind: 'database', database, tables: [], structure: true, data: true },
-    });
   }
 
   /** Escape closes the tab menu; the tab keys (Ctrl+Tab, Ctrl+T, …) are commands. */

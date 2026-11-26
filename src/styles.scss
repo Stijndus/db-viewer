@@ -2409,32 +2409,17 @@ app-object-view [hidden] {
 .err-text {
   color: var(--err-text);
 }
-.ws-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  margin-left: 4px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
+/* Connection actions: a row of icons under the schema heading. */
+.conn-tools {
+  display: flex;
+  gap: 2px;
+  margin: -4px 0 8px -6px;
+}
+.conn-tools .conn-tool {
   color: var(--text-2);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  white-space: nowrap;
 }
-.ws-tool:hover {
-  background: var(--panel-2);
+.conn-tools .conn-tool:hover {
   color: var(--text);
-}
-.ws-tabs .push {
-  margin-left: auto;
-}
-.ws-tabs .ws-tool {
-  align-self: center;
-  flex-shrink: 0;
 }
 .table-pick {
   max-height: 240px;

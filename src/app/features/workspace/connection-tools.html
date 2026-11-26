@@ -1,0 +1,116 @@
+<div class="conn-tools" role="toolbar" aria-label="Verbinding">
+  @if (hasUsers()) {
+    <button
+      type="button"
+      class="icon-btn borderless conn-tool"
+      [title]="
+        'Gebruikers en rechten van deze server beheren' +
+        (keys.keyLabel('schema.users') ? ' (' + keys.keyLabel('schema.users') + ')' : '')
+      "
+      aria-label="Gebruikers"
+      (click)="ws.openUsers(connection().id)"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="9" cy="8" r="4" />
+        <path
+          d="M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M16 4a4 4 0 0 1 0 8M22 21v-1a6 6 0 0 0-4-5.6"
+        />
+      </svg>
+    </button>
+    <button
+      type="button"
+      class="icon-btn borderless conn-tool"
+      title="Lopende queries en verbindingen op de server"
+      aria-label="Processen"
+      (click)="ws.openProcesses(connection().id)"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 12h4l3-8 4 16 3-8h4" />
+      </svg>
+    </button>
+  }
+  <button
+    type="button"
+    class="icon-btn borderless conn-tool"
+    title="Tabellen van een database exporteren als SQL-script"
+    aria-label="Exporteren"
+    (click)="exportDatabase()"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 15V3M7 8l5-5 5 5M5 21h14" />
+    </svg>
+  </button>
+  <button
+    type="button"
+    class="icon-btn borderless conn-tool"
+    title="Een .sql-, .sql.gz-, .zip- of .7z-bestand uitvoeren op deze verbinding"
+    aria-label="SQL importeren"
+    (click)="transfer.openImport(connection().id)"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+    </svg>
+  </button>
+  <button
+    type="button"
+    class="icon-btn borderless conn-tool"
+    title="Een CSV-, JSON- of Excel-bestand in een tabel laden"
+    aria-label="Data importeren"
+    (click)="openDataImport()"
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 10h18M9 4v16" />
+    </svg>
+  </button>
+</div>
