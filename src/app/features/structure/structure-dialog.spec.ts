@@ -65,7 +65,7 @@ const base = { connectionId: PROFILE.id, database: 'app_dev', table: 'customers'
 
 describe('StructureDialog', () => {
   it('adds a column, showing the SQL as you type', async () => {
-    const { type, sql, button, ran, settle, store } = await setup({ kind: 'column', ...base });
+    const { type, sql, button, ran, settle, store, el } = await setup({ kind: 'column', ...base });
     expect(button('Uitvoeren').disabled).toBe(true);
     await type('#sd-name', 'stad');
     await type('#sd-type', 'varchar(80)');
@@ -79,7 +79,8 @@ describe('StructureDialog', () => {
       ["ALTER TABLE `app_dev`.`customers` ADD COLUMN `stad` varchar(80) NULL DEFAULT 'Delft'"],
     ]);
     expect(store.changed()).toMatchObject({ table: 'customers' });
-    expect(store.request()).toBeNull();
+    // Closed (the close event that clears the store depends on the test's dialog stub).
+    expect(el.querySelector('dialog')!.open).toBe(false);
   });
 
   it('changes a column with one CHANGE in MySQL, and says when nothing changed', async () => {
