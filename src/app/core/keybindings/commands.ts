@@ -105,6 +105,7 @@ export const COMMANDS: CommandInfo[] = [
   { id: 'data.selectAll', title: 'Alles selecteren', category: 'Data' },
   { id: 'data.exportRows', title: 'Rijen exporteren naar klembord…', category: 'Data' },
   { id: 'data.editPopup', title: 'Cel bewerken in venster…', category: 'Data' },
+  { id: 'data.rowDetail', title: 'Rijdetail tonen of verbergen', category: 'Data' },
 ];
 
 const H: BindingSource = 'HeidiSQL';
@@ -194,6 +195,7 @@ export const DEFAULT_BINDINGS: DefaultBinding[] = [
     source: H,
   },
   { key: 'ctrl+a', command: 'data.selectAll', when: 'gridFocus', source: H },
+  { key: 'alt+enter', command: 'data.rowDetail', when: 'gridFocus', source: D },
   { key: 'ctrl+shift+c', command: 'data.exportRows', when: 'gridFocus', source: H },
   { key: 'shift+f2', command: 'data.editPopup', when: 'gridFocus', source: D },
 ];

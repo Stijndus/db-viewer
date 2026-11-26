@@ -19,6 +19,10 @@ import { ContextMenuStore, type MenuEntry } from '../../../core/context-menu/con
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { COPY_FORMAT_LABELS, formatBlock, incompleteCount, type CopyFormat } from './copy-formats';
 import { DB_API } from '../../../core/db-api';
+import { RowDetail } from './row-detail';
+import { viewOf, type CellView } from './cell-view';
+
+export { viewOf } from './cell-view';
 import { CellEditor, type CellEditorRequest } from './cell-editor';
 import { looksLikeJson } from './json-text';
 import { nowFor, typeCategory } from './column-types';
@@ -81,12 +85,6 @@ interface Editing {
   row: number;
   col: number;
   draft: string;
-}
-
-interface CellView {
-  text: string;
-  cls: string;
-  title: string | null;
 }
 
 export const ROW_HEIGHT = 30;
@@ -168,7 +166,7 @@ const OVERSCAN = 12;
 @Component({
   selector: 'app-data-grid',
   templateUrl: './data-grid.html',
-  imports: [CellEditor],
+  imports: [CellEditor, RowDetail],
 })
 export class DataGrid {
   readonly columns = input.required<GridColumn[]>();
@@ -237,6 +235,55 @@ export class DataGrid {
   protected readonly keys = inject(KeybindingsStore);
   private readonly api = inject(DB_API);
   protected readonly editing = signal<Editing | null>(null);
+
+  // ── Row detail (the selected row as a form, beside the grid) ────────
+  /** Open or closed for every grid, remembered between sessions. */
+  readonly detailOpen = signal(readDetailOpen());
+  protected readonly detailRow = computed(() => {
+    const s = this.selected();
+    return s ? (this.rows()[s.row] ?? null) : null;
+  });
+  protected readonly detailEdited = computed(() => {
+    const s = this.selected();
+    const cols = new Set<number>();
+    if (!s) return cols;
+    const prefix = `${s.row}:`;
+    for (const key of this.editedCells())
+      if (key.startsWith(prefix)) cols.add(Number(key.slice(prefix.length)));
+    return cols;
+  });
+  protected readonly detailCanEdit = computed(() => {
+    const s = this.selected();
+    // Read the inputs here, so the panel updates when they change.
+    this.rows();
+    this.rowMarks();
+    this.editable();
+    return (col: number) => (s ? this.canEdit(s.row, col) : false);
+  });
+
+  toggleDetail(open = !this.detailOpen()): void {
+    this.detailOpen.set(open);
+    try {
+      localStorage.setItem(DETAIL_KEY, open ? '1' : '0');
+    } catch {
+      // Not remembered.
+    }
+    if (open && !this.selected() && this.rows().length > 0) this.setSelected(0, 0);
+    if (!open) this.scroller().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected onDetailEdited(e: { col: number; value: string | null }): void {
+    const s = this.selected();
+    if (s) this.cellEdited.emit({ row: s.row, col: e.col, value: e.value });
+  }
+
+  protected onDetailMove(step: 1 | -1): void {
+    const s = this.selected();
+    if (!s) return;
+    const row = Math.max(0, Math.min(this.rows().length - 1, s.row + step));
+    this.setSelected(row, s.col);
+    this.scrollIntoView(row, s.col);
+  }
   private readonly editor = viewChild<ElementRef<HTMLInputElement>>('editor');
   private readonly injector = inject(Injector);
 
@@ -317,10 +364,16 @@ export class DataGrid {
       const key = this.pageKey();
       if (key === undefined) this.rows();
       untracked(() => {
+        // With the row detail open, the same row stays chosen (after saving, the page reloads).
+        const keep = this.detailOpen() ? this.selected() : null;
         this.editing.set(null);
         this.selected.set(null);
         this.anchor.set(null);
         this.selectionChange.emit(null);
+        if (keep && keep.row < this.rows().length) {
+          this.setSelected(keep.row, keep.col);
+          return;
+        }
         this.scrollTop.set(0);
         const el = this.scroller()?.nativeElement;
         if (el) el.scrollTop = 0;
@@ -858,6 +911,11 @@ export class DataGrid {
       'separator',
       ...(extra.view ?? []),
       { label: 'Zoeken…', shortcut: key('data.find'), run: () => this.openFind() },
+      {
+        label: this.detailOpen() ? 'Rijdetail verbergen' : 'Rijdetail tonen',
+        shortcut: key('data.rowDetail'),
+        run: () => this.toggleDetail(),
+      },
       'separator',
       {
         label: rows === 1 ? 'Rij exporteren…' : `${rows} rijen exporteren…`,
@@ -958,6 +1016,7 @@ export class DataGrid {
     on('data.find', () => this.openFind());
     on('data.selectAll', () => this.selectAll());
     on('data.exportRows', () => (this.selected() ? this.emitExport(true) : false));
+    on('data.rowDetail', () => this.toggleDetail());
     on('data.editPopup', () => {
       const s = this.selected();
       if (!s) return false;
@@ -1104,35 +1163,14 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-export function viewOf(cell: GridCell): CellView {
-  if (cell === null) return { text: 'NULL', cls: 'is-null', title: null };
-  if (typeof cell === 'object' && cell.kind === 'default') {
-    return { text: 'DEFAULT', cls: 'is-default', title: 'Krijgt de standaardwaarde van de kolom' };
+const DETAIL_KEY = 'dbv.rowDetail';
+
+function readDetailOpen(): boolean {
+  try {
+    return localStorage.getItem(DETAIL_KEY) === '1';
+  } catch {
+    return false;
   }
-  if (typeof cell === 'object' && cell.kind === 'sql') {
-    return {
-      text: cell.label ?? cell.sql,
-      cls: 'is-sql',
-      title: `Wordt bij opslaan: ${cell.sql.slice(0, 200)}`,
-    };
-  }
-  if (typeof cell === 'string') {
-    if (cell === '') return { text: "''", cls: 'is-empty', title: 'Lege tekst' };
-    return { text: cell, cls: '', title: cell.length > 30 ? cell.slice(0, 500) : null };
-  }
-  if (cell.kind === 'binary') {
-    const more = cell.bytes * 2 > cell.hex.length ? '…' : '';
-    return {
-      text: `0x${cell.hex.toUpperCase()}${more}`,
-      cls: 'is-binary',
-      title: `Binair, ${cell.bytes} ${cell.bytes === 1 ? 'byte' : 'bytes'}`,
-    };
-  }
-  return {
-    text: cell.text,
-    cls: 'is-truncated',
-    title: `Lange tekst: ${cell.length.toLocaleString('nl-NL')} tekens, eerste ${cell.text.length.toLocaleString('nl-NL')} getoond`,
-  };
 }
 
 /** What Ctrl+C puts on the clipboard for one cell. */

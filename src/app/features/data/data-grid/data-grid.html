@@ -242,6 +242,26 @@
     </div>
   </div>
 </div>
+@if (detailOpen()) {
+  <app-row-detail
+    [columns]="columns()"
+    [row]="detailRow()"
+    [index]="selected()?.row ?? null"
+    [count]="rows().length"
+    [rowOffset]="rowOffset()"
+    [mark]="selected() ? (rowMarks()[selected()!.row] ?? null) : null"
+    [editedCols]="detailEdited()"
+    [categories]="categories()"
+    [canEdit]="detailCanEdit()"
+    [links]="links()"
+    [activeCol]="selected()?.col ?? null"
+    (edited)="onDetailEdited($event)"
+    (openEditor)="openPopup(selected()!.row, $event)"
+    (follow)="followLink.emit({ row: selected()!.row, col: $event })"
+    (move)="onDetailMove($event)"
+    (closed)="toggleDetail(false)"
+  />
+}
 @if (popup(); as p) {
   <!-- The editor (CodeMirror) loads the first time it is needed. -->
   @defer (on immediate) {

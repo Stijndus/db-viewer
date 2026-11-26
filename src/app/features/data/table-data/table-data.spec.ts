@@ -664,3 +664,102 @@ describe('TableData foreign keys', () => {
     expect(schema.whereRequest()).toBeNull();
   });
 });
+
+describe('TableData row detail', () => {
+  async function withDetail(overrides: Partial<DbApi> = {}) {
+    localStorage.removeItem('dbv.rowDetail');
+    const applied: Parameters<DbApi['applyChanges']>[3][] = [];
+    const ctx = await setup({
+      ...overrides,
+      applyChanges: async (_c, _d, _t, changes) => {
+        applied.push(changes);
+        return { ok: true, data: { deleted: 0, updated: changes.updates.length, inserted: 0 } };
+      },
+    });
+    const cell = (row: number, col: number) =>
+      ctx.el.querySelectorAll('.dg-row')[row]!.querySelectorAll<HTMLElement>('.dg-cell')[col]!;
+    const field = (name: string) =>
+      Array.from(ctx.el.querySelectorAll<HTMLElement>('.rd-field')).find((f) =>
+        f.querySelector('.rd-name')?.textContent?.trim().endsWith(name),
+      )!;
+    return { ...ctx, applied, cell, field };
+  }
+
+  it('shows the selected row as a form and follows the selection', async () => {
+    const { el, button, settle, cell, field } = await withDetail();
+    button('Rijdetail').click();
+    await settle();
+    // Opens on the first row when nothing was selected.
+    expect(el.querySelector('.rd-title')?.textContent?.trim()).toBe('Rij 1');
+    expect(field('email').querySelector('input')!.value).toBe('user1@example.com');
+    cell(6, 1).dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    await settle();
+    expect(el.querySelector('.rd-title')?.textContent?.trim()).toBe('Rij 7');
+    // NULL shows as a placeholder, with a field you can type in.
+    const status = field('status').querySelector('input')!;
+    expect(status.value).toBe('');
+    expect(status.placeholder).toBe('NULL');
+    expect(field('email').classList).toContain('rd-active');
+    expect(localStorage.getItem('dbv.rowDetail')).toBe('1');
+  });
+
+  it('edits like the grid: into the pending changes, saved with Opslaan', async () => {
+    const { el, button, settle, cell, field, applied } = await withDetail();
+    button('Rijdetail').click();
+    await settle();
+    const email = field('email').querySelector('input')!;
+    email.dispatchEvent(new Event('focus'));
+    email.value = 'nieuw@example.com';
+    email.dispatchEvent(new Event('input'));
+    await settle();
+    expect(cell(0, 1).textContent?.trim()).toBe('nieuw@example.com');
+    expect(cell(0, 1).classList).toContain('edited');
+    expect(field('email').classList).toContain('rd-edited');
+    // The primary key (auto increment) can be edited in the grid too: same rule here.
+    expect(field('id').querySelector('input')).not.toBeNull();
+    // NULL button, and Esc undoes typing that was not applied.
+    Array.from(field('email').querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'NULL')!
+      .click();
+    await settle();
+    expect(cell(0, 1).textContent?.trim()).toBe('NULL');
+    button('Volgende rij').click();
+    await settle();
+    expect(el.querySelector('.rd-title')?.textContent?.trim()).toBe('Rij 2');
+    const email2 = field('email').querySelector('input')!;
+    email2.dispatchEvent(new Event('focus'));
+    email2.value = 'weg';
+    email2.dispatchEvent(new Event('input'));
+    await settle();
+    // Typing goes straight into the pending changes; Esc puts the old value back.
+    expect(cell(1, 1).textContent?.trim()).toBe('weg');
+    field('email')
+      .querySelector('input')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+    expect(cell(1, 1).textContent?.trim()).toBe('user2@example.com');
+    expect(el.querySelector('.change-count')?.textContent).toContain('1 wijziging');
+    button('Opslaan').click();
+    await settle();
+    expect(applied[0]?.updates).toEqual([{ key: { id: '1' }, values: { email: null } }]);
+    // After saving the page reloads; the panel stays on the same row.
+    expect(el.querySelector('.rd-title')?.textContent?.trim()).toBe('Rij 2');
+  });
+
+  it('filters the fields by name and closes', async () => {
+    const { el, button, settle } = await withDetail();
+    button('Rijdetail').click();
+    await settle();
+    const search = el.querySelector<HTMLInputElement>('.rd-filter')!;
+    search.value = 'stat';
+    search.dispatchEvent(new Event('input'));
+    await settle();
+    expect(Array.from(el.querySelectorAll('.rd-name')).map((n) => n.textContent?.trim())).toEqual([
+      'status',
+    ]);
+    button('Rijdetail sluiten').click();
+    await settle();
+    expect(el.querySelector('.rd')).toBeNull();
+    expect(localStorage.getItem('dbv.rowDetail')).toBe('0');
+  });
+});

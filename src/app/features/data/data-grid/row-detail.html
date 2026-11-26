@@ -1,0 +1,170 @@
+<aside class="rd" aria-label="Rijdetail">
+  <div class="rd-head">
+    <strong class="rd-title">
+      @if (number() !== null) {
+        Rij {{ number()!.toLocaleString('nl-NL') }}
+      } @else {
+        Rijdetail
+      }
+    </strong>
+    @if (mark() === 'new') {
+      <span class="badge rd-badge">nieuw</span>
+    } @else if (mark() === 'deleted') {
+      <span class="badge rd-badge rd-deleted">wordt verwijderd</span>
+    }
+    <span class="push"></span>
+    <button
+      type="button"
+      class="icon-btn borderless"
+      aria-label="Vorige rij"
+      title="Vorige rij"
+      [disabled]="index() === null || index() === 0"
+      (click)="move.emit(-1)"
+    >
+      ↑
+    </button>
+    <button
+      type="button"
+      class="icon-btn borderless"
+      aria-label="Volgende rij"
+      title="Volgende rij"
+      [disabled]="index() === null || index()! >= count() - 1"
+      (click)="move.emit(1)"
+    >
+      ↓
+    </button>
+    <button
+      type="button"
+      class="icon-btn borderless"
+      aria-label="Rijdetail sluiten"
+      title="Sluiten"
+      (click)="closed.emit()"
+    >
+      ✕
+    </button>
+  </div>
+
+  @if (row()) {
+    <input
+      #search
+      class="input input-sm rd-filter"
+      type="search"
+      placeholder="Kolom zoeken…"
+      aria-label="Kolom zoeken"
+      spellcheck="false"
+      [value]="filter()"
+      (input)="filter.set(search.value)"
+    />
+    <div class="rd-fields">
+      @for (f of fields(); track f.col) {
+        <div
+          class="rd-field"
+          [class.rd-active]="f.col === activeCol()"
+          [class.rd-edited]="f.edited"
+        >
+          <div class="rd-label">
+            <label class="rd-name mono" [for]="'rd-' + f.col" [title]="f.column.name">
+              @if (f.column.primary) {
+                <span class="rd-key" title="Primaire sleutel" aria-label="sleutel">🔑</span>
+              }
+              {{ f.column.name }}
+            </label>
+            <span class="rd-type mono">{{ f.column.type }}</span>
+            @if (f.edited) {
+              <span class="rd-dot" title="Gewijzigd, nog niet opgeslagen"></span>
+            }
+            <div class="rd-actions">
+              @if (nowValue(f); as now) {
+                <button
+                  type="button"
+                  class="link-btn small"
+                  [title]="'Huidige tijd: ' + now"
+                  (click)="setNow(f)"
+                >
+                  Nu
+                </button>
+              }
+              @if (f.editable && f.cell !== null) {
+                <button
+                  type="button"
+                  class="link-btn small"
+                  title="Op NULL zetten"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="setNull(f)"
+                >
+                  NULL
+                </button>
+              }
+              @if (f.cls !== 'is-binary') {
+                <button
+                  type="button"
+                  class="link-btn small"
+                  [title]="f.editable ? 'Bewerken in venster (met JSON)' : 'Bekijken in venster'"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="openEditor.emit(f.col)"
+                >
+                  {{ f.editable ? 'Venster' : 'Bekijken' }}
+                </button>
+              }
+              @if (f.link) {
+                <button
+                  type="button"
+                  class="link-btn small rd-link"
+                  [title]="'Naar de gekoppelde rij in ' + f.link"
+                  (click)="follow.emit(f.col)"
+                >
+                  → {{ f.link }}
+                </button>
+              }
+            </div>
+          </div>
+          <div class="rd-value-row">
+            @if (f.editable) {
+              @if (f.multiline) {
+                <textarea
+                  #ta
+                  [id]="'rd-' + f.col"
+                  [class]="'input mono rd-input ' + f.cls"
+                  [rows]="rows(f)"
+                  [value]="f.text"
+                  [placeholder]="f.placeholder"
+                  spellcheck="false"
+                  (input)="onInput(f, ta.value)"
+                  (keydown)="onKey(f, $event)"
+                  (focus)="onFocus(f)"
+                ></textarea>
+              } @else {
+                <input
+                  #inp
+                  [id]="'rd-' + f.col"
+                  [class]="'input mono rd-input ' + f.cls"
+                  [value]="f.text"
+                  [placeholder]="f.placeholder"
+                  spellcheck="false"
+                  autocomplete="off"
+                  (input)="onInput(f, inp.value)"
+                  (keydown)="onKey(f, $event)"
+                  (focus)="onFocus(f)"
+                />
+              }
+            } @else {
+              <div
+                class="rd-readonly mono"
+                [id]="'rd-' + f.col"
+                [class]="'rd-readonly mono ' + f.cls"
+                [class.rd-multi]="f.multiline"
+                [title]="f.cls === 'is-truncated' ? 'Ingekort; openen in venster toont alles' : ''"
+              >
+                {{ f.text || f.placeholder }}
+              </div>
+            }
+          </div>
+        </div>
+      } @empty {
+        <p class="muted small rd-empty">Geen kolom gevonden.</p>
+      }
+    </div>
+  } @else {
+    <p class="muted small rd-empty">Kies een cel in het grid om die rij hier te zien.</p>
+  }
+</aside>

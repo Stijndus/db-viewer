@@ -188,7 +188,8 @@ export class KeybindingsStore {
     const ctx: Context = {
       editorFocus: inEditor,
       inputFocus: isInput,
-      gridFocus: !isInput && !!active?.closest('app-data-grid'),
+      // The row detail panel sits inside the grid but is a form, not the grid.
+      gridFocus: !isInput && !!active?.closest('app-data-grid') && !active?.closest('.rd'),
       treeFocus: !isInput && !!active?.closest('app-schema-tree'),
     };
     for (const provide of this.contextProviders) Object.assign(ctx, provide());

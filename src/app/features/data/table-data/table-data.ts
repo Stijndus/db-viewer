@@ -114,6 +114,11 @@ export class TableData {
   private readonly schema = inject(SchemaStore);
   protected readonly keys = inject(KeybindingsStore);
   private readonly grid = viewChild(DataGrid);
+  protected readonly detailOpen = computed(() => this.grid()?.detailOpen() ?? false);
+
+  protected toggleDetail(): void {
+    this.grid()?.toggleDetail();
+  }
   private readonly sqlDialog = viewChild<ElementRef<HTMLDialogElement>>('sqlDialog');
 
   protected readonly pageSizes = PAGE_SIZES;

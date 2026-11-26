@@ -44,6 +44,16 @@
   >
     Exporteren…
   </button>
+  <button
+    type="button"
+    class="btn btn-ghost btn-sm"
+    [class.is-on]="detailOpen()"
+    [attr.aria-pressed]="detailOpen()"
+    [title]="'De geselecteerde rij als formulier ernaast (' + keys.keyLabel('data.rowDetail') + ')'"
+    (click)="toggleDetail()"
+  >
+    Rijdetail
+  </button>
 </form>
 
 @if (editState().editable) {
