@@ -133,7 +133,11 @@ for (const server of servers) {
       const own = (await listProcesses(admin, server.type)).processes.find((p) => p.own)!;
       await stopProcess(other, server.type, false, 'kill', own.id).catch(() => undefined);
       const again = await listProcesses(admin, server.type);
-      expect(again.processes.find((p) => p.own)?.id).not.toBe(own.id);
+      expect(again.processes.some((p) => p.own)).toBe(true);
+      // SQL Server hands a freed session id out again, so the new one can have the same number.
+      if (server.type !== 'mssql') {
+        expect(again.processes.find((p) => p.own)?.id).not.toBe(own.id);
+      }
     });
   });
 }

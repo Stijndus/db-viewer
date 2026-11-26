@@ -3194,6 +3194,10 @@ app-er-diagram {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* As high as the grid, not as all fields: the field list scrolls. */
+  align-self: stretch;
+  max-height: 100%;
+  overflow: hidden;
   border-left: 1px solid var(--border);
   background: var(--panel);
 }
