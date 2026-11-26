@@ -37,6 +37,7 @@ export const connectionInputSchema = z
     allowSelfSigned: z.boolean(),
     color: z.enum(CONNECTION_COLORS),
     readOnly: z.boolean().default(false),
+    development: z.boolean().default(false),
     password: z.string().max(1024).optional(),
     savePassword: z.boolean(),
     ssh: sshSettingsSchema.nullable().default(null),

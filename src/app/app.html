@@ -39,6 +39,13 @@
               <span class="conn-chip-name"
                 >{{ c.name }}{{ current && c.database ? ' · ' + location(c) : '' }}</span
               >
+              @if (c.development && !c.readOnly) {
+                <span
+                  class="dev-badge ro-small"
+                  title="Development: wijzigingen in een tabel worden direct opgeslagen"
+                  >dev</span
+                >
+              }
               @if (store.statusOf(c.id) === 'connecting') {
                 <span class="muted small">verbinden…</span>
               }
@@ -71,6 +78,13 @@
       @if (active.readOnly) {
         <span class="ro-badge" title="Deze verbinding weigert alles wat gegevens wijzigt"
           >Alleen-lezen</span
+        >
+      }
+      @if (active.development && !active.readOnly) {
+        <span
+          class="dev-badge"
+          title="Development: wijzigingen in een tabel worden direct opgeslagen"
+          >Development</span
         >
       }
       @if (active.temporary) {

@@ -22,6 +22,11 @@ export interface ConnectionProfile {
   color: ConnectionColor;
   /** Refuse anything that changes data, in every part of the app. */
   readOnly: boolean;
+  /**
+   * The tag Development: a change in a table's grid is saved at once, without Opslaan. Off by
+   * default; no effect on a read-only connection.
+   */
+  development: boolean;
   /** True when an encrypted password is stored for this profile. */
   hasPassword: boolean;
   /** Reach the database through an SSH tunnel; null = connect directly. */
@@ -77,6 +82,8 @@ export interface ConnectionInput {
   allowSelfSigned: boolean;
   color: ConnectionColor;
   readOnly: boolean;
+  /** The tag Development (saves table edits at once). Missing = off. */
+  development?: boolean;
   /** Empty or missing on update = keep the stored password. */
   password?: string;
   /** Store the password encrypted with the OS keychain. */

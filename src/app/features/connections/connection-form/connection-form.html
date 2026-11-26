@@ -302,6 +302,13 @@
         <input type="checkbox" formControlName="readOnly" />
         Alleen-lezen
       </label>
+      <label
+        class="check"
+        title="Development: een wijziging in een tabel wordt meteen opgeslagen, zonder Opslaan. Zonder deze tag blijft de Opslaan-knop."
+      >
+        <input type="checkbox" formControlName="development" />
+        Development (direct opslaan)
+      </label>
       <div class="swatches" role="radiogroup" aria-label="Kleurlabel">
         @for (c of colors; track c.value) {
           <label class="swatch" [class]="'swatch color-' + c.value" [title]="c.label">

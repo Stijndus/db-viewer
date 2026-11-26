@@ -71,6 +71,7 @@ export const PROFILE: ConnectionProfile = {
   allowSelfSigned: false,
   color: 'green',
   readOnly: false,
+  development: false,
   hasPassword: true,
   ssh: null,
   hasSshSecret: false,

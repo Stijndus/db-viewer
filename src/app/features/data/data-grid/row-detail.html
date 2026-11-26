@@ -132,6 +132,7 @@
                   (input)="onInput(f, ta.value)"
                   (keydown)="onKey(f, $event)"
                   (focus)="onFocus(f)"
+                  (blur)="onBlur(f)"
                 ></textarea>
               } @else {
                 <input
@@ -145,6 +146,7 @@
                   (input)="onInput(f, inp.value)"
                   (keydown)="onKey(f, $event)"
                   (focus)="onFocus(f)"
+                  (blur)="onBlur(f)"
                 />
               }
             } @else {

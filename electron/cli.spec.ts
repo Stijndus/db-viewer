@@ -155,6 +155,12 @@ describe('parseCli', () => {
         input: { readOnly: true },
       },
     );
+    expect(parse(['mysql://u@h/db?development=1'])).toMatchObject({
+      input: { development: true, readOnly: false },
+    });
+    expect(parse(['--db-type', 'sqlite', '--file', 'x.db', '--development'])).toMatchObject({
+      input: { development: true },
+    });
   });
 
   it('explains mistakes', () => {

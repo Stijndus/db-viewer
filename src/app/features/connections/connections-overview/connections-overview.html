@@ -52,6 +52,12 @@
               ><span class="badge" [attr.data-type]="c.type">{{ dialects[c.type].label }}</span>
               @if (c.readOnly) {
                 <span class="ro-badge">Alleen-lezen</span>
+              } @else if (c.development) {
+                <span
+                  class="dev-badge"
+                  title="Development: wijzigingen in een tabel worden direct opgeslagen"
+                  >Development</span
+                >
               }
               @if (c.temporary) {
                 <span

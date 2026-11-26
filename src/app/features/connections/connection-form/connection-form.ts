@@ -88,6 +88,7 @@ export class ConnectionForm {
     allowSelfSigned: [{ value: false, disabled: true }],
     color: ['green' as ConnectionColor],
     readOnly: [false],
+    development: [false],
     sshEnabled: [false],
     sshHost: ['', [Validators.required, Validators.maxLength(255)]],
     sshPort: [22, [Validators.required, Validators.min(1), Validators.max(65535)]],

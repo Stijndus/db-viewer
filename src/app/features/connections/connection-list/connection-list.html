@@ -52,6 +52,12 @@
             >{{ c.name }}
             @if (c.readOnly) {
               <span class="ro-badge ro-small" title="Alleen-lezen">RO</span>
+            } @else if (c.development) {
+              <span
+                class="dev-badge ro-small"
+                title="Development: wijzigingen in een tabel worden direct opgeslagen"
+                >dev</span
+              >
             }
             @if (c.temporary) {
               <span

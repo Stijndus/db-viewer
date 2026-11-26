@@ -9,6 +9,7 @@ import {
   type MenuAction,
   type MenuSubmenu,
 } from '../../../core/context-menu/context-menu.store';
+import { ConnectionsStore } from '../../connections/connections.store';
 import { SchemaStore, type Load, type SelectedObject } from '../../schema/schema.store';
 import { columnWidth, isNumericType, TableData } from './table-data';
 
@@ -761,5 +762,165 @@ describe('TableData row detail', () => {
     await settle();
     expect(el.querySelector('.rd')).toBeNull();
     expect(localStorage.getItem('dbv.rowDetail')).toBe('0');
+  });
+});
+
+describe('TableData saving at once (tag Development)', () => {
+  async function development(overrides: Partial<DbApi> = {}) {
+    localStorage.removeItem('dbv.rowDetail');
+    const applied: Parameters<DbApi['applyChanges']>[3][] = [];
+    let fail: string | null = null;
+    const ctx = await setup({
+      listConnections: async () => ({ ok: true, data: [{ ...PROFILE, development: true }] }),
+      ...overrides,
+      applyChanges: async (_c, _d, _t, changes) => {
+        applied.push(changes);
+        if (fail) return { ok: false, error: { code: 'ER_X', message: fail } };
+        return {
+          ok: true,
+          data: {
+            deleted: changes.deletes.length,
+            updated: changes.updates.length,
+            inserted: changes.inserts.length,
+          },
+        };
+      },
+    });
+    await TestBed.inject(ConnectionsStore).init();
+    await ctx.settle();
+    const cell = (row: number, col: number) =>
+      ctx.el.querySelectorAll('.dg-row')[row]!.querySelectorAll<HTMLElement>('.dg-cell')[col]!;
+    const type = async (row: number, col: number, value: string, key = 'Enter') => {
+      cell(row, col).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await ctx.settle();
+      const input = ctx.el.querySelector<HTMLInputElement>('.dg-input')!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      await ctx.settle();
+      await new Promise((r) => setTimeout(r, 10));
+      await ctx.settle();
+    };
+    const setFail = (m: string | null) => (fail = m);
+    return { ...ctx, applied, cell, type, setFail };
+  }
+
+  it('shows the mode and saves a cell when it is left, without reloading', async () => {
+    const { el, applied, cell, type, requests } = await development();
+    expect(el.querySelector('.dt-edit .dev-badge')?.textContent).toContain('Direct opslaan');
+    const before = requests.length;
+    await type(0, 1, 'nieuw@example.com');
+    expect(applied).toEqual([
+      {
+        primaryKey: ['id'],
+        deletes: [],
+        updates: [{ key: { id: '1' }, values: { email: 'nieuw@example.com' } }],
+        inserts: [],
+      },
+    ]);
+    expect(requests.length).toBe(before);
+    expect(cell(0, 1).textContent?.trim()).toBe('nieuw@example.com');
+    expect(cell(0, 1).classList).not.toContain('edited');
+    expect(el.querySelector('.change-count')).toBeNull();
+    expect(el.querySelector('.dt-note')?.textContent).toContain('Direct opgeslagen: 1 gewijzigd');
+  });
+
+  it('takes the last saved change back with Ctrl+Z', async () => {
+    const { applied, type, settle, el, button } = await development();
+    await type(0, 1, 'nieuw@example.com', 'Tab');
+    expect(el.querySelector('.dt-edit-hint')?.textContent).toContain(
+      'Ctrl+Z maakt de laatste ongedaan',
+    );
+    button('Ongedaan maken').click();
+    await settle();
+    await new Promise((r) => setTimeout(r, 10));
+    await settle();
+    expect(applied[1]).toEqual({
+      primaryKey: ['id'],
+      deletes: [],
+      updates: [{ key: { id: '1' }, values: { email: 'user1@example.com' } }],
+      inserts: [],
+    });
+    expect(el.querySelector('.dt-note')?.textContent).toContain('Ongedaan gemaakt: 1 wijziging');
+  });
+
+  it('keeps a failed change marked with the message, and tries again on the next', async () => {
+    const { el, applied, cell, type, setFail } = await development();
+    setFail("Column 'email' cannot be null");
+    await type(0, 1, 'x');
+    expect(cell(0, 1).classList).toContain('edited');
+    expect(el.querySelector('.banner-error')?.textContent).toContain('cannot be null');
+    setFail(null);
+    await type(1, 1, 'y');
+    expect(applied.at(-1)?.updates).toHaveLength(2);
+    expect(el.querySelector('.change-count')).toBeNull();
+  });
+
+  it('saves a new row only when you leave it', async () => {
+    const { el, applied, button, settle, cell, type, requests } = await development({
+      readRows: async (_c, _d, _t, req) => ({
+        ok: true,
+        data: { ...fakeRows(req), rows: fakeRows(req).rows.slice(0, 3), hasMore: false },
+      }),
+    });
+    button('Rij toevoegen').click();
+    await settle();
+    await type(3, 1, 'nieuw@example.com', 'Tab');
+    expect(applied).toEqual([]);
+    const before = requests.length;
+    cell(0, 0).dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    await settle();
+    await new Promise((r) => setTimeout(r, 10));
+    await settle();
+    expect(applied[0]?.inserts).toEqual([{ values: { email: 'nieuw@example.com' } }]);
+    expect(requests.length).toBe(before + 1);
+    expect(el.querySelector('.change-count')).toBeNull();
+  });
+
+  it('deletes at once, asking first for more than one row', async () => {
+    const { el, applied, settle, cell } = await development();
+    const answers = [false, true];
+    window.confirm = () => answers.shift()!;
+    cell(0, 0).dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    cell(1, 0).dispatchEvent(
+      new MouseEvent('mousedown', { button: 0, shiftKey: true, bubbles: true }),
+    );
+    await settle();
+    const del = () =>
+      Array.from(el.querySelectorAll<HTMLButtonElement>('.dt-edit button')).find((b) =>
+        b.textContent?.includes('Rij verwijderen'),
+      )!;
+    del().click();
+    await settle();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(applied).toEqual([]);
+    del().click();
+    await settle();
+    await new Promise((r) => setTimeout(r, 10));
+    await settle();
+    expect(applied[0]?.deletes).toEqual([{ key: { id: '1' } }, { key: { id: '2' } }]);
+  });
+
+  it('saves after typing in the row detail only when the field is left', async () => {
+    const { el, applied, button, settle } = await development();
+    button('Rijdetail').click();
+    await settle();
+    const input = Array.from(el.querySelectorAll<HTMLElement>('.rd-field'))
+      .find((f) => f.querySelector('.rd-name')?.textContent?.trim().endsWith('email'))!
+      .querySelector('input')!;
+    input.dispatchEvent(new Event('focus'));
+    for (const v of ['a', 'ab', 'abc']) {
+      input.value = v;
+      input.dispatchEvent(new Event('input'));
+      await settle();
+    }
+    await new Promise((r) => setTimeout(r, 10));
+    expect(applied).toEqual([]);
+    input.dispatchEvent(new Event('blur'));
+    await settle();
+    await new Promise((r) => setTimeout(r, 10));
+    await settle();
+    expect(applied).toHaveLength(1);
+    expect(applied[0]?.updates).toEqual([{ key: { id: '1' }, values: { email: 'abc' } }]);
   });
 });

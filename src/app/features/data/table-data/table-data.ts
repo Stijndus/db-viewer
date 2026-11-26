@@ -16,6 +16,7 @@ import {
   isSqlValue,
   type CellValue,
   type ChangeSet,
+  type RowKey,
   type RowValues,
 } from '../../../../../shared/changes';
 import type {
@@ -79,6 +80,14 @@ function asCell(value: CellValue): GridCell {
 }
 
 const NO_CHANGES: Pending = { edits: {}, deleted: [], added: [] };
+
+/** A saved change that Ctrl+Z can take back: the opposite change, ready to apply. */
+interface UndoEntry {
+  undo: ChangeSet;
+  /** "naam in rij 3", "2 rijen verwijderd": for the note after undoing. */
+  label: string;
+}
+const UNDO_MAX = 50;
 const DISCARD_QUESTION = 'Er zijn niet-opgeslagen wijzigingen. Weggooien?';
 
 type CountState =
@@ -139,6 +148,8 @@ export class TableData {
   protected readonly selectedCell = signal<{ row: number; col: number } | null>(null);
   /** Bumped when a fresh page is loaded: the grid scrolls back to the top. */
   protected readonly pageVersion = signal(0);
+  /** The next reload keeps the grid's selected cell. */
+  protected readonly keepSelection = signal(false);
 
   private requestId = 0;
   private objectKey = '';
@@ -200,6 +211,16 @@ export class TableData {
   protected readonly pageNumber = computed(() => Math.floor(this.offset() / this.pageSize()) + 1);
 
   /** Whether this table can be edited, and if not, why. */
+  /**
+   * The connection has the tag Development (and the table can be edited): a change is saved as
+   * soon as it is finished, without Opslaan.
+   */
+  protected readonly autoSave = computed(() => {
+    if (!this.editState().editable) return false;
+    const id = this.object().connectionId;
+    return this.connections.connections().find((c) => c.id === id)?.development ?? false;
+  });
+
   protected readonly editState = computed<{ editable: boolean; reason: string | null }>(() => {
     const o = this.object();
     if (o.kind !== 'table') return { editable: false, reason: 'Views zijn alleen-lezen.' };
@@ -457,7 +478,9 @@ export class TableData {
     if (id) untracked(() => this.workspace.setDirty(id, dirty));
   });
 
-  async load(): Promise<void> {
+  /** Loads the page; `keep` keeps the grid's selected cell (after saving at once or undoing). */
+  async load(keep = false): Promise<void> {
+    this.keepSelection.set(keep);
     const o = this.object();
     const id = ++this.requestId;
     this.pending.set(NO_CHANGES);
@@ -474,7 +497,7 @@ export class TableData {
     if (result.ok) {
       this.page.set(result.data);
       this.pageVersion.update((v) => v + 1);
-      this.selectedCell.set(null);
+      if (!keep) this.selectedCell.set(null);
       this.error.set(null);
     } else {
       this.page.set(null);
@@ -555,10 +578,13 @@ export class TableData {
     return deleted.length > 0 || added.length > 0 || Object.keys(edits).length > 0;
   }
 
-  protected onCellEdited({ row, col, value }: CellEdit): void {
+  protected onCellEdited({ row, col, value, draft }: CellEdit): void {
     const page = this.page();
     if (!page) return;
     const n = page.rows.length;
+    // Saving at once: a finished change to an existing row. New rows wait until you leave them;
+    // the row detail's typing waits until you leave the field.
+    if (this.autoSave() && !draft && row < n) this.scheduleAutoSave();
     this.pending.update((p) => {
       if (row >= n) {
         const added = p.added.map((values, i) => {
@@ -616,15 +642,211 @@ export class TableData {
       this.saveError.set(result.error);
       return;
     }
-    const { deleted, updated, inserted } = result.data;
-    const parts = [
-      updated && `${updated} gewijzigd`,
-      inserted && `${inserted} toegevoegd`,
-      deleted && `${deleted} verwijderd`,
-    ].filter(Boolean);
-    this.showNote(`Opgeslagen: ${parts.join(', ')}`);
+    this.showNote(this.savedText(result.data, false));
     this.count.set({ status: 'idle' });
     await this.load();
+  }
+
+  // ── Saving at once (connections with the tag Development) ─────────
+
+  private autoTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoAgain = false;
+  private readonly undoStack: UndoEntry[] = [];
+  protected readonly canUndo = signal(false);
+
+  /** Saves after the current event: a paste of many cells becomes one save, one transaction. */
+  private scheduleAutoSave(): void {
+    if (this.autoTimer) return;
+    this.autoTimer = setTimeout(() => {
+      this.autoTimer = null;
+      void this.autoSaveNow();
+    });
+  }
+
+  /** The row detail's field was left after typing. */
+  protected onEditCommitted(): void {
+    this.scheduleAutoSave();
+  }
+
+  /** The grid's selection moved: leaving a new row saves it. */
+  protected onSelection(cell: { row: number; col: number } | null): void {
+    const before = this.selectedCell();
+    this.selectedCell.set(cell);
+    const n = this.page()?.rows.length ?? 0;
+    if (this.autoSave() && before && before.row >= n && before.row !== cell?.row) {
+      this.scheduleAutoSave();
+    }
+  }
+
+  /**
+   * Saves what is finished: every change except a new row that is still selected (being filled
+   * in). Plain cell changes are written into the page; new or deleted rows load the page again.
+   */
+  private async autoSaveNow(): Promise<void> {
+    if (!this.autoSave()) return;
+    if (this.saving()) {
+      this.autoAgain = true;
+      return;
+    }
+    const page = this.page();
+    const all = this.changeSet();
+    if (!page || !all) return;
+    const n = page.rows.length;
+    const pending = this.pending();
+    const selected = this.selectedCell();
+    const busyNew = selected && selected.row >= n ? selected.row - n : -1;
+    const changes: ChangeSet = {
+      ...all,
+      inserts: all.inserts.filter((_, i) => i !== busyNew),
+    };
+    if (changeCount(changes) === 0) return;
+
+    const o = this.object();
+    const undo = this.undoFor(pending, changes);
+    this.saving.set(true);
+    this.saveError.set(null);
+    const result = await this.api.applyChanges(o.connectionId, o.database, o.name, changes);
+    this.saving.set(false);
+    if (!result.ok) {
+      // The change stays marked, with the message above the grid; the next save tries again.
+      this.saveError.set(result.error);
+      return;
+    }
+    if (undo) {
+      this.undoStack.push(undo);
+      if (this.undoStack.length > UNDO_MAX) this.undoStack.shift();
+      this.canUndo.set(true);
+    }
+    this.showNote(this.savedText(result.data, true));
+
+    const plain =
+      changes.deletes.length === 0 &&
+      changes.inserts.length === 0 &&
+      Object.values(pending.edits).every((cols) =>
+        Object.values(cols).every((v) => !isSqlValue(v)),
+      );
+    if (plain) {
+      // Written into the page as they are: no reload, the grid stays where it is.
+      const saved = pending.edits;
+      this.page.update((p) =>
+        p
+          ? {
+              ...p,
+              rows: p.rows.map((row, r) =>
+                saved[r]
+                  ? row.map((cell, c) => (c in saved[r]! ? (saved[r]![c] as string | null) : cell))
+                  : row,
+              ),
+            }
+          : p,
+      );
+      // Edits made while saving stay pending.
+      this.pending.update((p) => {
+        const edits: Pending['edits'] = {};
+        for (const [r, cols] of Object.entries(p.edits)) {
+          const rest = Object.fromEntries(
+            Object.entries(cols).filter(([c, v]) => saved[Number(r)]?.[Number(c)] !== v),
+          );
+          if (Object.keys(rest).length) edits[Number(r)] = rest;
+        }
+        return { ...p, edits };
+      });
+    } else {
+      const keep = busyNew >= 0 ? this.pending().added[busyNew] : undefined;
+      this.count.set({ status: 'idle' });
+      await this.load(true);
+      if (keep) this.pending.set({ ...NO_CHANGES, added: [keep] });
+    }
+    if (this.autoAgain) {
+      this.autoAgain = false;
+      this.scheduleAutoSave();
+    }
+  }
+
+  /**
+   * The opposite of a change set, from the page as it was: changed cells back to their old values
+   * (found by the new key, if the key itself changed), deleted rows inserted again. New rows can't
+   * be taken back (their key is often made by the server). Null when nothing can be undone.
+   */
+  private undoFor(pending: Pending, changes: ChangeSet): UndoEntry | null {
+    const page = this.page();
+    if (!page) return null;
+    const plain = (c: unknown): c is string | null => c === null || typeof c === 'string';
+    const pk = changes.primaryKey;
+    const pkIndex = pk.map((name) => page.columns.indexOf(name));
+    const updates: ChangeSet['updates'] = [];
+    let cells = 0;
+    for (const [r, cols] of Object.entries(pending.edits)) {
+      const row = page.rows[Number(r)];
+      if (!row || pending.deleted.includes(Number(r))) continue;
+      const before: RowValues = {};
+      let ok = true;
+      for (const c of Object.keys(cols)) {
+        const old = row[Number(c)];
+        if (!plain(old)) ok = false;
+        else before[page.columns[Number(c)]!] = old;
+      }
+      if (!ok) continue;
+      const key: RowKey = Object.fromEntries(
+        pk.map((name, i) => {
+          const edited = cols[pkIndex[i]!];
+          return [
+            name,
+            String(edited !== undefined && !isSqlValue(edited) ? edited : row[pkIndex[i]!]),
+          ];
+        }),
+      );
+      updates.push({ key, values: before });
+      cells += Object.keys(cols).length;
+    }
+    const inserts: ChangeSet['inserts'] = [];
+    for (const r of pending.deleted) {
+      const row = page.rows[r];
+      if (!row || !row.every(plain)) continue;
+      inserts.push({
+        values: Object.fromEntries(page.columns.map((c, i) => [c, row[i] as string | null])),
+      });
+    }
+    if (updates.length === 0 && inserts.length === 0) return null;
+    const parts = [
+      cells && `${cells} ${cells === 1 ? 'wijziging' : 'wijzigingen'}`,
+      inserts.length &&
+        `${inserts.length} ${inserts.length === 1 ? 'verwijderde rij' : 'verwijderde rijen'}`,
+    ].filter(Boolean);
+    return { undo: { primaryKey: pk, deletes: [], updates, inserts }, label: parts.join(' en ') };
+  }
+
+  /** Ctrl+Z: takes back the last saved change. */
+  protected async undo(): Promise<void> {
+    const entry = this.undoStack.pop();
+    this.canUndo.set(this.undoStack.length > 0);
+    if (!entry || this.saving()) return;
+    const o = this.object();
+    this.saving.set(true);
+    this.saveError.set(null);
+    const result = await this.api.applyChanges(o.connectionId, o.database, o.name, entry.undo);
+    this.saving.set(false);
+    if (!result.ok) {
+      this.saveError.set(result.error);
+      this.undoStack.push(entry);
+      this.canUndo.set(true);
+      return;
+    }
+    this.count.set({ status: 'idle' });
+    await this.load(true);
+    this.showNote(`Ongedaan gemaakt: ${entry.label}`);
+  }
+
+  private savedText(
+    r: { deleted: number; updated: number; inserted: number },
+    auto: boolean,
+  ): string {
+    const parts = [
+      r.updated && `${r.updated} gewijzigd`,
+      r.inserted && `${r.inserted} toegevoegd`,
+      r.deleted && `${r.deleted} verwijderd`,
+    ].filter(Boolean);
+    return `${auto ? 'Direct opgeslagen' : 'Opgeslagen'}: ${parts.join(', ')}`;
   }
 
   protected showSql(): void {
@@ -1037,6 +1259,12 @@ export class TableData {
     if (!page || !this.editState().editable) return;
     const n = page.rows.length;
     const rows = Array.from({ length: sel.bottom - sel.top + 1 }, (_, i) => sel.top + i);
+    if (this.autoSave()) {
+      // Saving at once: deleted right away, after a question for more than one row.
+      const existing = rows.filter((r) => r < n && !this.pending().deleted.includes(r));
+      if (existing.length > 1 && !confirm(`${existing.length} rijen verwijderen?`)) return;
+      if (existing.length > 0) this.scheduleAutoSave();
+    }
     this.pending.update((p) => {
       const existing = rows.filter((r) => r < n);
       const restore = existing.length > 0 && existing.every((r) => p.deleted.includes(r));
@@ -1141,6 +1369,7 @@ export class TableData {
       return sel && this.editState().editable ? this.duplicate(sel, false) : false;
     });
     on('data.discard', () => (this.hasChanges() ? this.discard() : false));
+    on('data.undo', () => (this.autoSave() && this.canUndo() ? void this.undo() : false));
     on('data.nextPage', () => {
       if (!this.page()?.hasMore || this.loading()) return;
       this.goTo(this.offset() + this.pageSize());

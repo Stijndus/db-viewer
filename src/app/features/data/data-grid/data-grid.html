@@ -256,6 +256,7 @@
     [links]="links()"
     [activeCol]="selected()?.col ?? null"
     (edited)="onDetailEdited($event)"
+    (committed)="editCommitted.emit()"
     (openEditor)="openPopup(selected()!.row, $event)"
     (follow)="followLink.emit({ row: selected()!.row, col: $event })"
     (move)="onDetailMove($event)"

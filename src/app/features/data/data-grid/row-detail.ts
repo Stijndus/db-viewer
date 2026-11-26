@@ -47,7 +47,9 @@ export class RowDetail {
   /** The column of the active cell: its field is marked. */
   readonly activeCol = input<number | null>(null);
 
-  readonly edited = output<{ col: number; value: string | null }>();
+  readonly edited = output<{ col: number; value: string | null; draft?: boolean }>();
+  /** A field with typed changes was left (or Enter): the change is finished. */
+  readonly committed = output<void>();
   readonly openEditor = output<number>();
   readonly follow = output<number>();
   readonly move = output<1 | -1>();
@@ -121,6 +123,7 @@ export class RowDetail {
         });
         this.multilineCols.set(cols);
         this.before.clear();
+        this.typed.clear();
       });
     });
   }
@@ -132,7 +135,18 @@ export class RowDetail {
   /** Every keystroke goes into the pending changes, as in the grid after Enter. */
   protected onInput(f: Field, value: string): void {
     if (!this.before.has(f.col)) this.before.set(f.col, f.cell);
-    this.edited.emit({ col: f.col, value });
+    this.typed.add(f.col);
+    this.edited.emit({ col: f.col, value, draft: true });
+  }
+
+  /** Fields typed in since they got the focus. */
+  private readonly typed = new Set<number>();
+
+  /** Leaving a field you typed in finishes the change. */
+  protected onBlur(f: Field): void {
+    if (!this.typed.delete(f.col)) return;
+    this.before.delete(f.col);
+    this.committed.emit();
   }
 
   protected setNull(f: Field): void {
@@ -149,8 +163,18 @@ export class RowDetail {
     if (now !== null) this.edited.emit({ col: f.col, value: now });
   }
 
-  /** Esc puts back what the field held when it got the focus. */
+  /**
+   * Esc puts back what the field held when it got the focus. Enter in a one-line field finishes
+   * the change, as in the grid.
+   */
   protected onKey(f: Field, event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !f.multiline && this.typed.has(f.col)) {
+      event.preventDefault();
+      this.typed.delete(f.col);
+      this.before.delete(f.col);
+      this.committed.emit();
+      return;
+    }
     if (event.key !== 'Escape' || !this.before.has(f.col)) return;
     const before = this.before.get(f.col) ?? null;
     if (before === f.cell) return;
@@ -158,7 +182,7 @@ export class RowDetail {
     event.stopPropagation();
     // Only text and NULL can be typed over; DEFAULT and SQL values are left alone.
     if (before === null || typeof before === 'string') {
-      this.edited.emit({ col: f.col, value: before });
+      this.edited.emit({ col: f.col, value: before, draft: true });
     }
   }
 

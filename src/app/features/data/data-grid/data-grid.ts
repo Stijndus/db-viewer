@@ -79,6 +79,8 @@ export interface CellEdit {
   col: number;
   /** New value; null is SQL NULL; an object is SQL written as is. */
   value: CellValue;
+  /** Still being typed (row detail): a change, but not finished. `editCommitted` follows. */
+  draft?: boolean;
 }
 
 interface Editing {
@@ -191,6 +193,10 @@ export class DataGrid {
   /** "Export selected rows…": the row indexes, top to bottom; to the clipboard for Ctrl+Shift+C. */
   readonly exportRows = output<{ rows: number[]; clipboard: boolean }>();
   readonly cellEdited = output<CellEdit>();
+  /** Typing in the row detail is finished (the field was left): a moment to save. */
+  readonly editCommitted = output<void>();
+  /** Keep the selected cell when the rows are loaded again (saving at once reloads them). */
+  readonly keepSelection = input(false);
   /** Extra menu items from the owner, built when the menu opens. */
   readonly menuSections = input<((selection: GridSelection) => GridMenuSections) | null>(null);
   readonly selectionChange = output<{ row: number; col: number } | null>();
@@ -272,9 +278,9 @@ export class DataGrid {
     if (!open) this.scroller().nativeElement.focus({ preventScroll: true });
   }
 
-  protected onDetailEdited(e: { col: number; value: string | null }): void {
+  protected onDetailEdited(e: { col: number; value: string | null; draft?: boolean }): void {
     const s = this.selected();
-    if (s) this.cellEdited.emit({ row: s.row, col: e.col, value: e.value });
+    if (s) this.cellEdited.emit({ row: s.row, col: e.col, value: e.value, draft: e.draft });
   }
 
   protected onDetailMove(step: 1 | -1): void {
@@ -365,7 +371,7 @@ export class DataGrid {
       if (key === undefined) this.rows();
       untracked(() => {
         // With the row detail open, the same row stays chosen (after saving, the page reloads).
-        const keep = this.detailOpen() ? this.selected() : null;
+        const keep = this.detailOpen() || this.keepSelection() ? this.selected() : null;
         this.editing.set(null);
         this.selected.set(null);
         this.anchor.set(null);

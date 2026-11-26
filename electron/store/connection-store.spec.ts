@@ -31,6 +31,20 @@ describe('ConnectionStore', () => {
     expect(await reopened.getPassword(saved.id)).toBe('test123');
   });
 
+  it('keeps the tag Development, off for profiles saved without it', async () => {
+    const store = new ConnectionStore(file, fakeCipher());
+    const plain = await store.save(input());
+    const dev = await store.save(input({ name: 'dev', development: true }));
+    expect(plain.development).toBe(false);
+    expect(dev.development).toBe(true);
+    // A file from before v1.3.0 has no development field.
+    const raw = JSON.parse(await fs.readFile(file, 'utf8'));
+    for (const c of raw.connections) delete c.development;
+    await fs.writeFile(file, JSON.stringify(raw));
+    const old = await new ConnectionStore(file, fakeCipher()).list();
+    expect(old.map((c) => c.development)).toEqual([false, false]);
+  });
+
   it('keeps the stored password when an update sends none', async () => {
     const store = new ConnectionStore(file, fakeCipher());
     const saved = await store.save(input());

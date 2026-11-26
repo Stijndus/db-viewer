@@ -46,6 +46,7 @@ Opties:
   --ssl            SSL/TLS gebruiken
   --allow-self-signed  self-signed certificaat toestaan
   --read-only      alleen-lezen
+  --development    tag Development: wijzigingen in een tabel direct opslaan
   --color          groen | oranje | rood | blauw | paars | roze | geel | turquoise | bruin | grijs
   --name           naam in de lijst
   --save           als verbinding bewaren (anders tijdelijk, tot de app sluit)
@@ -132,6 +133,7 @@ const FLAG_OPTIONS: Record<string, string> = {
   '--allow-self-signed': 'allowSelfSigned',
   '--read-only': 'readOnly',
   '--readonly': 'readOnly',
+  '--development': 'development',
   '--save': 'save',
   '--ssh-agent': 'sshAgent',
   '--ssh-pageant': 'sshPageant',
@@ -280,6 +282,7 @@ export function parseCli(args: string[], ctx: CliContext): CliCommand {
         allowSelfSigned: false,
         color,
         readOnly: Boolean(flags['readOnly']),
+        development: Boolean(flags['development']),
         password: '',
         savePassword: false,
         ssh: null,
@@ -352,6 +355,7 @@ export function parseCli(args: string[], ctx: CliContext): CliCommand {
       allowSelfSigned: Boolean(flags['ssl'] && flags['allowSelfSigned']),
       color,
       readOnly: Boolean(flags['readOnly']),
+      development: Boolean(flags['development']),
       password,
       savePassword: Boolean(flags['save']),
       ssh,
@@ -460,6 +464,7 @@ function queryFlags(q: URLSearchParams): string[] {
   if (truthy('ssl') || (truthy('sslmode') && !/disable/i.test(q.get('sslmode') ?? '')))
     out.push('ssl');
   if (truthy('read-only') || truthy('readonly')) out.push('readOnly');
+  if (truthy('development')) out.push('development');
   if (truthy('allow-self-signed')) out.push('allowSelfSigned');
   if (truthy('save')) out.push('save');
   if (truthy('ssh-agent')) out.push('sshAgent');

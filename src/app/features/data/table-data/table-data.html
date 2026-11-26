@@ -92,10 +92,34 @@
     >
       NULL
     </button>
-    @if (changeTotal() === 0) {
+    @if (autoSave()) {
+      <span
+        class="dev-badge"
+        title="Development-verbinding: een wijziging wordt opgeslagen zodra je de cel verlaat (Enter, Tab of klikken). Een nieuwe rij wordt opgeslagen als je de rij verlaat."
+        >Direct opslaan</span
+      >
+      @if (changeTotal() === 0) {
+        <span class="muted small dt-edit-hint"
+          >Wijzigingen worden meteen opgeslagen{{
+            canUndo() ? '; ' + keys.keyLabel('data.undo') + ' maakt de laatste ongedaan' : ''
+          }}</span
+        >
+      }
+    } @else if (changeTotal() === 0) {
       <span class="muted small dt-edit-hint">Dubbelklik of typ in een cel om te bewerken</span>
     }
     <span class="push"></span>
+    @if (autoSave() && canUndo()) {
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        [title]="'De laatste opgeslagen wijziging terugzetten (' + keys.keyLabel('data.undo') + ')'"
+        [disabled]="saving()"
+        (click)="undo()"
+      >
+        Ongedaan maken
+      </button>
+    }
     @if (changeTotal() > 0) {
       <span class="change-count"
         >{{ changeTotal() }} {{ changeTotal() === 1 ? 'wijziging' : 'wijzigingen' }}</span
@@ -174,7 +198,9 @@
         (copied)="onCopied($event)"
         (exportRows)="exportRows($event)"
         (cellEdited)="onCellEdited($event)"
-        (selectionChange)="selectedCell.set($event)"
+        (editCommitted)="autoSave() && onEditCommitted()"
+        [keepSelection]="keepSelection()"
+        (selectionChange)="onSelection($event)"
       />
     } @else {
       <div class="dt-empty">

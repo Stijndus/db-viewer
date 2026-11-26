@@ -238,6 +238,8 @@ function toProfile(
   return {
     ...rest,
     readOnly: rest.readOnly ?? false,
+    // Profiles saved before v1.3.0 have no development tag.
+    development: rest.development ?? false,
     ssh: rest.ssh ?? null,
     hasPassword: Boolean(encryptedPassword),
     hasSshSecret: Boolean(encryptedSshSecret),
@@ -270,6 +272,7 @@ function buildRecord(
     allowSelfSigned: input.ssl && input.allowSelfSigned,
     color: input.color,
     readOnly: input.readOnly,
+    development: input.development ?? false,
     ssh: ssh
       ? {
           host: ssh.host.trim(),
