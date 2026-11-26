@@ -295,6 +295,11 @@
   <app-confirm-write [request]="request" />
 }
 
+@if (structure.request(); as sr) {
+  @defer (on immediate) {
+    <app-structure-dialog [request]="sr" />
+  }
+}
 @if (history.panelFor()) {
   @defer (on immediate) {
     <app-query-history />

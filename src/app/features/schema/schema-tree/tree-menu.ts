@@ -25,6 +25,7 @@ import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { SqlStore } from '../../sql/sql.store';
 import { TransferStore } from '../../transfer/transfer.store';
+import { StructureStore } from '../../structure/structure.store';
 import { WorkspaceStore } from '../../workspace/workspace.store';
 import { SchemaStore } from '../schema.store';
 
@@ -45,6 +46,7 @@ export class TreeMenu {
   private readonly connections = inject(ConnectionsStore);
   private readonly schema = inject(SchemaStore);
   private readonly ws = inject(WorkspaceStore);
+  private readonly structure = inject(StructureStore);
   private readonly sql = inject(SqlStore);
   private readonly transfer = inject(TransferStore);
   private readonly danger = inject(ConfirmDangerStore);
@@ -91,6 +93,14 @@ export class TreeMenu {
         run: () => this.ws.newSql(conn.id, { database }),
       },
       { label: 'ER-diagram', run: () => this.ws.openDiagram(conn.id, database) },
+      ...(conn.readOnly
+        ? []
+        : [
+            {
+              label: 'Nieuwe tabel…',
+              run: () => this.structure.open({ kind: 'table', connectionId: conn.id, database }),
+            },
+          ]),
       { label: 'Vernieuwen', run: () => void this.schema.refresh(conn.id) },
       ...(conn.readOnly ? [] : this.createEntry(conn)),
       'separator',

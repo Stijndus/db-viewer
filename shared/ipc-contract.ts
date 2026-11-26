@@ -1,3 +1,4 @@
+import type { IndexInfo } from './ddl';
 import type { ProcessAction, ProcessList } from './process-list';
 import type { DbUserRef, DbUserSummary, UserChange, UserDetails } from './user-sql';
 import type { ApplyResult, ChangeSet } from './changes';
@@ -57,6 +58,8 @@ export const IPC = {
   userDetails: 'users:details',
   applyUserChanges: 'users:apply',
   listProcesses: 'processes:list',
+  listIndexes: 'structure:indexes',
+  applyDdl: 'structure:apply',
   stopProcess: 'processes:stop',
   readRows: 'data:rows',
   countRows: 'data:count',
@@ -162,6 +165,14 @@ export interface DbApi {
   objectAction(connectionId: string, action: ObjectAction): Promise<Result<void>>;
   /** The server's users (MySQL accounts, PostgreSQL roles, SQL Server logins). */
   listUsers(connectionId: string): Promise<Result<DbUserSummary[]>>;
+  /** A table's indexes. */
+  listIndexes(connectionId: string, database: string, table: string): Promise<Result<IndexInfo[]>>;
+  /** Runs structure changes (shown first), stopping at the first error; refused when read-only. */
+  applyDdl(
+    connectionId: string,
+    database: string,
+    statements: string[],
+  ): Promise<Result<{ ran: number }>>;
   /** Connections and running queries on the server (not SQLite). */
   listProcesses(connectionId: string): Promise<Result<ProcessList>>;
   /** Stops a process's query, or ends its connection (refused on a read-only connection). */

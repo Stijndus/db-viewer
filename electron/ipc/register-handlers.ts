@@ -37,6 +37,7 @@ import { applyUserChanges, listUsers, userDetails } from '../db/users';
 import { hasUsers } from '../../shared/user-sql';
 import { hasProcesses } from '../../shared/process-list';
 import { listProcesses, stopProcess } from '../db/processes';
+import { applyDdl, listIndexes } from '../db/structure';
 import { AppError, toDbError } from './errors';
 import {
   cellKeySchema,
@@ -485,6 +486,29 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
       throw new AppError('NO_PROCESSES', 'SQLite heeft geen proceslijst.');
     return { dialect: profile.type, readOnly: profile.readOnly };
   };
+  // Structure: indexes, and changes shown first in the renderer.
+  handle(IPC.listIndexes, async (rawId, rawDb, rawTable) => {
+    const id = idSchema.parse(rawId);
+    const profile = await store.get(id);
+    return listIndexes(
+      manager.session(id),
+      profile.type,
+      identifierSchema.parse(rawDb),
+      identifierSchema.parse(rawTable),
+    );
+  });
+  handle(IPC.applyDdl, async (rawId, rawDb, rawStatements) => {
+    const id = idSchema.parse(rawId);
+    const profile = await store.get(id);
+    const statements = z.array(z.string().min(1).max(100_000)).min(1).max(50).parse(rawStatements);
+    return applyDdl(
+      manager.session(id),
+      profile.readOnly,
+      identifierSchema.parse(rawDb),
+      statements,
+    );
+  });
+
   handle(IPC.listProcesses, async (rawId) => {
     const id = idSchema.parse(rawId);
     const { dialect } = await processDialect(id);

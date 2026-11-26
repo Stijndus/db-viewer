@@ -65,6 +65,15 @@
 >
   @if (columns(); as state) {
     @if (state.status === 'loaded') {
+      @if (editable()) {
+        <div class="st-bar">
+          <h3 class="st-title">Kolommen</h3>
+          <span class="push"></span>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="addColumn()">
+            Kolom toevoegen
+          </button>
+        </div>
+      }
       <div class="grid-wrap">
         <table class="grid">
           <thead>
@@ -77,6 +86,9 @@
               <th>Standaard</th>
               <th>Extra</th>
               <th>Commentaar</th>
+              @if (editable()) {
+                <th><span class="sr-only">Acties</span></th>
+              }
             </tr>
           </thead>
           <tbody>
@@ -104,6 +116,16 @@
                 </td>
                 <td class="mono muted">{{ col.extra }}</td>
                 <td class="muted comment">{{ col.comment }}</td>
+                @if (editable()) {
+                  <td class="st-actions">
+                    <button type="button" class="link-btn small" (click)="editColumn(col)">
+                      Wijzigen
+                    </button>
+                    <button type="button" class="link-btn small err-text" (click)="dropColumn(col)">
+                      Verwijderen
+                    </button>
+                  </td>
+                }
               </tr>
             } @empty {
               <tr>
@@ -113,6 +135,67 @@
           </tbody>
         </table>
       </div>
+      @if (object().kind === 'table') {
+        <div class="st-bar">
+          <h3 class="st-title">Indexen</h3>
+          <span class="push"></span>
+          @if (editable()) {
+            <button type="button" class="btn btn-secondary btn-sm" (click)="addIndex()">
+              Index toevoegen
+            </button>
+          }
+        </div>
+        @if (indexError(); as e) {
+          <div class="banner banner-error" role="alert">{{ e.message }}</div>
+        } @else if (indexes(); as list) {
+          <div class="grid-wrap">
+            <table class="grid">
+              <thead>
+                <tr>
+                  <th>Naam</th>
+                  <th>Kolommen</th>
+                  <th>Soort</th>
+                  @if (editable()) {
+                    <th><span class="sr-only">Acties</span></th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (i of list; track i.name) {
+                  <tr>
+                    <td class="mono strong">{{ i.name }}</td>
+                    <td class="mono">{{ i.columns.join(', ') }}</td>
+                    <td>
+                      <span class="key-tag" [class.pk]="i.primary">{{
+                        i.primary ? 'PK' : i.unique ? 'UNIQUE' : 'INDEX'
+                      }}</span>
+                    </td>
+                    @if (editable()) {
+                      <td class="st-actions">
+                        @if (!i.primary) {
+                          <button
+                            type="button"
+                            class="link-btn small err-text"
+                            (click)="dropIndex(i)"
+                          >
+                            Verwijderen
+                          </button>
+                        }
+                      </td>
+                    }
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="4" class="muted">Geen indexen.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="muted small">Indexen laden…</p>
+        }
+      }
     } @else if (state.status === 'error') {
       <div class="banner banner-error" role="alert">
         <strong>{{ state.error.message }}</strong>

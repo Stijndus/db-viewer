@@ -22,6 +22,8 @@ import { ExportDialog } from './features/transfer/export-dialog/export-dialog';
 import { ImportDialog } from './features/transfer/import-dialog/import-dialog';
 import { DataImportDialog } from './features/transfer/data-import-dialog/data-import-dialog';
 import { QueryHistory } from './features/sql/query-history/query-history';
+import { StructureDialog } from './features/structure/structure-dialog';
+import { StructureStore } from './features/structure/structure.store';
 import { HistoryStore } from './features/sql/history.store';
 import { TransferStore } from './features/transfer/transfer.store';
 import { HostKeyPrompt } from './features/connections/host-key-prompt/host-key-prompt';
@@ -44,6 +46,7 @@ import { WorkspaceStore } from './features/workspace/workspace.store';
     ImportDialog,
     DataImportDialog,
     QueryHistory,
+    StructureDialog,
     ExportDialog,
     SchemaTree,
     Workspace,
@@ -66,6 +69,7 @@ export class App implements OnInit {
   protected readonly transfer = inject(TransferStore);
   private readonly schema = inject(SchemaStore);
   protected readonly history = inject(HistoryStore);
+  protected readonly structure = inject(StructureStore);
 
   /** "43%", "klaar", … for an import in the status bar. */
   protected importStatus(jobId: string): string {

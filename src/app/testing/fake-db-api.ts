@@ -256,6 +256,12 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
         ],
       }),
     stopProcess: () => ok(undefined),
+    listIndexes: () =>
+      ok([
+        { name: 'PRIMARY', columns: ['id'], unique: true, primary: true },
+        { name: 'idx_customers_email', columns: ['email'], unique: false, primary: false },
+      ]),
+    applyDdl: (_id, _db, statements) => ok({ ran: statements.length }),
     listUsers: () =>
       ok([
         { name: 'root', host: 'localhost', canLogin: true, superuser: true },

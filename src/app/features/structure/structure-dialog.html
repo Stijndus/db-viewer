@@ -1,0 +1,286 @@
+<dialog #dialog class="dialog dialog-conn sd-dialog" aria-labelledby="sd-title" (close)="onClose()">
+  <div class="dialog-head">
+    <h2 id="sd-title">{{ title() }}</h2>
+    <button type="button" class="icon-btn borderless" aria-label="Sluiten" (click)="close()">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </button>
+  </div>
+
+  <form class="dialog-body" (submit)="$event.preventDefault(); run()">
+    <datalist id="sd-types">
+      @for (t of types(); track t) {
+        <option [value]="t"></option>
+      }
+    </datalist>
+
+    @switch (request().kind) {
+      @case ('column') {
+        @let c = column();
+        <div class="grid-2">
+          <div class="field">
+            <label for="sd-name" class="field-label">Naam</label>
+            <input
+              #n
+              id="sd-name"
+              class="input mono"
+              autocomplete="off"
+              spellcheck="false"
+              [value]="c.name"
+              (input)="setColumn({ name: n.value })"
+            />
+          </div>
+          <div class="field">
+            <label for="sd-type" class="field-label">Type</label>
+            <input
+              #t
+              id="sd-type"
+              class="input mono"
+              list="sd-types"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="bijv. varchar(100)"
+              [disabled]="renameOnly()"
+              [value]="c.type"
+              (input)="setColumn({ type: t.value })"
+            />
+          </div>
+        </div>
+        <div class="field">
+          <label for="sd-default" class="field-label">Standaardwaarde</label>
+          <input
+            #df
+            id="sd-default"
+            class="input mono"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="geen"
+            [disabled]="renameOnly() || c.autoIncrement"
+            [value]="c.defaultValue"
+            (input)="setColumn({ defaultValue: df.value })"
+          />
+          <span class="muted small"
+            >Als SQL: <code>0</code>, <code>'tekst'</code> (met aanhalingstekens) of
+            <code>CURRENT_TIMESTAMP</code>.</span
+          >
+        </div>
+        <div class="sd-checks">
+          <label class="check">
+            <input
+              type="checkbox"
+              [checked]="c.nullable"
+              [disabled]="renameOnly()"
+              (change)="setColumn({ nullable: !c.nullable })"
+            />
+            NULL toegestaan
+          </label>
+          @if (showAuto()) {
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="c.autoIncrement"
+                (change)="setColumn({ autoIncrement: !c.autoIncrement })"
+              />
+              Automatisch nummeren
+            </label>
+          }
+        </div>
+        @if (comments()) {
+          <div class="field">
+            <label for="sd-comment" class="field-label">Commentaar</label>
+            <input
+              #cm
+              id="sd-comment"
+              class="input"
+              autocomplete="off"
+              [value]="c.comment"
+              (input)="setColumn({ comment: cm.value })"
+            />
+          </div>
+        }
+        @if (renameOnly()) {
+          <span class="muted small"
+            >SQLite kan van een bestaande kolom alleen de naam wijzigen.</span
+          >
+        }
+      }
+      @case ('index') {
+        <div class="field">
+          <span class="field-label">Kolommen, in volgorde van aanklikken</span>
+          <div class="sd-cols">
+            @for (name of tableColumnsOfTable(); track name) {
+              @let pos = indexCols().indexOf(name);
+              <button
+                type="button"
+                class="sd-col mono"
+                [class.on]="pos >= 0"
+                [attr.aria-pressed]="pos >= 0"
+                (click)="toggleIndexColumn(name)"
+              >
+                @if (pos >= 0) {
+                  <span class="sd-pos">{{ pos + 1 }}</span>
+                }
+                {{ name }}
+              </button>
+            }
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="sd-iname" class="field-label">Naam</label>
+            <input
+              #iname
+              id="sd-iname"
+              class="input mono"
+              autocomplete="off"
+              spellcheck="false"
+              [value]="indexNameDraft()"
+              (input)="setIndexName(iname.value)"
+            />
+          </div>
+          <label class="check sd-unique">
+            <input type="checkbox" [checked]="unique()" (change)="setUnique(!unique())" />
+            Uniek (geen dubbele waarden)
+          </label>
+        </div>
+      }
+      @case ('table') {
+        <div class="field">
+          <label for="sd-tname" class="field-label">Tabelnaam</label>
+          <input
+            #tn
+            id="sd-tname"
+            class="input mono"
+            autocomplete="off"
+            spellcheck="false"
+            [value]="tableName()"
+            (input)="tableName.set(tn.value)"
+          />
+        </div>
+        <div class="sd-table">
+          <div class="sd-trow sd-thead small muted">
+            <span>Kolom</span><span>Type</span><span>Standaard</span
+            ><span title="NULL toegestaan">NULL</span><span title="Primaire sleutel">Sleutel</span
+            ><span title="Automatisch nummeren">Auto</span><span></span>
+          </div>
+          @for (col of tableColumns(); track $index; let i = $index) {
+            <div class="sd-trow">
+              <input
+                #cn
+                class="input input-sm mono"
+                [attr.aria-label]="'Naam van kolom ' + (i + 1)"
+                spellcheck="false"
+                [value]="col.name"
+                (input)="setTableColumn(i, { name: cn.value })"
+              />
+              <input
+                #ct
+                class="input input-sm mono"
+                list="sd-types"
+                [attr.aria-label]="'Type van kolom ' + (i + 1)"
+                spellcheck="false"
+                [value]="col.type"
+                (input)="setTableColumn(i, { type: ct.value })"
+              />
+              <input
+                #cd
+                class="input input-sm mono"
+                [attr.aria-label]="'Standaard van kolom ' + (i + 1)"
+                spellcheck="false"
+                placeholder="geen"
+                [value]="col.defaultValue"
+                (input)="setTableColumn(i, { defaultValue: cd.value })"
+              />
+              <input
+                type="checkbox"
+                [attr.aria-label]="'Kolom ' + (i + 1) + ' mag NULL zijn'"
+                [checked]="col.nullable"
+                (change)="setTableColumn(i, { nullable: !col.nullable })"
+              />
+              <input
+                type="checkbox"
+                [attr.aria-label]="'Kolom ' + (i + 1) + ' hoort bij de primaire sleutel'"
+                [checked]="col.primary"
+                (change)="
+                  setTableColumn(i, {
+                    primary: !col.primary,
+                    nullable: col.primary ? col.nullable : false,
+                  })
+                "
+              />
+              <input
+                type="checkbox"
+                [attr.aria-label]="'Kolom ' + (i + 1) + ' automatisch nummeren'"
+                [checked]="col.autoIncrement"
+                (change)="setTableColumn(i, { autoIncrement: !col.autoIncrement })"
+              />
+              <button
+                type="button"
+                class="icon-btn borderless"
+                [attr.aria-label]="'Kolom ' + (i + 1) + ' weghalen'"
+                (click)="removeTableColumn(i)"
+              >
+                ✕
+              </button>
+            </div>
+          }
+          <button type="button" class="link-btn small sd-add" (click)="addTableColumn()">
+            + Kolom
+          </button>
+        </div>
+      }
+      @case ('drop-column') {
+        <p>
+          De kolom en alle waarden erin worden verwijderd. Dit kan niet ongedaan worden gemaakt.
+        </p>
+      }
+      @case ('drop-index') {
+        <p>De index wordt verwijderd. De gegevens blijven staan.</p>
+      }
+    }
+
+    <div class="field">
+      <span class="field-label">SQL</span>
+      @if (sql().problem; as p) {
+        <span class="muted small">{{ p }}</span>
+      } @else {
+        <pre class="sd-sql mono">{{ sqlText() }}</pre>
+      }
+    </div>
+
+    @if (error(); as e) {
+      <div class="banner banner-error" role="alert">
+        <strong>{{ e.message }}</strong>
+        @if (e.hint) {
+          <span class="small">{{ e.hint }}</span>
+        }
+      </div>
+    }
+    <button type="submit" hidden></button>
+  </form>
+
+  <div class="dialog-foot">
+    <span class="grow"></span>
+    <button type="button" class="btn btn-ghost" (click)="close()">Annuleren</button>
+    <button
+      type="button"
+      class="btn"
+      [class.btn-danger]="danger()"
+      [class.btn-primary]="!danger()"
+      [disabled]="busy() || !!sql().problem"
+      (click)="run()"
+    >
+      {{ busy() ? 'Bezig…' : danger() ? 'Verwijderen' : 'Uitvoeren' }}
+    </button>
+  </div>
+</dialog>

@@ -42,6 +42,8 @@ function browserFallback(): DbApi {
     objectAction: fail,
     listUsers: fail,
     listProcesses: fail,
+    listIndexes: fail,
+    applyDdl: fail,
     stopProcess: fail,
     userDetails: fail,
     applyUserChanges: fail,

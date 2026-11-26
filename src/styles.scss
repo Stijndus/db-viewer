@@ -3591,3 +3591,104 @@ app-process-list {
 .dg-thw:has(.dg-filter) > .dg-th {
   padding-right: 30px;
 }
+
+/* Structure dialog */
+.sd-dialog {
+  width: min(760px, calc(100vw - 48px));
+}
+.sd-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.sd-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sd-col {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.sd-col.on {
+  border-color: var(--accent-border, var(--accent));
+  background: var(--accent-soft);
+}
+.sd-pos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+.sd-unique {
+  align-self: end;
+  height: 38px;
+}
+.sd-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sd-trow {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 1fr 44px 52px 40px 28px;
+  gap: 8px;
+  align-items: center;
+}
+.sd-trow input[type='checkbox'] {
+  justify-self: center;
+}
+.sd-thead span:nth-child(n + 4) {
+  text-align: center;
+}
+.sd-add {
+  align-self: flex-start;
+}
+.sd-sql {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12.5px;
+  max-height: 220px;
+  overflow: auto;
+}
+.st-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 10px;
+}
+.st-bar:first-child {
+  margin-top: 4px;
+}
+.st-bar .push {
+  flex: 1;
+}
+.st-title {
+  margin: 0;
+  font-size: 14px;
+}
+.st-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.st-actions .link-btn + .link-btn {
+  margin-left: 12px;
+}

@@ -1,5 +1,9 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import type { SchemaObject } from '../../../../../shared/models';
+import { columnDefOf, type IndexInfo } from '../../../../../shared/ddl';
+import type { ColumnInfo, DbError, SchemaObject } from '../../../../../shared/models';
+import { DB_API } from '../../../core/db-api';
+import { ConnectionsStore } from '../../connections/connections.store';
+import { StructureStore } from '../../structure/structure.store';
 import { TableData } from '../../data/table-data/table-data';
 import { SchemaStore, type SelectedObject } from '../schema.store';
 
@@ -18,6 +22,19 @@ export class ObjectView {
   /** Unique per instance: several tabs are rendered at once. */
   protected readonly uid = `u${++uidCounter}`;
   protected readonly schema = inject(SchemaStore);
+  private readonly api = inject(DB_API);
+  private readonly connections = inject(ConnectionsStore);
+  private readonly structure = inject(StructureStore);
+
+  /** A table on a connection that may change it: the structure can be edited. */
+  protected readonly editable = computed(() => {
+    const o = this.object();
+    const profile = this.connections.connections().find((c) => c.id === o.connectionId);
+    return o.kind === 'table' && !!profile && !profile.readOnly;
+  });
+
+  protected readonly indexes = signal<IndexInfo[] | null>(null);
+  protected readonly indexError = signal<DbError | null>(null);
 
   /** Data or Structure, per tab; a new tab starts with the last choice. */
   protected readonly view = signal(this.schema.lastObjectTab());
@@ -25,6 +42,22 @@ export class ObjectView {
   private readonly createdAt = performance.now();
 
   constructor() {
+    // Indexes: read when Structure is first shown, and again after a change to this table.
+    effect(() => {
+      if (this.view() !== 'structure') return;
+      const o = this.object();
+      const changed = this.structure.changed();
+      untracked(() => {
+        if (
+          this.indexes() === null ||
+          (changed &&
+            changed.connectionId === o.connectionId &&
+            changed.database === o.database &&
+            changed.table === o.name)
+        )
+          void this.loadIndexes();
+      });
+    });
     effect(() => {
       const request = this.schema.viewRequest();
       const o = untracked(this.object);
@@ -74,6 +107,47 @@ export class ObjectView {
   protected rowEstimate(n: number | null | undefined): string | null {
     if (n === null || n === undefined) return null;
     return `≈ ${new Intl.NumberFormat('nl-NL').format(n)} ${n === 1 ? 'rij' : 'rijen'}`;
+  }
+
+  private async loadIndexes(): Promise<void> {
+    const o = this.object();
+    if (o.kind !== 'table') {
+      this.indexes.set([]);
+      return;
+    }
+    const result = await this.api.listIndexes(o.connectionId, o.database, o.name);
+    if (result.ok) {
+      this.indexes.set(result.data);
+      this.indexError.set(null);
+    } else this.indexError.set(result.error);
+  }
+
+  private base() {
+    const o = this.object();
+    return { connectionId: o.connectionId, database: o.database, table: o.name };
+  }
+
+  protected addColumn(): void {
+    this.structure.open({ kind: 'column', ...this.base() });
+  }
+
+  protected editColumn(c: ColumnInfo): void {
+    const type = this.connections
+      .connections()
+      .find((p) => p.id === this.object().connectionId)?.type;
+    this.structure.open({ kind: 'column', ...this.base(), before: columnDefOf(c, type) });
+  }
+
+  protected dropColumn(c: ColumnInfo): void {
+    this.structure.open({ kind: 'drop-column', ...this.base(), column: c.name });
+  }
+
+  protected addIndex(): void {
+    this.structure.open({ kind: 'index', ...this.base(), columns: [] });
+  }
+
+  protected dropIndex(i: IndexInfo): void {
+    this.structure.open({ kind: 'drop-index', ...this.base(), index: i.name });
   }
 
   protected reload(): void {
