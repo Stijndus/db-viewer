@@ -10,7 +10,7 @@
     (input)="whereDraft.set($any($event.target).value)"
   />
   <button type="submit" class="btn btn-primary btn-sm">Toepassen</button>
-  @if (whereApplied()) {
+  @if (whereApplied() || columnFilters().length) {
     <button type="button" class="btn btn-ghost btn-sm" (click)="clearFilter()">Wissen</button>
   }
   <button
@@ -55,6 +55,38 @@
     Rijdetail
   </button>
 </form>
+
+@if (columnFilters().length) {
+  <div class="dt-filters" role="list" aria-label="Kolomfilters">
+    @for (f of columnFilters(); track f.column) {
+      <span class="dt-chip" role="listitem">
+        <button
+          type="button"
+          class="dt-chip-text mono"
+          title="Filter aanpassen"
+          (click)="
+            openColumnFilter({
+              column: f.column,
+              x: $any($event.currentTarget).getBoundingClientRect().left,
+              y: $any($event.currentTarget).getBoundingClientRect().bottom + 4,
+            })
+          "
+        >
+          {{ filterText(f) }}
+        </button>
+        <button
+          type="button"
+          class="dt-chip-x"
+          [attr.aria-label]="'Filter op ' + f.column + ' weghalen'"
+          title="Weghalen"
+          (click)="removeColumnFilter(f.column)"
+        >
+          ✕
+        </button>
+      </span>
+    }
+  </div>
+}
 
 @if (editState().editable) {
   <div class="dt-edit" role="toolbar" aria-label="Bewerken">
@@ -191,6 +223,8 @@
         [rowMarks]="rowMarks()"
         [editedCells]="editedCells()"
         (sortRequested)="toggleSort($event)"
+        [filteredColumns]="filteredColumns()"
+        (filterRequested)="openColumnFilter($event)"
         [dialect]="dialect()"
         [tableName]="object().name"
         [widthKey]="object().connectionId + '/' + object().database + '/' + object().name"
@@ -205,21 +239,21 @@
     } @else {
       <div class="dt-empty">
         <strong>{{
-          whereApplied()
+          effectiveWhere()
             ? 'Geen rijen die aan het filter voldoen.'
             : offset() > 0
               ? 'Geen rijen meer.'
               : 'Deze tabel is leeg.'
         }}</strong>
-        @if (whereApplied()) {
-          <span class="muted mono small">WHERE {{ whereApplied() }}</span>
+        @if (effectiveWhere()) {
+          <span class="muted mono small">WHERE {{ effectiveWhere() }}</span>
         }
       </div>
     }
   } @else if (error()) {
     <div class="dt-empty muted">
       {{
-        whereApplied()
+        effectiveWhere()
           ? 'Pas het filter aan, of klik op Wissen.'
           : 'Klik op vernieuwen om het opnieuw te proberen.'
       }}
@@ -357,3 +391,66 @@
     </button>
   </div>
 </dialog>
+
+@if (filterEdit(); as fe) {
+  <div class="dt-filter-backdrop" (mousedown)="filterEdit.set(null)"></div>
+  <form
+    class="dt-filter-pop"
+    role="dialog"
+    [attr.aria-label]="'Filter op ' + fe.draft.column"
+    [style.left.px]="fe.x"
+    [style.top.px]="fe.y"
+    (submit)="$event.preventDefault(); applyColumnFilter()"
+    (keydown.escape)="filterEdit.set(null)"
+  >
+    <strong class="mono small">{{ fe.draft.column }}</strong>
+    <select
+      #fop
+      class="input input-sm"
+      aria-label="Soort filter"
+      (change)="setFilterDraft({ op: $any(fop.value) })"
+    >
+      @for (o of filterOps; track o.op) {
+        <option [value]="o.op" [selected]="o.op === fe.draft.op">{{ o.label }}</option>
+      }
+    </select>
+    @if (filterNeeds(fe.draft.op) >= 1) {
+      <input
+        #fv
+        class="input input-sm mono"
+        aria-label="Waarde"
+        autocomplete="off"
+        spellcheck="false"
+        [placeholder]="filterNeeds(fe.draft.op) === 2 ? 'van' : 'waarde'"
+        [value]="fe.draft.value ?? ''"
+        (input)="setFilterDraft({ value: fv.value })"
+      />
+    }
+    @if (filterNeeds(fe.draft.op) === 2) {
+      <input
+        #fv2
+        class="input input-sm mono"
+        aria-label="Tot en met"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="tot en met"
+        [value]="fe.draft.value2 ?? ''"
+        (input)="setFilterDraft({ value2: fv2.value })"
+      />
+    }
+    <div class="dt-filter-actions">
+      @if (filteredColumns().has(fe.draft.column)) {
+        <button type="button" class="link-btn small" (click)="removeColumnFilter(fe.draft.column)">
+          Weghalen
+        </button>
+      }
+      <span class="push"></span>
+      <button type="button" class="btn btn-ghost btn-sm" (click)="filterEdit.set(null)">
+        Annuleren
+      </button>
+      <button type="submit" class="btn btn-primary btn-sm" [disabled]="!filterComplete()">
+        Filteren
+      </button>
+    </div>
+  </form>
+}

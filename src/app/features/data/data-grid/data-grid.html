@@ -117,6 +117,34 @@
           </span>
           <span class="dg-th-type">{{ col.type }}</span>
         </button>
+        @if (filteredColumns(); as filtered) {
+          <button
+            type="button"
+            class="dg-filter"
+            [class.on]="filtered.has(col.name)"
+            [attr.aria-label]="'Filter op ' + col.name"
+            [title]="
+              filtered.has(col.name)
+                ? 'Filter op ' + col.name + ' aanpassen'
+                : 'Filteren op ' + col.name
+            "
+            (mousedown)="$event.stopPropagation()"
+            (click)="requestFilter($event, col.name)"
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              [attr.fill]="filtered.has(col.name) ? 'currentColor' : 'none'"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 4h18l-7 8.5V19l-4 2v-8.5z" />
+            </svg>
+          </button>
+        }
         <span
           class="dg-resize"
           role="separator"

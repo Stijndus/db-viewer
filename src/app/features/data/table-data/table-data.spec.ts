@@ -924,3 +924,61 @@ describe('TableData saving at once (tag Development)', () => {
     expect(applied[0]?.updates).toEqual([{ key: { id: '1' }, values: { email: 'abc' } }]);
   });
 });
+
+describe('TableData filters per column', () => {
+  it('filters on a column from its header, shows a chip and can take it away', async () => {
+    const { el, requests, settle, foot } = await setup();
+    const header = Array.from(el.querySelectorAll<HTMLButtonElement>('.dg-filter')).find(
+      (b) => b.getAttribute('aria-label') === 'Filter op email',
+    )!;
+    header.click();
+    await settle();
+    const pop = el.querySelector<HTMLFormElement>('.dt-filter-pop')!;
+    expect(pop.querySelector('select')!.value).toBe('contains');
+    const value = pop.querySelector<HTMLInputElement>('input')!;
+    value.value = "o'k%";
+    value.dispatchEvent(new Event('input'));
+    await settle();
+    pop.dispatchEvent(new Event('submit'));
+    await settle();
+    expect(requests.at(-1)).toMatchObject({
+      offset: 0,
+      where: "`email` LIKE '%o''k\\\\%%' ESCAPE '\\\\'",
+    });
+    expect(el.querySelector('.dt-chip')?.textContent).toContain('email bevat "o\'k%"');
+    expect(header.classList).toContain('on');
+    expect(foot()).not.toContain('van ≈');
+
+    // A second filter on a number, between two values: both apply, with AND.
+    Array.from(el.querySelectorAll<HTMLButtonElement>('.dg-filter'))
+      .find((b) => b.getAttribute('aria-label') === 'Filter op id')!
+      .click();
+    await settle();
+    const pop2 = el.querySelector<HTMLFormElement>('.dt-filter-pop')!;
+    const op = pop2.querySelector('select')!;
+    op.value = 'between';
+    op.dispatchEvent(new Event('change'));
+    await settle();
+    const [from, to] = Array.from(pop2.querySelectorAll<HTMLInputElement>('input'));
+    from!.value = '1';
+    from!.dispatchEvent(new Event('input'));
+    to!.value = '9';
+    to!.dispatchEvent(new Event('input'));
+    await settle();
+    pop2.dispatchEvent(new Event('submit'));
+    await settle();
+    expect(requests.at(-1)?.where).toContain(" AND `id` BETWEEN '1' AND '9'");
+    expect(el.querySelectorAll('.dt-chip')).toHaveLength(2);
+
+    el.querySelector<HTMLButtonElement>('.dt-chip-x')!.click();
+    await settle();
+    expect(requests.at(-1)?.where).toBe("`id` BETWEEN '1' AND '9'");
+    // Wissen takes away the WHERE field and all column filters.
+    Array.from(el.querySelectorAll<HTMLButtonElement>('.dt-toolbar button'))
+      .find((b) => b.textContent?.trim() === 'Wissen')!
+      .click();
+    await settle();
+    expect(requests.at(-1)?.where).toBeUndefined();
+    expect(el.querySelector('.dt-chip')).toBeNull();
+  });
+});

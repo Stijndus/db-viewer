@@ -39,6 +39,15 @@ import type { MenuAction, MenuEntry } from '../../../core/context-menu/context-m
 import { quoteIdent, stringLiteral } from '../../../../../shared/dialect';
 import { keysFrom, keysTo, matchWhere, tableLabel } from '../relations';
 import {
+  combinedWhere,
+  FILTER_OPS,
+  filterLabel,
+  filterValues,
+  isComplete,
+  type ColumnFilter,
+  type FilterOp,
+} from '../../../../../shared/column-filter';
+import {
   base64Bytes,
   binaryValue,
   bytesBase64,
@@ -151,6 +160,22 @@ export class TableData {
   /** The next reload keeps the grid's selected cell. */
   protected readonly keepSelection = signal(false);
 
+  // ── Filters per column (from the grid's header) ─────────────────────
+  /** Active filters, one per column at most; joined with the WHERE field by AND. */
+  protected readonly columnFilters = signal<ColumnFilter[]>([]);
+  /** The filter being edited in the small window under a column header. */
+  protected readonly filterEdit = signal<{ x: number; y: number; draft: ColumnFilter } | null>(
+    null,
+  );
+  protected readonly filterOps = FILTER_OPS;
+  protected readonly filteredColumns = computed(
+    () => new Set(this.columnFilters().map((f) => f.column)),
+  );
+  /** What the server filters on: the WHERE field and the column filters. */
+  protected readonly effectiveWhere = computed(() =>
+    combinedWhere(this.whereApplied(), this.columnFilters(), this.dialect()),
+  );
+
   private requestId = 0;
   private objectKey = '';
   private noteTimer: ReturnType<typeof setTimeout> | undefined;
@@ -204,7 +229,8 @@ export class TableData {
     const count = this.count();
     if (count.status === 'done') return `van ${fmt(count.value)}`;
     const estimate = this.estimate();
-    if (!this.whereApplied() && estimate !== null && estimate > 0) return `van ≈ ${fmt(estimate)}`;
+    if (!this.effectiveWhere() && estimate !== null && estimate > 0)
+      return `van ≈ ${fmt(estimate)}`;
     return null;
   });
 
@@ -403,7 +429,7 @@ export class TableData {
         kind: 'table',
         database: o.database,
         table: o.name,
-        ...(this.whereApplied().trim() && { where: this.whereApplied() }),
+        ...(this.effectiveWhere() && { where: this.effectiveWhere() }),
         orderBy: this.effectiveOrder(),
       },
     });
@@ -490,7 +516,7 @@ export class TableData {
       offset: this.offset(),
       limit: this.pageSize(),
       orderBy: this.effectiveOrder(),
-      where: this.whereApplied() || undefined,
+      where: this.effectiveWhere() || undefined,
     });
     if (id !== this.requestId) return; // A newer request superseded this one.
     this.loading.set(false);
@@ -516,7 +542,75 @@ export class TableData {
 
   protected clearFilter(): void {
     this.whereDraft.set('');
+    this.columnFilters.set([]);
     this.applyFilter();
+  }
+
+  /** The filter button in a column's header: a small window under it. */
+  protected openColumnFilter(e: { column: string; x: number; y: number }): void {
+    const current = this.columnFilters().find((f) => f.column === e.column);
+    const numeric = this.gridColumns().find((c) => c.name === e.column)?.numeric ?? false;
+    this.filterEdit.set({
+      x: Math.max(8, Math.min(e.x, window.innerWidth - 300)),
+      y: e.y,
+      draft: current
+        ? { ...current }
+        : { column: e.column, op: numeric ? 'equals' : 'contains', value: '' },
+    });
+    // The value field (or the operator) gets the focus, so you can type right away.
+    setTimeout(() =>
+      (
+        document.querySelector<HTMLElement>('.dt-filter-pop input') ??
+        document.querySelector<HTMLElement>('.dt-filter-pop select')
+      )?.focus(),
+    );
+  }
+
+  protected setFilterDraft(patch: Partial<ColumnFilter>): void {
+    this.filterEdit.update((f) => (f ? { ...f, draft: { ...f.draft, ...patch } } : f));
+  }
+
+  protected filterNeeds(op: FilterOp): number {
+    return filterValues(op);
+  }
+
+  protected filterComplete(): boolean {
+    const f = this.filterEdit();
+    return !!f && isComplete(f.draft);
+  }
+
+  /** Applies the filter of the window (replacing the column's earlier one) and loads page 1. */
+  protected applyColumnFilter(): void {
+    const f = this.filterEdit();
+    if (!f || !isComplete(f.draft) || !this.confirmDiscard()) return;
+    const { draft } = f;
+    const n = filterValues(draft.op);
+    const clean: ColumnFilter = {
+      column: draft.column,
+      op: draft.op,
+      ...(n >= 1 && { value: draft.value }),
+      ...(n === 2 && { value2: draft.value2 }),
+    };
+    this.columnFilters.update((all) => [...all.filter((x) => x.column !== clean.column), clean]);
+    this.filterEdit.set(null);
+    this.reloadFiltered();
+  }
+
+  protected removeColumnFilter(column: string): void {
+    if (!this.confirmDiscard()) return;
+    this.columnFilters.update((all) => all.filter((x) => x.column !== column));
+    if (this.filterEdit()?.draft.column === column) this.filterEdit.set(null);
+    this.reloadFiltered();
+  }
+
+  protected filterText(f: ColumnFilter): string {
+    return filterLabel(f);
+  }
+
+  private reloadFiltered(): void {
+    this.offset.set(0);
+    this.count.set({ status: 'idle' });
+    void this.load();
   }
 
   protected toggleSort(column: string): void {
@@ -559,7 +653,7 @@ export class TableData {
       o.connectionId,
       o.database,
       o.name,
-      this.whereApplied() || undefined,
+      this.effectiveWhere() || undefined,
     );
     if (id !== this.requestId && this.count().status !== 'loading') return;
     this.count.set(
@@ -1321,7 +1415,7 @@ export class TableData {
       { label: `${name} IS NULL`, run: apply(`${col} IS NULL`) },
       { label: `${name} IS NOT NULL`, run: apply(`${col} IS NOT NULL`) },
     );
-    if (this.whereApplied())
+    if (this.whereApplied() || this.columnFilters().length)
       items.push('separator', { label: 'Filter wissen', run: () => this.clearFilter() });
     return items;
   }
@@ -1358,7 +1452,7 @@ export class TableData {
       input?.select();
     });
     on('data.clearFilter', () => {
-      if (!this.whereDraft() && !this.whereApplied()) return false;
+      if (!this.whereDraft() && !this.whereApplied() && !this.columnFilters().length) return false;
       this.clearFilter();
       return true;
     });

@@ -185,6 +185,10 @@ export class DataGrid {
   /** Query results are shown as returned; only table data can be re-sorted by the server. */
   readonly sortable = input(true);
   readonly sortRequested = output<string>();
+  /** Columns with a filter: their header shows it. Null: the grid offers no column filters. */
+  readonly filteredColumns = input<ReadonlySet<string> | null>(null);
+  /** The filter button of a column header, with where to show the filter window. */
+  readonly filterRequested = output<{ column: string; x: number; y: number }>();
   /** For copying as SQL: the dialect and the table the rows come from (query results: `export`). */
   readonly dialect = input<DbType>('mysql');
   readonly tableName = input('export');
@@ -295,6 +299,12 @@ export class DataGrid {
 
   /** Widths the user dragged or fitted, by column name, over the starting widths. */
   private readonly customWidths = signal<Record<string, number>>({});
+  protected requestFilter(event: MouseEvent, column: string): void {
+    event.stopPropagation();
+    const r = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.filterRequested.emit({ column, x: r.left, y: r.bottom + 4 });
+  }
+
   protected readonly widths = computed(() => {
     const custom = this.customWidths();
     return this.columns().map((c) => custom[c.name] ?? c.width);

@@ -3497,3 +3497,97 @@ app-process-list {
   margin-left: 4px;
   vertical-align: 1px;
 }
+
+/* Filters per column */
+.dg-thw {
+  position: relative;
+}
+.dg-filter {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+}
+.dg-thw:hover .dg-filter,
+.dg-filter:focus-visible,
+.dg-filter.on {
+  opacity: 1;
+}
+.dg-filter:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.dg-filter.on {
+  color: var(--accent);
+}
+.dt-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 10px;
+}
+.dt-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--accent-border, var(--border));
+  background: var(--accent-soft);
+  border-radius: 999px;
+  font-size: 12px;
+  overflow: hidden;
+}
+.dt-chip button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-text, var(--text));
+  cursor: pointer;
+  padding: 3px 4px 3px 10px;
+  font: inherit;
+}
+.dt-chip .dt-chip-x {
+  padding: 3px 9px 3px 4px;
+  color: var(--text-3);
+}
+.dt-chip .dt-chip-x:hover {
+  color: var(--text);
+}
+.dt-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.dt-filter-pop {
+  position: fixed;
+  z-index: 41;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.dt-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dt-filter-actions .push {
+  flex: 1;
+}
+/* Room for the filter button, so it never covers the column name (right-aligned for numbers). */
+.dg-thw:has(.dg-filter) > .dg-th {
+  padding-right: 30px;
+}
