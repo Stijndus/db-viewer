@@ -3704,3 +3704,17 @@ app-process-list {
   line-height: 1.55;
   user-select: text;
 }
+.theme-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.theme-message {
+  min-width: 0;
+  color: var(--text-2);
+}
+.theme-remove {
+  margin-left: 4px;
+}

@@ -28,7 +28,7 @@ describe('ddl', () => {
   });
   it('writes column changes per dialect', () => {
     expect(addColumnSql('mssql', 'dbo', 't', { ...c, nullable: false, defaultValue: '0' })).toEqual(
-      ['ALTER TABLE [dbo].[t] ADD [x] int NOT NULL DEFAULT 0'],
+      ['ALTER TABLE [dbo].[t] ADD [x] int NOT NULL DEFAULT 0 WITH VALUES'],
     );
     expect(
       alterColumnSql('postgres', 'public', 't', c, {

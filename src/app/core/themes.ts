@@ -594,8 +594,8 @@ export const THEMES: Theme[] = [
 /** "Systeem" follows the OS: Donker or Licht. */
 export const SYSTEM = 'system';
 
-export function themeById(id: string): Theme {
-  return THEMES.find((t) => t.id === id) ?? donker;
+export function themeById(id: string, custom: readonly Theme[] = []): Theme {
+  return THEMES.find((t) => t.id === id) ?? custom.find((t) => t.id === id) ?? donker;
 }
 
 // ── Contrast (WCAG 2.1), used by the tests ─────────────────────────
@@ -616,6 +616,48 @@ export function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
   return (x! + 0.05) / (y! + 0.05);
 }
+
+/** WCAG AA: 4.5 for text, 3 for large text and UI parts. Pairs as they appear on screen. */
+export const CONTRAST_PAIRS: [Token, Token, number][] = [
+  ['text', 'bg', 7],
+  ['text', 'panel', 7],
+  ['text', 'panel-2', 4.5],
+  ['text', 'select-bg', 4.5],
+  ['text-2', 'bg', 4.5],
+  ['text-2', 'panel', 4.5],
+  ['text-3', 'bg', 4.5],
+  ['text-3', 'panel', 4],
+  ['accent-ink', 'accent', 4.5],
+  ['accent-text', 'bg', 4.5],
+  ['accent-text', 'accent-soft', 4.5],
+  ['ok-text', 'bg', 4.5],
+  ['ok-text', 'ok-bg', 4.5],
+  ['warn-text', 'bg', 4.5],
+  ['warn-text', 'warn-bg', 4.5],
+  ['err-text', 'bg', 4.5],
+  ['err-text', 'err-bg', 4.5],
+  ['err-ink', 'err', 3],
+  ['syn-keyword', 'bg', 4.5],
+  ['syn-string', 'bg', 4.5],
+  ['syn-number', 'bg', 4.5],
+  ['syn-operator', 'bg', 4.5],
+  ['syn-type', 'bg', 4.5],
+  ['syn-special', 'bg', 4.5],
+  ['syn-comment', 'bg', 3.5],
+  ['syn-keyword', 'editor-active-line', 4.5],
+  // The selected row's number.
+  ['accent-text', 'panel', 4.5],
+  // Values in the data grid have the colour of their type, also on striped and selected rows.
+  ...(['syn-keyword', 'syn-string', 'syn-number', 'syn-type', 'syn-special'] as const).flatMap(
+    (t) => [
+      [t, 'row-alt', 4.5] as [Token, Token, number],
+      [t, 'accent-soft', 4] as [Token, Token, number],
+      [t, 'hover', 4.5] as [Token, Token, number],
+    ],
+  ),
+  ['text', 'editor-selection', 4.5],
+  ['editor-gutter-text', 'editor-gutter', 3],
+];
 
 /**
  * Connection labels beyond the four that come from the theme (green, orange, red, blue follow
@@ -661,7 +703,41 @@ export function savedThemeChoice(): string {
   }
 }
 
-export function resolveTheme(choice: string, systemDark: boolean): Theme {
+export function resolveTheme(
+  choice: string,
+  systemDark: boolean,
+  custom: readonly Theme[] = [],
+): Theme {
   if (choice === SYSTEM) return themeById(systemDark ? 'donker' : 'licht');
-  return themeById(choice);
+  return themeById(choice, custom);
+}
+
+/** Imported themes (VS Code), kept next to the choice. */
+export const CUSTOM_THEMES_KEY = 'dbv.customThemes';
+
+/** The imported themes; anything that does not set every token as text is left out. */
+export function savedCustomThemes(): Theme[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(CUSTOM_THEMES_KEY) ?? '[]') as unknown;
+    if (!Array.isArray(list)) return [];
+    return list.filter(
+      (t): t is Theme =>
+        !!t &&
+        typeof t.id === 'string' &&
+        typeof t.name === 'string' &&
+        typeof t.dark === 'boolean' &&
+        !!t.colors &&
+        TOKENS.every((k) => typeof t.colors[k] === 'string'),
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomThemes(themes: readonly Theme[]): void {
+  try {
+    localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes));
+  } catch {
+    // Not remembered; the theme still applies now.
+  }
 }

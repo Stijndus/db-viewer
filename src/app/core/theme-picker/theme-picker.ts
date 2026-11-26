@@ -8,7 +8,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { ThemeStore } from '../theme.store';
-import { SYSTEM, THEMES, type Theme } from '../themes';
+import { SYSTEM, type Theme } from '../themes';
+import { importVsCodeTheme } from '../vscode-theme';
 
 interface Option {
   id: string;
@@ -16,6 +17,8 @@ interface Option {
   description: string;
   /** Colours for the swatch strip. */
   theme: Theme;
+  /** Imported, so it can be removed. */
+  custom: boolean;
 }
 
 /**
@@ -67,7 +70,34 @@ interface Option {
             @if (o.id === store.choice()) {
               <span class="theme-current small">huidig</span>
             }
+            @if (o.custom) {
+              <button
+                type="button"
+                class="link-btn small err-text theme-remove"
+                [attr.aria-label]="o.name + ' verwijderen'"
+                (click)="$event.stopPropagation(); remove(o.id)"
+              >
+                Verwijderen
+              </button>
+            }
           </div>
+        }
+      </div>
+      <div class="theme-foot">
+        <input
+          #file
+          type="file"
+          accept=".json,application/json"
+          hidden
+          (change)="importFile(file)"
+        />
+        <button type="button" class="btn btn-secondary btn-sm" (click)="file.click()">
+          VS Code-thema importeren…
+        </button>
+        @if (message(); as m) {
+          <span class="small theme-message" [class.err-text]="m.error" role="status">{{
+            m.text
+          }}</span>
         }
       </div>
     </dialog>
@@ -84,9 +114,17 @@ export class ThemePicker {
       name: 'Systeem volgen',
       description: 'Donker of Licht, zoals Windows is ingesteld',
       theme: this.store.active(),
+      custom: false,
     },
-    ...THEMES.map((t) => ({ id: t.id, name: t.name, description: t.description, theme: t })),
+    ...this.store.themes().map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      theme: t,
+      custom: this.store.custom().includes(t),
+    })),
   ]);
+  protected readonly message = signal<{ text: string; error: boolean } | null>(null);
   protected readonly index = signal(0);
 
   constructor() {
@@ -114,6 +152,46 @@ export class ThemePicker {
     this.dialog().nativeElement.close();
   }
 
+  /** Reads a VS Code theme, adds it and keeps it as the chosen theme; the picker stays open. */
+  protected async importFile(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      this.message.set({ text: 'Dit bestand is te groot voor een thema.', error: true });
+      return;
+    }
+    try {
+      const { theme, adjusted } = importVsCodeTheme(await file.text(), file.name);
+      this.store.addCustom(theme);
+      this.store.preview.set(null);
+      this.index.set(this.options().findIndex((o) => o.id === theme.id));
+      this.scrollToActive();
+      this.message.set({
+        text:
+          `"${theme.name}" toegevoegd.` +
+          (adjusted.length
+            ? ` ${adjusted.length} ${adjusted.length === 1 ? 'kleur' : 'kleuren'} aangepast voor leesbaarheid.`
+            : ''),
+        error: false,
+      });
+    } catch (e) {
+      this.message.set({ text: (e as Error).message, error: true });
+    }
+  }
+
+  protected remove(id: string): void {
+    const name = this.options().find((o) => o.id === id)?.name ?? '';
+    this.store.removeCustom(id);
+    this.index.set(
+      Math.max(
+        0,
+        this.options().findIndex((o) => o.id === this.store.choice()),
+      ),
+    );
+    this.message.set({ text: `"${name}" verwijderd.`, error: false });
+  }
+
   protected onKey(event: KeyboardEvent): void {
     const n = this.options().length;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -123,6 +201,8 @@ export class ThemePicker {
       event.preventDefault();
       this.focus(event.key === 'Home' ? 0 : n - 1);
     } else if (event.key === 'Enter') {
+      // Enter on a button (import, remove) presses that button.
+      if ((event.target as HTMLElement | null)?.closest('button, input')) return;
       event.preventDefault();
       this.pick(this.options()[this.index()]!.id);
     }

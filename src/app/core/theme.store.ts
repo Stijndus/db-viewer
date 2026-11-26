@@ -3,6 +3,8 @@ import { DB_API } from './db-api';
 import {
   applyTheme,
   resolveTheme,
+  saveCustomThemes,
+  savedCustomThemes,
   savedThemeChoice,
   SYSTEM,
   THEME_KEY,
@@ -17,16 +19,20 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ThemeStore {
   private readonly api = inject(DB_API);
-  readonly themes = THEMES;
+  /** Imported VS Code themes, after the built-in ones. */
+  readonly custom = signal<Theme[]>(savedCustomThemes());
+  readonly themes = computed(() => [...THEMES, ...this.custom()]);
   readonly choice = signal(savedThemeChoice());
   /** A theme shown while choosing; null = the chosen one. */
   readonly preview = signal<string | null>(null);
   readonly pickerOpen = signal(false);
   private readonly systemDark = signal(true);
 
-  readonly active = computed<Theme>(() => resolveTheme(this.choice(), this.systemDark()));
+  readonly active = computed<Theme>(() =>
+    resolveTheme(this.choice(), this.systemDark(), this.custom()),
+  );
   readonly shown = computed<Theme>(() =>
-    resolveTheme(this.preview() ?? this.choice(), this.systemDark()),
+    resolveTheme(this.preview() ?? this.choice(), this.systemDark(), this.custom()),
   );
   readonly label = computed(() =>
     this.choice() === SYSTEM ? `Systeem (${this.active().name})` : this.active().name,
@@ -51,6 +57,23 @@ export class ThemeStore {
     } catch {
       // Not remembered; the theme still applies now.
     }
+  }
+
+  /** Adds an imported theme (replacing one with the same id) and chooses it. */
+  addCustom(theme: Theme): void {
+    const list = [...this.custom().filter((t) => t.id !== theme.id), theme];
+    this.custom.set(list);
+    saveCustomThemes(list);
+    this.choose(theme.id);
+  }
+
+  /** Removes an imported theme; if it was the chosen one, Donker takes over. */
+  removeCustom(id: string): void {
+    const list = this.custom().filter((t) => t.id !== id);
+    this.custom.set(list);
+    saveCustomThemes(list);
+    if (this.choice() === id) this.choose('donker');
+    if (this.preview() === id) this.preview.set(null);
   }
 
   openPicker(): void {

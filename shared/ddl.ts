@@ -148,7 +148,8 @@ export function addColumnSql(
   const name = quoteIdent(def.name.trim(), dialect);
   const out = [
     dialect === 'mssql'
-      ? `ALTER TABLE ${t} ADD ${name} ${columnBody(def, dialect, false)}`
+      ? // WITH VALUES: existing rows get the default too, as in the other databases.
+        `ALTER TABLE ${t} ADD ${name} ${columnBody(def, dialect, false)}${def.defaultValue.trim() ? ' WITH VALUES' : ''}`
       : `ALTER TABLE ${t} ADD COLUMN ${name} ${columnBody(def, dialect, false)}`,
   ];
   if (dialect === 'postgres' && def.comment.trim())
