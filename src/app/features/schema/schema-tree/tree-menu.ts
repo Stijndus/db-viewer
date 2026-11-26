@@ -21,6 +21,7 @@ import { ConfirmDangerStore } from '../../../core/confirm-danger/confirm-danger'
 import { KeybindingsStore } from '../../../core/keybindings/keybindings.store';
 import { PromptStore } from '../../../core/prompt/prompt';
 import type { MenuAction, MenuEntry } from '../../../core/context-menu/context-menu.store';
+import { copyToClipboard as copy } from '../../../core/clipboard';
 import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { SqlStore } from '../../sql/sql.store';
@@ -433,19 +434,4 @@ function capital(text: string): string {
 /** Plain names as they are; anything else quoted for the dialect. */
 function quoteIfNeeded(name: string, conn: ConnectionProfile): string {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : quoteIdent(name, conn.type);
-}
-
-async function copy(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const area = document.createElement('textarea');
-    area.value = text;
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    document.body.appendChild(area);
-    area.select();
-    document.execCommand('copy');
-    area.remove();
-  }
 }

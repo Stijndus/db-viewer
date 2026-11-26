@@ -43,6 +43,19 @@ describe('ddl', () => {
       `COMMENT ON COLUMN "public"."t"."x" IS 'aantal'`,
     ]);
     expect(dropColumnSql('mssql', 'dbo', 't', 'x')[0]).toContain('DROP CONSTRAINT');
+    // SQL Server: the default comes off before ALTER COLUMN and goes back on after it.
+    const ms = alterColumnSql(
+      'mssql',
+      'dbo',
+      't',
+      { ...c, defaultValue: '1' },
+      { ...c, type: 'bigint', defaultValue: '1' },
+    );
+    expect(ms.map((s) => s.split(' ').slice(0, 4).join(' '))).toEqual([
+      expect.stringMatching(/^DECLARE/),
+      'ALTER TABLE [dbo].[t] ALTER',
+      'ALTER TABLE [dbo].[t] ADD',
+    ]);
     expect(() => addColumnSql('mysql', 'db', 't', { ...c, type: 'int; DROP TABLE t' })).toThrow(
       /;/,
     );

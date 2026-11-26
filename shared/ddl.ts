@@ -233,16 +233,18 @@ export function alterColumnSql(
         );
         out.push(`EXEC sp_rename ${from}, ${stringLiteral(newName, 'mssql')}, 'COLUMN'`);
       }
-      if (after.type.trim() !== before.type.trim() || after.nullable !== before.nullable) {
+      const retype = after.type.trim() !== before.type.trim() || after.nullable !== before.nullable;
+      const redefault = after.defaultValue.trim() !== before.defaultValue.trim();
+      // SQL Server refuses ALTER COLUMN while a default constraint depends on the column, so the
+      // default comes off first and goes back on afterwards.
+      if (retype || redefault) out.push(mssqlDropDefault(database, table, newName));
+      if (retype) {
         out.push(
           `ALTER TABLE ${t} ALTER COLUMN ${q(newName)} ${after.type.trim()} ${after.nullable ? 'NULL' : 'NOT NULL'}`,
         );
       }
-      if (after.defaultValue.trim() !== before.defaultValue.trim()) {
-        out.push(mssqlDropDefault(database, table, newName));
-        if (after.defaultValue.trim()) {
-          out.push(`ALTER TABLE ${t} ADD DEFAULT ${after.defaultValue.trim()} FOR ${q(newName)}`);
-        }
+      if ((retype || redefault) && after.defaultValue.trim()) {
+        out.push(`ALTER TABLE ${t} ADD DEFAULT ${after.defaultValue.trim()} FOR ${q(newName)}`);
       }
       return out;
     }

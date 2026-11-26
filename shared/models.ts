@@ -154,6 +154,14 @@ export type ObjectAction =
   | { action: 'drop-container'; database: string; force?: boolean }
   | { action: 'create-container'; database: string };
 
+/** A table as SQL: CREATE TABLE, the keys and indexes it leaves out, and its triggers. */
+export interface TableDefinition {
+  create: string;
+  /** CREATE INDEX and ALTER TABLE … FOREIGN KEY statements not in `create`. */
+  extras: string[];
+  triggers: { name: string; sql: string }[];
+}
+
 export interface SchemaObject {
   name: string;
   kind: ObjectKind;

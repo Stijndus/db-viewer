@@ -32,6 +32,7 @@ import type {
   RunResult,
   SchemaObject,
   SqlImportRequest,
+  TableDefinition,
   TestResult,
   TransferProgress,
   UpdateState,
@@ -59,6 +60,7 @@ export const IPC = {
   applyUserChanges: 'users:apply',
   listProcesses: 'processes:list',
   listIndexes: 'structure:indexes',
+  tableDefinition: 'structure:definition',
   applyDdl: 'structure:apply',
   stopProcess: 'processes:stop',
   readRows: 'data:rows',
@@ -165,6 +167,12 @@ export interface DbApi {
   objectAction(connectionId: string, action: ObjectAction): Promise<Result<void>>;
   /** The server's users (MySQL accounts, PostgreSQL roles, SQL Server logins). */
   listUsers(connectionId: string): Promise<Result<DbUserSummary[]>>;
+  /** A table as SQL: CREATE TABLE, extra indexes and foreign keys, triggers. */
+  tableDefinition(
+    connectionId: string,
+    database: string,
+    table: string,
+  ): Promise<Result<TableDefinition>>;
   /** A table's indexes. */
   listIndexes(connectionId: string, database: string, table: string): Promise<Result<IndexInfo[]>>;
   /** Runs structure changes (shown first), stopping at the first error; refused when read-only. */

@@ -35,6 +35,9 @@ export const objectKey = (conn: string, db: string, name: string) =>
 const objectsCacheKey = (conn: string, db: string) => [conn, db].join(SEP);
 const columnsCacheKey = (conn: string, db: string, table: string) => [conn, db, table].join(SEP);
 
+/** The tabs of a table or view. */
+export type ObjectTab = 'data' | 'structure' | 'ddl';
+
 /**
  * Schema metadata per open connection: databases → objects → columns, each loaded on first expand
  * and cached until refresh or disconnect.
@@ -67,11 +70,11 @@ export class SchemaStore {
   private filterOwner: string | null = null;
   readonly showSystem = signal(false);
   /** Data or Structure: the last choice, used when a table opens in a new tab. */
-  readonly lastObjectTab = signal<'data' | 'structure'>('data');
+  readonly lastObjectTab = signal<ObjectTab>('data');
   /** Asks an open tab to switch to Data or Structure (from the tree's menu). */
   readonly viewRequest = signal<{
     object: SelectedObject;
-    view: 'data' | 'structure';
+    view: ObjectTab;
     at: number;
   } | null>(null);
 
@@ -79,7 +82,7 @@ export class SchemaStore {
   readonly dataChanged = signal<{ object: Omit<SelectedObject, 'kind'>; at: number } | null>(null);
 
   /** Opens a table or view (a new tab starts on `view`; an open one switches to it). */
-  async openAs(object: SelectedObject, view: 'data' | 'structure'): Promise<void> {
+  async openAs(object: SelectedObject, view: ObjectTab): Promise<void> {
     this.lastObjectTab.set(view);
     this.viewRequest.set({ object, view, at: performance.now() });
     await this.select(object);

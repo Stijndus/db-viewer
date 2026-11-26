@@ -31,6 +31,18 @@
     >
       Statement uitvoeren
     </button>
+    <button
+      type="button"
+      class="btn btn-ghost btn-sm"
+      [title]="
+        'Queryplan van het statement onder de cursor, zonder het uit te voeren (' +
+        keys.keyLabels('sql.explain') +
+        ')'
+      "
+      (click)="explain()"
+    >
+      Uitleggen
+    </button>
   }
   <button
     type="button"

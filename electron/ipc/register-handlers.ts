@@ -38,6 +38,7 @@ import { hasUsers } from '../../shared/user-sql';
 import { hasProcesses } from '../../shared/process-list';
 import { listProcesses, stopProcess } from '../db/processes';
 import { applyDdl, listIndexes } from '../db/structure';
+import { tableDefinition } from '../db/definition';
 import { AppError, toDbError } from './errors';
 import {
   cellKeySchema,
@@ -491,6 +492,16 @@ export function registerHandlers(deps: HandlerDeps): Handlers {
     const id = idSchema.parse(rawId);
     const profile = await store.get(id);
     return listIndexes(
+      manager.session(id),
+      profile.type,
+      identifierSchema.parse(rawDb),
+      identifierSchema.parse(rawTable),
+    );
+  });
+  handle(IPC.tableDefinition, async (rawId, rawDb, rawTable) => {
+    const id = idSchema.parse(rawId);
+    const profile = await store.get(id);
+    return tableDefinition(
       manager.session(id),
       profile.type,
       identifierSchema.parse(rawDb),

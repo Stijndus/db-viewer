@@ -195,6 +195,14 @@ export function fakeDbApi(overrides: Partial<DbApi> = {}): DbApi {
     readRows: (_id, _db, _table, request) => ok(fakeRows(request)),
     countRows: (_id, _db, _table, where) => ok(where ? FAKE_ROW_COUNT / 2 : FAKE_ROW_COUNT),
     objectDefinition: (_id, _db, _kind, name) => ok(`CREATE TABLE ${name} (id int)`),
+    tableDefinition: (_id, _db, name) =>
+      ok({
+        create: `CREATE TABLE ${name} (id int)`,
+        extras: [`CREATE INDEX idx_${name} ON ${name} (id)`],
+        triggers: [
+          { name: `trg_${name}`, sql: `CREATE TRIGGER trg_${name} BEFORE INSERT ON ${name}` },
+        ],
+      }),
     routineParams: () => ok([]),
     objectAction: () => ok(undefined),
     listProcesses: () =>

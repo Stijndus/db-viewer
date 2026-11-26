@@ -84,6 +84,16 @@ describe('SqlStore', () => {
     expect(sql.tab(ID, tab.id)?.activeResult).toBe(1);
   });
 
+  it('explains the statement under the cursor without asking, even a write', async () => {
+    const { sql, runs } = await setup();
+    const tab = sql.newTab(ID);
+    await sql.explain(ID, tab.id, snap('SELECT 1;\nDELETE FROM t;', 12));
+    expect(sql.confirmation()).toBeNull();
+    expect(runs[0]?.statements).toEqual(['EXPLAIN DELETE FROM t']);
+    expect(sql.tab(ID, tab.id)?.result?.results).toHaveLength(1);
+    expect(sql.tab(ID, tab.id)?.ran.map((s) => s.sql)).toEqual(['DELETE FROM t']);
+  });
+
   it('says how many statements a run under the cursor left out', async () => {
     const { sql, runs } = await setup();
     const tab = sql.newTab(ID);

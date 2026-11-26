@@ -258,6 +258,7 @@ export class SqlPanel {
       keys.handle(command, () => (mine() ? run() : false), destroy);
     on('sql.runCurrent', () => this.run('current'));
     on('sql.runAll', () => this.run('all'));
+    on('sql.explain', () => this.explain());
     // Esc only stops a running query; otherwise it goes on (closing the search panel, …).
     on('sql.stop', () => (this.tab().running ? this.stop() : false));
     on('sql.clear', () => this.editor()?.command('clear'));
@@ -289,6 +290,12 @@ export class SqlPanel {
     const editor = this.editor();
     if (!editor) return;
     void this.sql.run(this.connectionId(), this.tab().id, mode, editor.snapshot());
+  }
+
+  protected explain(): void {
+    const editor = this.editor();
+    if (!editor) return;
+    void this.sql.explain(this.connectionId(), this.tab().id, editor.snapshot());
   }
 
   protected stop(): void {

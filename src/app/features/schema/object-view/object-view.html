@@ -43,6 +43,18 @@
   >
     Structuur
   </button>
+  <button
+    type="button"
+    role="tab"
+    class="tab"
+    [id]="uid + '-tab-ddl'"
+    [attr.aria-controls]="uid + '-panel-ddl'"
+    [class.active]="view() === 'ddl'"
+    [attr.aria-selected]="view() === 'ddl'"
+    (click)="setView('ddl')"
+  >
+    DDL
+  </button>
 </div>
 
 <!-- Both panels stay alive; the inactive one is hidden, so unsaved edits survive a tab switch. -->
@@ -213,5 +225,42 @@
     }
   } @else {
     <p class="muted">Kolommen laden…</p>
+  }
+</div>
+<div
+  [id]="uid + '-panel-ddl'"
+  class="structure-panel ddl-panel"
+  role="tabpanel"
+  [attr.aria-labelledby]="uid + '-tab-ddl'"
+  [hidden]="view() !== 'ddl'"
+>
+  @if (ddl(); as state) {
+    @if (state.status === 'loaded') {
+      <div class="st-bar">
+        <h3 class="st-title">{{ object().kind === 'view' ? 'Definitie' : 'CREATE-script' }}</h3>
+        <span class="push"></span>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="copyDdl()">
+          {{ copied() ? 'Gekopieerd' : 'Kopiëren' }}
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="ddlInSql()">
+          In SQL-tabblad
+        </button>
+      </div>
+      <pre class="ddl-text mono" tabindex="0" aria-label="DDL">{{ state.text }}</pre>
+    } @else if (state.status === 'error') {
+      <div class="banner banner-error" role="alert">
+        <strong>{{ state.error.message }}</strong>
+        @if (state.error.hint) {
+          <span class="small">{{ state.error.hint }}</span>
+        }
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="reloadDdl()">
+            Opnieuw proberen
+          </button>
+        </div>
+      </div>
+    } @else {
+      <p class="muted">DDL laden…</p>
+    }
   }
 </div>

@@ -1,11 +1,13 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { columnDefOf, type IndexInfo } from '../../../../../shared/ddl';
 import type { ColumnInfo, DbError, SchemaObject } from '../../../../../shared/models';
+import { copyToClipboard } from '../../../core/clipboard';
 import { DB_API } from '../../../core/db-api';
 import { ConnectionsStore } from '../../connections/connections.store';
 import { StructureStore } from '../../structure/structure.store';
 import { TableData } from '../../data/table-data/table-data';
-import { SchemaStore, type SelectedObject } from '../schema.store';
+import { WorkspaceStore } from '../../workspace/workspace.store';
+import { SchemaStore, type ObjectTab, type SelectedObject } from '../schema.store';
 
 /** Main panel for a selected table or view: header, then its data or its structure. */
 let uidCounter = 0;
@@ -25,6 +27,7 @@ export class ObjectView {
   private readonly api = inject(DB_API);
   private readonly connections = inject(ConnectionsStore);
   private readonly structure = inject(StructureStore);
+  private readonly ws = inject(WorkspaceStore);
 
   /** A table on a connection that may change it: the structure can be edited. */
   protected readonly editable = computed(() => {
@@ -35,6 +38,15 @@ export class ObjectView {
 
   protected readonly indexes = signal<IndexInfo[] | null>(null);
   protected readonly indexError = signal<DbError | null>(null);
+
+  /** The DDL tab: the whole CREATE script, read when the tab is first shown. */
+  protected readonly ddl = signal<
+    | { status: 'loading' }
+    | { status: 'loaded'; text: string }
+    | { status: 'error'; error: DbError }
+    | null
+  >(null);
+  protected readonly copied = signal(false);
 
   /** Data or Structure, per tab; a new tab starts with the last choice. */
   protected readonly view = signal(this.schema.lastObjectTab());
@@ -58,6 +70,22 @@ export class ObjectView {
           void this.loadIndexes();
       });
     });
+    // DDL: read when its tab is first shown, and again after a change to this table.
+    effect(() => {
+      if (this.view() !== 'ddl') return;
+      const o = this.object();
+      const changed = this.structure.changed();
+      untracked(() => {
+        if (
+          this.ddl() === null ||
+          (changed &&
+            changed.connectionId === o.connectionId &&
+            changed.database === o.database &&
+            changed.table === o.name)
+        )
+          void this.loadDdl();
+      });
+    });
     effect(() => {
       const request = this.schema.viewRequest();
       const o = untracked(this.object);
@@ -74,7 +102,7 @@ export class ObjectView {
     });
   }
 
-  protected setView(view: 'data' | 'structure'): void {
+  protected setView(view: ObjectTab): void {
     this.view.set(view);
     this.schema.lastObjectTab.set(view);
   }
@@ -122,6 +150,50 @@ export class ObjectView {
     } else this.indexError.set(result.error);
   }
 
+  private async loadDdl(): Promise<void> {
+    const o = this.object();
+    this.ddl.set({ status: 'loading' });
+    if (o.kind === 'view') {
+      const result = await this.api.objectDefinition(o.connectionId, o.database, 'view', o.name);
+      this.ddl.set(
+        result.ok
+          ? { status: 'loaded', text: endStatement(result.data) }
+          : { status: 'error', error: result.error },
+      );
+      return;
+    }
+    const result = await this.api.tableDefinition(o.connectionId, o.database, o.name);
+    if (!result.ok) {
+      this.ddl.set({ status: 'error', error: result.error });
+      return;
+    }
+    const { create, extras, triggers } = result.data;
+    const parts = [endStatement(create), ...extras.map(endStatement)];
+    if (triggers.length) {
+      parts.push('-- Triggers', ...triggers.map((t) => endStatement(t.sql)));
+    }
+    this.ddl.set({ status: 'loaded', text: parts.join('\n\n') + '\n' });
+  }
+
+  protected async copyDdl(): Promise<void> {
+    const state = this.ddl();
+    if (state?.status !== 'loaded') return;
+    await copyToClipboard(state.text);
+    this.copied.set(true);
+    setTimeout(() => this.copied.set(false), 1500);
+  }
+
+  protected ddlInSql(): void {
+    const state = this.ddl();
+    if (state?.status !== 'loaded') return;
+    const o = this.object();
+    this.ws.newSql(o.connectionId, { database: o.database, text: state.text, title: o.name });
+  }
+
+  protected reloadDdl(): void {
+    void this.loadDdl();
+  }
+
   private base() {
     const o = this.object();
     return { connectionId: o.connectionId, database: o.database, table: o.name };
@@ -154,4 +226,10 @@ export class ObjectView {
     const o = this.object();
     void this.schema.loadColumns(o.connectionId, o.database, o.name);
   }
+}
+
+/** A statement ending in a semicolon, so the parts can be run one after another. */
+function endStatement(sql: string): string {
+  const text = sql.trim();
+  return /;\s*$/.test(text) || /\bEND\s*$/i.test(text) ? text : text + ';';
 }

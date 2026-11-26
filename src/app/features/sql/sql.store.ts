@@ -1,5 +1,6 @@
 import { computed, DestroyRef, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import type { DbError, RunResult } from '../../../../shared/models';
+import { explainStatements } from '../../../../shared/explain';
 import { defaultContainer, DIALECTS } from '../../../../shared/dialect';
 import type { DbType } from '../../../../shared/models';
 import { classify, splitStatements, statementAt, type SqlStatement } from '../../../../shared/sql';
@@ -298,6 +299,65 @@ export class SqlStore {
     } else {
       this.patch(connectionId, tabId, { running: false, error: result.error, totalMs });
     }
+  }
+
+  /**
+   * Shows the plan of the selection or the statement under the cursor, without running it. Plans
+   * never change data, so nothing is confirmed and nothing goes into the history.
+   */
+  async explain(connectionId: string, tabId: string, editor: EditorSnapshot): Promise<void> {
+    const tab = this.find(connectionId, tabId);
+    if (!tab || tab.running) return;
+    const dialect = this.dialectOf(connectionId);
+    const statements = pickStatements(editor, 'current', dialect);
+    if (statements.length === 0) {
+      this.patch(connectionId, tabId, {
+        ...emptyRunState(),
+        error: {
+          code: 'EMPTY',
+          message: 'Niets om uit te leggen.',
+          hint: 'Zet de cursor in een query, of selecteer er een.',
+        },
+      });
+      return;
+    }
+    const plan = explainStatements(
+      statements.map((s) => s.sql),
+      dialect,
+    );
+    this.patch(connectionId, tabId, { ...emptyRunState(), running: true, ran: statements });
+    const started = performance.now();
+    const database = DIALECTS[dialect].editorDefaultContainer
+      ? (tab.database ?? undefined)
+      : undefined;
+    const result = await this.api.runScript(connectionId, tabId, {
+      statements: plan.statements,
+      database,
+      maxRows: tab.maxRows,
+    });
+    const totalMs = Math.round(performance.now() - started);
+    const results = result.ok ? result.data.results : [];
+    // SQL Server: a failed plan may leave SHOWPLAN on, and then nothing in this tab would run.
+    if (plan.cleanup.length && (!result.ok || results.some((r) => r.kind === 'error'))) {
+      await this.api.runScript(connectionId, tabId, { statements: plan.cleanup, maxRows: 0 });
+    }
+    if (!this.find(connectionId, tabId)) return;
+    if (!result.ok) {
+      this.patch(connectionId, tabId, { running: false, error: result.error, totalMs });
+      return;
+    }
+    // Only the plans, one per statement; the SHOWPLAN switches are left out.
+    let plans = plan.planAt.map((i) => results[i]).filter((r) => r !== undefined);
+    if (plans.length === 0) plans = results.filter((r) => r.kind === 'error').slice(0, 1);
+    const failed = plans.findIndex((r) => r.kind === 'error');
+    this.patch(connectionId, tabId, {
+      running: false,
+      ran: statements.slice(0, Math.max(1, plans.length)),
+      result: { ...result.data, results: plans },
+      totalMs,
+      activeResult: failed >= 0 ? failed : 0,
+      database: result.data.database ?? tab.database,
+    });
   }
 
   /** The database type of a connection; decides how scripts are split and classified. */

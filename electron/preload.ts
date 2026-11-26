@@ -32,6 +32,7 @@ const api: DbApi = {
   listUsers: (id) => ipcRenderer.invoke(IPC.listUsers, id),
   listProcesses: (id) => ipcRenderer.invoke(IPC.listProcesses, id),
   listIndexes: (id, db, table) => ipcRenderer.invoke(IPC.listIndexes, id, db, table),
+  tableDefinition: (id, db, table) => ipcRenderer.invoke(IPC.tableDefinition, id, db, table),
   applyDdl: (id, db, statements) => ipcRenderer.invoke(IPC.applyDdl, id, db, statements),
   stopProcess: (id, action, pid) => ipcRenderer.invoke(IPC.stopProcess, id, action, pid),
   userDetails: (id, user) => ipcRenderer.invoke(IPC.userDetails, id, user),

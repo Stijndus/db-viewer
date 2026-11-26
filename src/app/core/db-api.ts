@@ -43,6 +43,7 @@ function browserFallback(): DbApi {
     listUsers: fail,
     listProcesses: fail,
     listIndexes: fail,
+    tableDefinition: fail,
     applyDdl: fail,
     stopProcess: fail,
     userDetails: fail,
